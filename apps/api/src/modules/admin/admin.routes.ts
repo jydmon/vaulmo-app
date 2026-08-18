@@ -149,6 +149,75 @@ adminRouter.get('/subscriptions', requirePermission(PERMISSIONS.PLATFORM_MANAGE)
   res.json({ subscriptions: list, plans: planRows, summary: { total: list.length, active: active.length, arr } });
 });
 
+// ---- Reporting & analytics (platform owner) ----
+// A single aggregated snapshot: KPIs, daily time-series, categorical breakdowns and
+// usage rankings, all computed from live tables. `range` is a whole number of days.
+adminRouter.get('/analytics', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const range = Math.min(Math.max(Number(req.query.range ?? 30), 7), 365);
+  const rows = async (q: any) => (await db.execute(q)).rows as any[];
+
+  const [
+    signupUsers, signupTenants, docSeries, activitySeries,
+    plansBreakdown, docTypes, ticketStatus, subStatus, topTenants,
+    kpiRow,
+  ] = await Promise.all([
+    rows(sql`select to_char(date_trunc('day', created_at),'YYYY-MM-DD') d, count(*)::int n from ${users} where created_at >= now() - make_interval(days => ${range}) group by 1`),
+    rows(sql`select to_char(date_trunc('day', created_at),'YYYY-MM-DD') d, count(*)::int n from ${tenants} where created_at >= now() - make_interval(days => ${range}) group by 1`),
+    rows(sql`select to_char(date_trunc('day', created_at),'YYYY-MM-DD') d, count(*)::int n from documents where created_at >= now() - make_interval(days => ${range}) group by 1`),
+    rows(sql`select to_char(date_trunc('day', at),'YYYY-MM-DD') d, count(*)::int n from ${auditLogs} where at >= now() - make_interval(days => ${range}) group by 1`),
+    rows(sql`select coalesce(nullif(plan,''),'starter') k, count(*)::int n from ${tenants} group by 1 order by n desc`),
+    rows(sql`select coalesce(nullif(type_key,''),'unfiled') k, count(*)::int n from documents group by 1 order by n desc limit 12`),
+    rows(sql`select status k, count(*)::int n from support_tickets group by 1`),
+    rows(sql`select status k, count(*)::int n from ${subscriptions} group by 1`),
+    rows(sql`select t.name k, count(distinct d.id)::int documents, count(distinct u.id)::int members
+             from ${tenants} t left join documents d on d.tenant_id = t.id left join ${users} u on u.tenant_id = t.id
+             group by t.id, t.name order by documents desc, members desc limit 8`),
+    rows(sql`select
+             (select count(*) from ${tenants})::int customers,
+             (select count(*) from ${users})::int users,
+             (select count(*) from ${users} where mfa_enabled = true)::int mfa_users,
+             (select count(*) from ${users} where last_login_at >= now() - make_interval(days => ${range}))::int active_users,
+             (select count(*) from documents)::int documents,
+             (select count(*) from support_tickets where status <> 'closed')::int open_tickets,
+             (select count(*) from ${tenants} where created_at >= now() - make_interval(days => ${range}))::int new_customers,
+             (select count(*) from ${users} where created_at >= now() - make_interval(days => ${range}))::int new_users`),
+  ]);
+
+  // Continuous daily spine so gaps render as zero.
+  const map = (arr: any[]) => new Map(arr.map((r) => [r.d, r.n]));
+  const mu = map(signupUsers), mt = map(signupTenants), md = map(docSeries), ma = map(activitySeries);
+  const days: any[] = [];
+  const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+  for (let i = range - 1; i >= 0; i--) {
+    const dt = new Date(today.getTime() - i * 86400000);
+    const key = dt.toISOString().slice(0, 10);
+    days.push({ d: key, users: mu.get(key) ?? 0, tenants: mt.get(key) ?? 0, documents: md.get(key) ?? 0, events: ma.get(key) ?? 0 });
+  }
+
+  // ARR from active subscriptions.
+  const [subRows, planRows] = await Promise.all([db.select().from(subscriptions), db.select().from(plans)]);
+  const planByKey = new Map(planRows.map((p) => [p.key, p]));
+  const activeSubs = subRows.filter((s) => s.status === 'active' || s.status === 'trialing');
+  const arr = activeSubs.reduce((sum, s) => sum + (s.planKey ? planByKey.get(s.planKey)?.amount ?? 0 : 0), 0);
+
+  const k = kpiRow[0] ?? {};
+  res.json({
+    range,
+    kpis: {
+      customers: k.customers ?? 0, users: k.users ?? 0, activeUsers: k.active_users ?? 0,
+      mfaUsers: k.mfa_users ?? 0, mfaAdoptionPct: k.users ? Math.round((k.mfa_users / k.users) * 100) : 0,
+      documents: k.documents ?? 0, openTickets: k.open_tickets ?? 0,
+      newCustomers: k.new_customers ?? 0, newUsers: k.new_users ?? 0,
+      activeSubscriptions: activeSubs.length, arr,
+    },
+    series: days,
+    breakdowns: {
+      plans: plansBreakdown, documentTypes: docTypes, tickets: ticketStatus, subscriptions: subStatus,
+    },
+    usage: { topTenants },
+  });
+});
+
 const setSubSchema = z.object({ planKey: z.string().min(1), status: z.string().optional(), months: z.number().int().positive().optional() });
 adminRouter.post('/subscriptions/:tenantId', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
   const body = setSubSchema.parse(req.body);

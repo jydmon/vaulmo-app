@@ -19,6 +19,7 @@ const ICONS: Record<string, string> = {
   overview: 'M4 13h7V4H4zM13 20h7v-9h-7zM4 20h7v-4H4zM13 4v5h7V4z', tenants: 'M4 20V8l6-4 6 4v12M4 20h12M14 11h3v9', users: 'M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 2.7-5 6-5M17 11a3 3 0 000-6M21 20c0-2.4-1.6-4-4-4.4', audit: 'M7 4h10v16H7zM10 8h4M10 12h4M10 16h2',
   support: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z',
   emergency: 'M12 3l7 3v5c0 4.4-2.9 8.3-7 9.5-4.1-1.2-7-5.1-7-9.5V6l7-3zM12 9v4M12 16h.01',
+  reports: 'M3 3v18h18M8 17V9M13 17V5M18 17v-4',
 };
 const Icon = ({ k, size = 20 }: { k: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[k] ?? ICONS.home} /></svg>;
 
@@ -87,7 +88,7 @@ const TENANT_NAV = [
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
   { grp: 'Account' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'audit', label: 'Audit', ic: 'audit' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'audit', label: 'Audit', ic: 'audit' }];
 
 function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -103,10 +104,10 @@ function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
-  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -783,6 +784,106 @@ function AdminEmergency({ toast }: any) {
           <td><span className={`pill ${m.pill}`}>{m.label}</span></td>
         </tr>; })}</tbody></table>
       {!reqs.length && <div className="empty">No emergency access requests on the platform.</div>}
+    </Card>
+  </>;
+}
+
+/* ---------------- Reporting & analytics ---------------- */
+// Lightweight, dependency-free inline SVG charts.
+const CHART_W = 640, CHART_H = 180, PAD = 24;
+function LineChart({ data, lines }: { data: any[]; lines: { k: string; color: string; label: string }[] }) {
+  const n = data.length || 1;
+  const max = Math.max(1, ...data.flatMap((d) => lines.map((l) => d[l.k] ?? 0)));
+  const x = (i: number) => PAD + (i * (CHART_W - PAD * 2)) / Math.max(1, n - 1);
+  const y = (v: number) => CHART_H - PAD - (v * (CHART_H - PAD * 2)) / max;
+  const path = (k: string) => data.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(d[k] ?? 0).toFixed(1)}`).join(' ');
+  const ticks = [0, Math.round(max / 2), max];
+  return <div>
+    <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: '100%', height: 'auto' }}>
+      {ticks.map((t) => <g key={t}><line x1={PAD} x2={CHART_W - PAD} y1={y(t)} y2={y(t)} stroke="var(--line)" strokeWidth={1} /><text x={4} y={y(t) + 3} fontSize={9} fill="var(--muted)">{t}</text></g>)}
+      {lines.map((l) => <g key={l.k}><path d={path(l.k)} fill="none" stroke={l.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        {data.map((d, i) => <circle key={i} cx={x(i)} cy={y(d[l.k] ?? 0)} r={n <= 45 ? 1.6 : 0} fill={l.color} />)}</g>)}
+    </svg>
+    <div className="flex" style={{ gap: 16, marginTop: 4, flexWrap: 'wrap' }}>{lines.map((l) => <span key={l.k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: l.color }} />{l.label}</span>)}</div>
+  </div>;
+}
+function BarChart({ data, k, color }: { data: any[]; k: string; color: string }) {
+  const n = data.length || 1;
+  const max = Math.max(1, ...data.map((d) => d[k] ?? 0));
+  const bw = (CHART_W - PAD * 2) / n;
+  const y = (v: number) => CHART_H - PAD - (v * (CHART_H - PAD * 2)) / max;
+  return <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: '100%', height: 'auto' }}>
+    {[0, Math.round(max / 2), max].map((t) => <g key={t}><line x1={PAD} x2={CHART_W - PAD} y1={y(t)} y2={y(t)} stroke="var(--line)" strokeWidth={1} /><text x={4} y={y(t) + 3} fontSize={9} fill="var(--muted)">{t}</text></g>)}
+    {data.map((d, i) => { const v = d[k] ?? 0; return <rect key={i} x={PAD + i * bw + bw * 0.15} y={y(v)} width={bw * 0.7} height={Math.max(0, CHART_H - PAD - y(v))} rx={1.5} fill={color} />; })}
+  </svg>;
+}
+const BAR_COLORS = ['#2563eb', '#0891b2', '#7c3aed', '#059669', '#d97706', '#dc2626', '#0284c7', '#4f46e5', '#65a30d', '#db2777', '#ca8a04', '#475569'];
+function HBars({ items, fmtVal }: { items: { k: string; n: number }[]; fmtVal?: (n: number) => string }) {
+  const max = Math.max(1, ...items.map((i) => i.n));
+  if (!items.length) return <div className="empty">No data yet.</div>;
+  return <div style={{ display: 'grid', gap: 8 }}>{items.map((it, i) => <div key={it.k}>
+    <div className="flex" style={{ justifyContent: 'space-between', fontSize: 13, marginBottom: 3 }}><span style={{ textTransform: 'capitalize' }}>{it.k.replace(/_/g, ' ')}</span><b>{fmtVal ? fmtVal(it.n) : it.n}</b></div>
+    <div style={{ background: 'var(--surface-2)', borderRadius: 6, height: 8 }}><div style={{ width: `${(it.n / max) * 100}%`, background: BAR_COLORS[i % BAR_COLORS.length], height: 8, borderRadius: 6 }} /></div>
+  </div>)}</div>;
+}
+
+function AdminReports() {
+  const [range, setRange] = useState(30);
+  const { data } = useData(() => api.adminAnalytics(range), [range]);
+  if (!data) return <Card title="Analytics"><div className="empty">Loading analytics…</div></Card>;
+  const k = data.kpis ?? {};
+  const series = data.series ?? [];
+  const b = data.breakdowns ?? {};
+  const gbpv = (pence: number) => gbp(pence);
+
+  function exportCsv() {
+    const head = 'date,new_users,new_customers,documents,activity_events';
+    const rows = series.map((d: any) => `${d.d},${d.users},${d.tenants},${d.documents},${d.events}`);
+    const blob = new Blob([[head, ...rows].join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `vaulmo-analytics-${range}d.csv`; a.click(); URL.revokeObjectURL(url);
+  }
+
+  return <>
+    <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+      <div className="flex" style={{ gap: 6 }}>{[7, 30, 90].map((r) => <button key={r} className={`btn sm ${range === r ? '' : 'sec'}`} onClick={() => setRange(r)}>{r} days</button>)}</div>
+      <button className="btn sm sec" onClick={exportCsv}>Export CSV</button>
+    </div>
+
+    <div className="tiles">
+      <Tile ic="🏠" bg="var(--brand-soft)" lab="Customers" val={k.customers} note={`+${k.newCustomers} in ${range}d`} />
+      <Tile ic="👤" bg="var(--aqua-bg)" lab="Users" val={k.users} note={`+${k.newUsers} in ${range}d`} />
+      <Tile ic="⚡" bg="var(--good-bg)" lab={`Active users (${range}d)`} val={k.activeUsers} note={`${k.users ? Math.round((k.activeUsers / k.users) * 100) : 0}% of users`} />
+      <Tile ic="💷" bg="var(--warn-bg)" lab="Annual revenue" val={gbpv(k.arr ?? 0)} note={`${k.activeSubscriptions} active subs`} />
+    </div>
+    <div className="tiles">
+      <Tile ic="📄" bg="var(--brand-soft)" lab="Documents" val={k.documents} />
+      <Tile ic="🔐" bg="var(--aqua-bg)" lab="MFA adoption" val={`${k.mfaAdoptionPct}%`} note={`${k.mfaUsers} users`} />
+      <Tile ic="💬" bg="var(--warn-bg)" lab="Open tickets" val={k.openTickets} />
+      <Tile ic="📈" bg="var(--good-bg)" lab={`New sign-ups (${range}d)`} val={k.newUsers} />
+    </div>
+
+    <Card title="Growth">
+      <LineChart data={series} lines={[{ k: 'users', color: '#2563eb', label: 'New users' }, { k: 'tenants', color: '#059669', label: 'New customers' }]} />
+    </Card>
+    <div className="grid2">
+      <Card title="Documents added"><BarChart data={series} k="documents" color="#0891b2" /></Card>
+      <Card title="Platform activity (events/day)"><BarChart data={series} k="events" color="#7c3aed" /></Card>
+    </div>
+
+    <div className="grid2">
+      <Card title="Customers by plan"><HBars items={b.plans ?? []} /></Card>
+      <Card title="Documents by type"><HBars items={b.documentTypes ?? []} /></Card>
+    </div>
+    <div className="grid2">
+      <Card title="Subscriptions by status"><HBars items={b.subscriptions ?? []} /></Card>
+      <Card title="Support tickets by status"><HBars items={b.tickets ?? []} /></Card>
+    </div>
+
+    <Card title="Most active households (by documents stored)">
+      <table><thead><tr><th>Household</th><th>Documents</th><th>Members</th></tr></thead>
+        <tbody>{(data.usage?.topTenants ?? []).map((t: any, i: number) => <tr key={i}><td><b>{t.k}</b></td><td>{t.documents}</td><td>{t.members}</td></tr>)}</tbody></table>
+      {!(data.usage?.topTenants ?? []).length && <div className="empty">No usage data yet.</div>}
     </Card>
   </>;
 }
