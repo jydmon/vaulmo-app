@@ -172,6 +172,10 @@ export const api = {
   adminAi: () => G<any>('/admin/ai'),
   adminSetAiConfig: (ai: any) => PUT<any>('/admin/ai/config', { ai }),
   adminSetOcrConfig: (ocr: any) => PUT<any>('/admin/ai/ocr', { ocr }),
+  // operational dashboard + integrations
+  adminDashboard: () => G<any>('/admin/dashboard'),
+  adminIntegrations: () => G<any>('/admin/integrations'),
+  adminSetIntegrations: (config: any) => PUT<any>('/admin/integrations/config', { config }),
   // emergency access (Phase 8) — owner + super admin console
   emergencyFeature: () => G<any>('/emergency/status'),
   emergencyRequests: () => G<any>('/emergency/requests'),

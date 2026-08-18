@@ -32,6 +32,7 @@ const ICONS: Record<string, string> = {
   notif: 'M6 9a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6zM10 20a2 2 0 004 0',
   gdpr: 'M12 3l7 3v5c0 4.4-2.9 8.3-7 9.5-4.1-1.2-7-5.1-7-9.5V6l7-3zM9.5 12l1.8 1.8 3.2-3.6',
   ai: 'M12 3a9 9 0 00-9 9c0 1.6.4 3 1.1 4.3L3 21l4.8-1.1A9 9 0 1012 3zM9 11h.01M12 11h.01M15 11h.01',
+  integrations: 'M9 7l-2 2a4 4 0 000 6l2 2M15 7l2 2a4 4 0 010 6l-2 2M9 12h6',
 };
 const Icon = ({ k, size = 20 }: { k: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[k] ?? ICONS.home} /></svg>;
 
@@ -167,7 +168,7 @@ const TENANT_NAV = [
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
   { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
 
 function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; refreshMe: () => Promise<void> }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -188,10 +189,10 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
-  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -531,19 +532,46 @@ function DevicesCard({ toast }: any) {
 const gbp = (v: number, c = 'gbp') => (c === 'usd' ? '$' : '£') + ((v ?? 0) / 100).toLocaleString();
 const subPill = (s: string) => (s === 'active' || s === 'trialing' ? 'p-good' : s === 'past_due' ? 'p-warn' : s === 'canceled' ? 'p-crit' : 'p-neutral');
 
-function AdminHome() {
-  const { data: m } = useData(() => api.adminMetrics());
-  const { data: a } = useData(() => api.adminAudit());
+function AdminHome({ go }: any) {
+  const { data: d } = useData(() => api.adminDashboard());
+  if (!d) return <Card title="Overview"><div className="empty">Loading platform overview…</div></Card>;
+  const sys = d.systemStatus;
+  const sysMeta = sys === 'operational' ? { pill: 'p-good', txt: 'All systems operational' } : sys === 'issues' ? { pill: 'p-crit', txt: 'System issues need attention' } : { pill: 'p-warn', txt: 'Minor degradation' };
+  const alerts = (d.security?.failedLogins7d ?? 0) + (d.security?.lockouts ?? 0) + (d.integrations?.error ?? 0);
   return <>
-    <div className="tiles">
-      <Tile ic="🏢" bg="var(--brand-soft)" lab="Customers" val={m?.tenants ?? 0} />
-      <Tile ic="✅" bg="var(--good-bg)" lab="Active subscriptions" val={m?.activeSubscriptions ?? 0} />
-      <Tile ic="💷" bg="var(--aqua-bg)" lab="Annual revenue" val={gbp(m?.arr ?? 0)} />
-      <Tile ic="👥" bg="var(--warn-bg)" lab="People" val={m?.users ?? 0} />
+    <div className="card" style={{ marginBottom: 18, background: sys === 'operational' ? 'var(--good-bg)' : sys === 'issues' ? 'var(--crit-bg)' : 'var(--warn-bg)', border: 0 }}>
+      <div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="flex" style={{ gap: 10, alignItems: 'center' }}><span style={{ width: 11, height: 11, borderRadius: 6, background: sys === 'operational' ? '#0ca30c' : sys === 'issues' ? '#d03b3b' : '#c98500' }} /><b>{sysMeta.txt}</b></div>
+        {go && <a onClick={() => go('health')} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>System Health →</a>}
+      </div>
     </div>
-    <Card title="Recent activity">
-      {(a?.logs ?? []).slice(0, 10).map((l: any) => <div className="row" key={l.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{l.outcome === 'failure' ? '⚠️' : '•'}</div><div className="m"><div className="t">{l.action}</div><div className="s">{l.targetType ?? ''} · {l.outcome} · {fmt(l.at)}</div></div></div>)}
-      {!(a?.logs ?? []).length && <div className="empty">No activity yet.</div>}
+    <div className="tiles">
+      <Tile ic="🏠" bg="var(--brand-soft)" lab="Customers" val={d.customers} note={`+${d.newCustomers7d} this week`} />
+      <Tile ic="👥" bg="var(--aqua-bg)" lab="Users" val={d.users} note={`${d.activeUsers} active (30d)`} />
+      <Tile ic="💷" bg="var(--good-bg)" lab="Annual revenue" val={gbp(d.arr)} note={`${d.activeSubscriptions} active subs`} />
+      <Tile ic="⚠️" bg={alerts > 0 ? 'var(--crit-bg)' : 'var(--surface-2)'} lab="Security alerts (7d)" val={alerts} />
+    </div>
+    <div className="tiles">
+      <Tile ic="📄" bg="var(--surface-2)" lab="Storage used" val={`${d.storage?.mb ?? 0} MB`} note={`${d.storage?.files ?? 0} files`} />
+      <Tile ic="🤖" bg="var(--surface-2)" lab="AI requests (30d)" val={(d.ai?.requests30d ?? 0).toLocaleString()} note={`$${(d.ai?.costUsd30d ?? 0).toFixed(2)} est.`} />
+      <Tile ic="📨" bg="var(--surface-2)" lab="Notif. delivery" val={`${d.notifications?.deliveryRate ?? 100}%`} note={`${(d.notifications?.total ?? 0).toLocaleString()} total`} />
+      <Tile ic="🔌" bg="var(--surface-2)" lab="Integrations" val={d.integrations?.connected ?? 0} note={d.integrations?.error ? `${d.integrations.error} in error` : 'all healthy'} />
+    </div>
+    <div className="grid2">
+      <Card title="Subscriptions" right={go ? <a onClick={() => go('subscriptions')} style={{ cursor: 'pointer', fontSize: 12.5 }}>Manage →</a> : undefined}>
+        <div className="row"><div className="ic" style={{ background: 'var(--good-bg)' }}>✅</div><div className="m"><div className="t">Active</div></div><b>{d.activeSubscriptions}</b></div>
+        <div className="row"><div className="ic" style={{ background: 'var(--crit-bg)' }}>⛔</div><div className="m"><div className="t">Expired / cancelled</div></div><b>{d.expiredSubscriptions}</b></div>
+        <div className="row"><div className="ic" style={{ background: 'var(--aqua-bg)' }}>💷</div><div className="m"><div className="t">Annual recurring revenue</div></div><b>{gbp(d.arr)}</b></div>
+      </Card>
+      <Card title="Security" right={go ? <a onClick={() => go('security')} style={{ cursor: 'pointer', fontSize: 12.5 }}>Security →</a> : undefined}>
+        <div className="row"><div className="ic" style={{ background: 'var(--warn-bg)' }}>🔑</div><div className="m"><div className="t">Failed logins (7d)</div></div><b>{d.security?.failedLogins7d ?? 0}</b></div>
+        <div className="row"><div className="ic" style={{ background: 'var(--crit-bg)' }}>🔒</div><div className="m"><div className="t">Active lockouts</div></div><b>{d.security?.lockouts ?? 0}</b></div>
+        <div className="row"><div className="ic" style={{ background: 'var(--surface-2)' }}>{sys === 'operational' ? '🟢' : '🟠'}</div><div className="m"><div className="t">System status</div></div><span className={`pill ${sysMeta.pill}`}>{sys}</span></div>
+      </Card>
+    </div>
+    <Card title="Recent platform activity" right={go ? <a onClick={() => go('audit')} style={{ cursor: 'pointer', fontSize: 12.5 }}>Audit log →</a> : undefined}>
+      {(d.recentActivity ?? []).map((l: any) => <div className="row" key={l.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{l.outcome === 'failure' ? '⚠️' : '•'}</div><div className="m"><div className="t">{l.action}</div><div className="s">{l.targetType ?? ''} · {l.outcome} · {fmt(l.at)}</div></div></div>)}
+      {!(d.recentActivity ?? []).length && <div className="empty">No activity yet.</div>}
     </Card>
   </>;
 }
@@ -1808,5 +1836,44 @@ function AdminAI({ toast }: any) {
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Per-plan AI limits are edited in Subscriptions → plan entitlements.</p>
       </Card>
     </div>
+  </>;
+}
+
+/* ---------------- Integrations management ---------------- */
+const intIcon = (id: string) => ({ gmail: '📧', outlook: '📨', google_drive: '📁', onedrive: '☁️', google_calendar: '📅', openbanking: '🏦' } as any)[id] ?? '🔌';
+function AdminIntegrations({ toast }: any) {
+  const { data, reload } = useData(() => api.adminIntegrations());
+  const [cfg, setCfg] = useState<any>(null);
+  useEffect(() => { if (data) setCfg(JSON.parse(JSON.stringify(data.config))); }, [data]);
+  if (!data || !cfg) return <Card title="Integrations"><div className="empty">Loading…</div></Card>;
+  const health = new Map((data.health ?? []).map((h: any) => [h.provider, h]));
+  const plans = data.plans ?? [];
+
+  function toggle(i: number, patch: any) { const p = cfg.providers.slice(); p[i] = { ...p[i], ...patch }; setCfg({ ...cfg, providers: p }); }
+  function togglePlan(i: number, key: string) { const p = cfg.providers.slice(); const has = (p[i].plans ?? []).includes(key); p[i] = { ...p[i], plans: has ? p[i].plans.filter((x: string) => x !== key) : [...(p[i].plans ?? []), key] }; setCfg({ ...cfg, providers: p }); }
+  async function save() { try { await api.adminSetIntegrations(cfg); toast('Integrations saved'); await reload(); } catch (e) { toast((e as any).message); } }
+
+  const totalConnected = (data.health ?? []).reduce((s: number, h: any) => s + h.connected, 0);
+  const totalErrors = (data.health ?? []).reduce((s: number, h: any) => s + h.error, 0);
+  return <>
+    <div className="tiles">
+      <Tile ic="🔌" bg="var(--brand-soft)" lab="Providers" val={cfg.providers.length} />
+      <Tile ic="✅" bg="var(--good-bg)" lab="Enabled" val={cfg.providers.filter((p: any) => p.enabled).length} />
+      <Tile ic="🔗" bg="var(--aqua-bg)" lab="Live connections" val={totalConnected} />
+      <Tile ic="🔴" bg={totalErrors ? 'var(--crit-bg)' : 'var(--surface-2)'} lab="Connection errors" val={totalErrors} />
+    </div>
+    <Card title="Available integrations" right={<button className="btn sm" onClick={save}>Save</button>}>
+      <table><thead><tr><th>Integration</th><th>Available</th><th>Plans</th><th>Health</th></tr></thead>
+        <tbody>{cfg.providers.map((p: any, i: number) => { const h: any = health.get(p.id); return <tr key={p.id}>
+          <td><span style={{ fontSize: 16 }}>{intIcon(p.id)}</span> <b>{p.name}</b><div className="muted" style={{ fontSize: 12 }}>{p.category}</div></td>
+          <td><button className={`pill ${p.enabled ? 'p-good' : 'p-neutral'}`} style={{ cursor: 'pointer' }} onClick={() => toggle(i, { enabled: !p.enabled })}>{p.enabled ? 'Enabled' : 'Disabled'}</button></td>
+          <td><div className="flex" style={{ gap: 4, flexWrap: 'wrap' }}>{plans.filter((pl: any) => pl.key !== 'starter').map((pl: any) => <button key={pl.key} className={`pill ${(p.plans ?? []).includes(pl.key) ? 'p-info' : 'p-neutral'}`} style={{ cursor: 'pointer', textTransform: 'capitalize' }} onClick={() => togglePlan(i, pl.key)}>{pl.name}</button>)}</div></td>
+          <td>{h ? <span>{h.connected > 0 && <span className="pill p-good" style={{ marginRight: 4 }}>{h.connected} live</span>}{h.error > 0 && <span className="pill p-crit" style={{ marginRight: 4 }}>{h.error} error</span>}{h.disconnected > 0 && <span className="pill p-neutral">{h.disconnected} off</span>}{h.lastSync && <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>synced {fmt(h.lastSync)}</div>}</span> : <span className="muted" style={{ fontSize: 12 }}>no connections</span>}</td>
+        </tr>; })}</tbody></table>
+      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Disabling an integration hides it from customers. Plan tags control which subscription tiers can connect it. OAuth secrets live on the server, never here.</p>
+    </Card>
+    {(data.recentErrors ?? []).length > 0 && <Card title="Connection issues">
+      {data.recentErrors.map((e: any) => <div className="row" key={e.provider}><div className="ic" style={{ background: 'var(--crit-bg)' }}>{intIcon(e.provider)}</div><div className="m"><div className="t" style={{ textTransform: 'capitalize' }}>{e.provider}</div><div className="s">{e.n} failed connection{e.n === 1 ? '' : 's'} · latest {fmt(e.at)}</div></div><span className="pill p-crit">error</span></div>)}
+    </Card>}
   </>;
 }

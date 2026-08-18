@@ -361,6 +361,99 @@ adminRouter.delete('/cms/articles/:id', requirePermission(PERMISSIONS.PLATFORM_M
   res.json({ ok: true });
 });
 
+// ================= Operational Dashboard (consolidated cockpit) =================
+adminRouter.get('/dashboard', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const rows = async (q: any) => (await db.execute(q)).rows as any[];
+  const [
+    kpi, subRows, planRows, fileAgg, aiAgg, notifAgg, connAgg, secFail, activity, dbCheck,
+  ] = await Promise.all([
+    rows(sql`select
+      (select count(*) from tenants)::int customers,
+      (select count(*) from users)::int users,
+      (select count(*) from users where last_login_at >= now() - interval '30 days')::int active_users,
+      (select count(*) from users where created_at >= now() - interval '7 days')::int new_users,
+      (select count(*) from tenants where created_at >= now() - interval '7 days')::int new_customers`),
+    db.select().from(subscriptions),
+    db.select().from(plans),
+    rows(sql`select count(*)::int n, coalesce(sum(size_bytes),0)::bigint bytes from file_objects`),
+    rows(sql`select count(*)::int requests, coalesce(sum(cost_micros),0)::bigint cost from ai_usage where created_at >= now() - interval '30 days'`),
+    rows(sql`select count(*)::int total, coalesce(sum(case when status in ('sent','read') then 1 else 0 end),0)::int delivered from notifications`),
+    rows(sql`select status, count(*)::int n from connections group by status`),
+    rows(sql`select
+      (select count(*) from audit_logs where action='auth.login' and outcome='failure' and at >= now() - interval '7 days')::int failed_logins,
+      (select count(*) from users where locked_until is not null and locked_until > now())::int lockouts`),
+    db.select().from(auditLogs).orderBy(desc(auditLogs.at)).limit(8),
+    rows(sql`select 1 ok`).then((r) => !!r.length).catch(() => false),
+  ]);
+  const planByKey = new Map(planRows.map((p) => [p.key, p]));
+  const active = subRows.filter((s) => s.status === 'active' || s.status === 'trialing');
+  const expired = subRows.filter((s) => s.status === 'canceled' || s.status === 'past_due' || s.status === 'expired');
+  const arr = active.reduce((sum, s) => sum + (s.planKey ? (planByKey.get(s.planKey) as any)?.amount ?? 0 : 0), 0);
+  const k = kpi[0] ?? {};
+  const notif = notifAgg[0] ?? {};
+  const connConnected = connAgg.filter((c) => c.status === 'connected').reduce((s, c) => s + c.n, 0);
+  const connError = connAgg.filter((c) => c.status === 'error' || c.status === 'failed').reduce((s, c) => s + c.n, 0);
+  const sec = secFail[0] ?? {};
+  const issues = (dbCheck ? 0 : 1) + (connError > 0 ? 1 : 0) + ((sec.lockouts ?? 0) > 0 ? 1 : 0);
+  res.json({
+    customers: k.customers ?? 0, users: k.users ?? 0, activeUsers: k.active_users ?? 0,
+    newUsers7d: k.new_users ?? 0, newCustomers7d: k.new_customers ?? 0,
+    activeSubscriptions: active.length, expiredSubscriptions: expired.length, arr,
+    storage: { files: fileAgg[0]?.n ?? 0, mb: Math.round(Number(fileAgg[0]?.bytes ?? 0) / 1048576) },
+    ai: { requests30d: aiAgg[0]?.requests ?? 0, costUsd30d: Number(aiAgg[0]?.cost ?? 0) / 1e6 },
+    notifications: { total: notif.total ?? 0, deliveryRate: notif.total ? Math.round((notif.delivered / notif.total) * 100) : 100 },
+    integrations: { connected: connConnected, error: connError },
+    security: { failedLogins7d: sec.failed_logins ?? 0, lockouts: sec.lockouts ?? 0 },
+    systemStatus: issues === 0 ? 'operational' : issues >= 2 ? 'issues' : 'degraded',
+    recentActivity: activity,
+  });
+});
+
+// ================= Integrations management =================
+const DEFAULT_INTEGRATIONS = { providers: [
+  { id: 'gmail', name: 'Gmail', category: 'Email', enabled: true, plans: ['family', 'premium'] },
+  { id: 'outlook', name: 'Outlook', category: 'Email', enabled: true, plans: ['family', 'premium'] },
+  { id: 'google_drive', name: 'Google Drive', category: 'Storage', enabled: false, plans: [] },
+  { id: 'onedrive', name: 'OneDrive', category: 'Storage', enabled: false, plans: [] },
+  { id: 'google_calendar', name: 'Google Calendar', category: 'Calendar', enabled: false, plans: [] },
+  { id: 'openbanking', name: 'Open Banking', category: 'Finance', enabled: true, plans: ['premium'] },
+] };
+
+adminRouter.get('/integrations', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const rows = async (q: any) => (await db.execute(q)).rows as any[];
+  const [cfg, byProvider, recentErrors, planRows] = await Promise.all([
+    db.select().from(platformSettings).where(eq(platformSettings.key, 'integrations')).limit(1),
+    rows(sql`select provider, status, count(*)::int n, max(last_sync_at) last_sync from connections group by provider, status`),
+    rows(sql`select provider, count(*)::int n, max(created_at) at from connections where status in ('error','failed') group by provider`),
+    db.select({ key: plans.key, name: plans.name }).from(plans),
+  ]);
+  // Aggregate health per provider
+  const health = new Map<string, any>();
+  for (const r of byProvider) {
+    const h = health.get(r.provider) ?? { provider: r.provider, connected: 0, error: 0, disconnected: 0, lastSync: null };
+    if (r.status === 'connected') h.connected += r.n;
+    else if (r.status === 'error' || r.status === 'failed') h.error += r.n;
+    else h.disconnected += r.n;
+    if (r.last_sync && (!h.lastSync || r.last_sync > h.lastSync)) h.lastSync = r.last_sync;
+    health.set(r.provider, h);
+  }
+  res.json({
+    config: cfg[0]?.value ?? DEFAULT_INTEGRATIONS,
+    health: [...health.values()],
+    recentErrors,
+    plans: planRows,
+  });
+});
+
+adminRouter.put('/integrations/config', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const value = req.body?.config ?? req.body;
+  const [existing] = await db.select().from(platformSettings).where(eq(platformSettings.key, 'integrations')).limit(1);
+  if (existing) await db.update(platformSettings).set({ value, updatedAt: new Date() }).where(eq(platformSettings.key, 'integrations'));
+  else await db.insert(platformSettings).values({ key: 'integrations', value });
+  await audit({ action: 'admin.integrations.config', actorId: req.auth!.sub, targetType: 'setting', targetId: 'integrations', req });
+  res.json({ ok: true });
+});
+
 // ================= AI & OCR (config + usage monitoring) =================
 const DEFAULT_AI = { defaultModel: 'gpt-4o-mini', monthlyRequestCap: 0, models: [
   { id: 'gpt-4o-mini', label: 'GPT-4o mini', enabled: true, features: ['assistant', 'summary', 'classification'] },
