@@ -26,6 +26,22 @@ const ICONS: Record<string, string> = {
 };
 const Icon = ({ k, size = 20 }: { k: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[k] ?? ICONS.home} /></svg>;
 
+// Vaulmo brand mark — blue vault-shield with a "V" and aqua lock dot.
+let MARK_N = 0;
+const Mark = ({ size = 36 }: { size?: number }) => {
+  const id = `vm${++MARK_N}`;
+  return <svg width={size} height={size} viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', borderRadius: Math.round(size * 0.23) }}>
+    <defs>
+      <linearGradient id={`${id}bg`} x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop offset="0" stopColor="#3B82F6" /><stop offset="0.55" stopColor="#2563EB" /><stop offset="1" stopColor="#1E3A8A" /></linearGradient>
+      <linearGradient id={`${id}v`} x1="176" y1="196" x2="336" y2="196" gradientUnits="userSpaceOnUse"><stop offset="0" stopColor="#2563EB" /><stop offset="1" stopColor="#1E40AF" /></linearGradient>
+    </defs>
+    <rect width="512" height="512" rx="116" fill={`url(#${id}bg)`} />
+    <path d="M256 120 C300 120 336 132 372 150 L372 262 C372 336 326 388 256 414 C186 388 140 336 140 262 L140 150 C176 132 212 120 256 120 Z" fill="#ffffff" />
+    <path d="M196 196 L256 322 L316 196" fill="none" stroke={`url(#${id}v)`} strokeWidth="40" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="256" cy="300" r="19" fill="#22D3EE" />
+  </svg>;
+};
+
 /* ---------------- root ---------------- */
 export function App() {
   const [me, setMe] = useState<any>(null);
@@ -42,7 +58,7 @@ export function App() {
   return (
     <div className="auth-wrap">
       <div>
-        <div className="brandmark"><div className="logo">LH</div><div><b>Vaulmo</b><span>Your life, organised</span></div></div>
+        <div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Your life, organised</span></div></div>
         {error && <div className="err" style={{ width: 400, maxWidth: '92vw' }}>{error}</div>}
         {view === 'login' && <AuthForm title="Sign in" fields={['email', 'password']} cta="Sign in"
           onSubmit={async (v) => { setError(''); try { await afterAuth(await api.login(v)); } catch (e) { setError(e instanceof ApiError ? e.message : 'Failed'); } }}
@@ -114,7 +130,7 @@ function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
 
   return <div className="app">
     <aside className="sidebar">
-      <div className="sb-brand"><div className="logo">LH</div><div><b>Vaulmo</b><span>{isSuper ? 'Admin' : 'Family Vault'}</span></div></div>
+      <div className="sb-brand"><Mark size={34} /><div><b>Vaulmo</b><span>{isSuper ? 'Admin' : 'Family Vault'}</span></div></div>
       <nav className="nav">{nav.map((n: any, i) => n.grp ? <div className="grp" key={i}>{n.grp}</div> :
         <button key={n.id} className={active === n.id ? 'on' : ''} onClick={() => setActive(n.id)}><Icon k={n.ic} />{n.label}{n.id === 'reminders' && unread > 0 && <span className="dot">{unread}</span>}</button>)}
       </nav>
