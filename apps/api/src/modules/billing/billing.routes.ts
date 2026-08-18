@@ -72,6 +72,26 @@ billingRouter.get('/admin/plans', requirePermission(PERMISSIONS.PLATFORM_MANAGE)
   res.json({ plans: await db.select().from(plans).orderBy(plans.sort) });
 });
 
+// Stripe connection status — so the owner can see which mode billing is in and what still
+// needs configuring before switching to live payments. Secret keys are NEVER returned.
+billingRouter.get('/admin/status', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const driver = (process.env.STRIPE_DRIVER ?? 'fake').toLowerCase();
+  const hasSecretKey = !!process.env.STRIPE_SECRET_KEY;
+  const hasWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET;
+  const secretKind = process.env.STRIPE_SECRET_KEY?.startsWith('sk_live') ? 'live' : process.env.STRIPE_SECRET_KEY?.startsWith('sk_test') ? 'test' : null;
+  const planRows = await db.select().from(plans);
+  const provisioned = planRows.filter((p) => !!p.stripePriceId).length;
+  res.json({
+    driver, // 'fake' | 'stripe'
+    mode: driver === 'fake' ? 'sandbox' : secretKind ?? 'unknown', // sandbox | test | live
+    hasSecretKey,
+    hasWebhookSecret,
+    plansTotal: planRows.length,
+    plansProvisioned: provisioned,
+    liveReady: driver === 'stripe' && hasSecretKey && hasWebhookSecret && secretKind === 'live',
+  });
+});
+
 const planSchema = z.object({
   key: z.string().min(2).max(40),
   name: z.string().min(1),
@@ -80,6 +100,7 @@ const planSchema = z.object({
   interval: z.string().default('year'),
   entitlements: z.record(z.any()).default({}),
   sort: z.number().int().optional(),
+  active: z.boolean().optional(),
 });
 billingRouter.post('/admin/plans', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
   const body = planSchema.parse(req.body);
@@ -89,7 +110,7 @@ billingRouter.post('/admin/plans', requirePermission(PERMISSIONS.PLATFORM_MANAGE
   } else {
     await db.insert(plans).values({ ...body, entitlements: body.entitlements as any });
   }
-  const provisioned = await provisionPlan(body.key); // creates Stripe product + price
+  const provisioned = await provisionPlan(body.key); // creates Stripe product + price (real driver) or a fake ref
   await audit({ action: 'billing.plan.upserted', actorId: req.auth!.sub, metadata: { key: body.key }, req });
   res.status(201).json({ plan: provisioned });
 });

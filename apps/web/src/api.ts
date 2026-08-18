@@ -114,4 +114,7 @@ export const api = {
   adminCustomers: () => G<any>('/admin/customers'),
   adminSubscriptions: () => G<any>('/admin/subscriptions'),
   adminSetSubscription: (tenantId: string, b: any) => P<any>(`/admin/subscriptions/${tenantId}`, b),
+  adminBillingStatus: () => G<any>('/billing/admin/status'),
+  adminPlansAll: () => G<any>('/billing/admin/plans'),
+  adminUpsertPlan: (b: any) => P<any>('/billing/admin/plans', b),
 };

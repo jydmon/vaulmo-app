@@ -52,10 +52,18 @@ export function App() {
 
 function AuthForm(props: { title: string; fields: string[]; cta: string; onSubmit: (v: any) => void; foot: React.ReactNode }) {
   const [v, setV] = useState<any>({ fullName: '', email: '', password: '' });
+  const [showPw, setShowPw] = useState(false);
   const lbl: any = { fullName: 'Full name', email: 'Email', password: 'Password' };
   return <form className="card auth-card" onSubmit={(e) => { e.preventDefault(); props.onSubmit(v); }}>
     <h1>{props.title}</h1>
-    {props.fields.map((f) => <label key={f}>{lbl[f]}<input type={f === 'password' ? 'password' : f === 'email' ? 'email' : 'text'} value={v[f]} onChange={(e) => setV({ ...v, [f]: e.target.value })} required /></label>)}
+    {props.fields.map((f) => f === 'password'
+      ? <label key={f}>Password
+          <span style={{ position: 'relative', display: 'block' }}>
+            <input type={showPw ? 'text' : 'password'} value={v[f]} onChange={(e) => setV({ ...v, [f]: e.target.value })} required style={{ paddingRight: 62 }} />
+            <a onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 12.5, cursor: 'pointer', color: 'var(--brand)' }}>{showPw ? 'Hide' : 'Show'}</a>
+          </span>
+        </label>
+      : <label key={f}>{lbl[f]}<input type={f === 'email' ? 'email' : 'text'} value={v[f]} onChange={(e) => setV({ ...v, [f]: e.target.value })} required /></label>)}
     <button className="btn block" type="submit">{props.cta}</button>
     <div className="foot">{props.foot}</div>
   </form>;
@@ -411,23 +419,57 @@ function Customers({ toast }: any) {
 
 function Subscriptions({ toast }: any) {
   const { data, reload } = useData(() => api.adminSubscriptions());
+  const { data: status, reload: reloadStatus } = useData(() => api.adminBillingStatus());
   const [busy, setBusy] = useState('');
+  const [edit, setEdit] = useState<any>(null);
   const subs = data?.subscriptions ?? [];
   const plans = data?.plans ?? [];
   const summary = data?.summary ?? { total: 0, active: 0, arr: 0 };
   const paidPlans = plans.filter((p: any) => (p.amount ?? 0) > 0);
+  const st = status ?? {};
+
   async function setPlan(tenantId: string, planKey: string, status: string) {
     setBusy(tenantId);
     try { await api.adminSetSubscription(tenantId, { planKey, status }); toast(status === 'canceled' ? 'Subscription cancelled' : 'Plan granted'); await reload(); }
     catch (e) { toast((e as any).message); } finally { setBusy(''); }
   }
+  function startEdit(p?: any) {
+    setEdit(p
+      ? { key: p.key, name: p.name, amountPounds: (p.amount ?? 0) / 100, members: p.entitlements?.members ?? 1, aiAssistant: !!p.entitlements?.aiAssistant, connectedServices: !!p.entitlements?.connectedServices, active: p.active !== false, isNew: false }
+      : { key: '', name: '', amountPounds: 0, members: 1, aiAssistant: false, connectedServices: false, active: true, isNew: true });
+  }
+  async function savePlan() {
+    const e = edit;
+    if (!e.key || !e.name) { toast('Key and name are required'); return; }
+    setBusy('plan');
+    try {
+      await api.adminUpsertPlan({ key: e.key, name: e.name, amount: Math.round((Number(e.amountPounds) || 0) * 100), currency: 'gbp', interval: 'year', entitlements: { members: Number(e.members), aiAssistant: !!e.aiAssistant, connectedServices: !!e.connectedServices }, active: !!e.active });
+      toast('Plan saved'); setEdit(null); await reload(); await reloadStatus();
+    } catch (err) { toast((err as any).message); } finally { setBusy(''); }
+  }
+
+  const modeLabel = st.driver === 'stripe' ? (st.mode === 'live' ? 'LIVE payments' : 'Stripe TEST mode') : 'Sandbox — no real charges';
+  const chk = { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14 } as const;
   return <>
+    <div className="card" style={{ marginBottom: 18, background: st.liveReady ? 'var(--good-bg)' : 'var(--warn-bg)', border: 0 }}>
+      <div className="card-b">
+        <div className="flex" style={{ justifyContent: 'space-between' }}><div><b>Payments</b> <span className={`pill ${st.liveReady ? 'p-good' : st.driver === 'stripe' ? 'p-warn' : 'p-neutral'}`} style={{ marginLeft: 6 }}>{modeLabel}</span></div><div className="muted" style={{ fontSize: 12.5 }}>{st.plansProvisioned ?? 0}/{st.plansTotal ?? 0} plans synced to Stripe</div></div>
+        <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>
+          {st.driver !== 'stripe' ? 'Billing is in safe sandbox mode — no real cards are charged. To accept payments, set STRIPE_DRIVER=stripe and your Stripe keys on the server, then test checkout before going live.'
+            : st.mode === 'live' ? 'Live payments are enabled — real cards will be charged.'
+            : 'Connected to Stripe TEST mode (use test cards). Switch the secret key to a live key only after testing checkout, webhooks and cancellation.'}
+          {' '}Secret key: {st.hasSecretKey ? '✓ set' : '— missing'} · Webhook secret: {st.hasWebhookSecret ? '✓ set' : '— missing'}.
+        </div>
+      </div>
+    </div>
+
     <div className="tiles">
       <Tile ic="👥" bg="var(--brand-soft)" lab="Customers" val={summary.total} />
       <Tile ic="✅" bg="var(--good-bg)" lab="Active" val={summary.active} />
       <Tile ic="💷" bg="var(--aqua-bg)" lab="Annual revenue" val={gbp(summary.arr)} />
       <Tile ic="📦" bg="var(--warn-bg)" lab="Paid plans" val={paidPlans.length} />
     </div>
+
     <Card title="Customer subscriptions">
       <table><thead><tr><th>Customer</th><th>Plan</th><th>Status</th><th>Renews</th><th>Manage</th></tr></thead>
         <tbody>{subs.map((s: any) => <tr key={s.tenantId}>
@@ -445,11 +487,39 @@ function Subscriptions({ toast }: any) {
         </tr>)}</tbody></table>
       {!subs.length && <div className="empty">No customers yet.</div>}
     </Card>
-    <div className="section">Plan catalogue</div>
+
+    <div className="section">Plans <a onClick={() => startEdit()} style={{ float: 'right', fontSize: 13, cursor: 'pointer', color: 'var(--brand)' }}>+ Add plan</a></div>
     <Card title={`${plans.length} plans`}>
-      <table><thead><tr><th>Plan</th><th>Price</th><th>Members</th><th>AI assistant</th><th>Connected services</th></tr></thead>
-        <tbody>{plans.map((p: any) => <tr key={p.key}><td><b style={{ textTransform: 'capitalize' }}>{p.name}</b></td><td>{p.amount ? gbp(p.amount, p.currency) + '/yr' : 'Free'}</td><td>{p.entitlements?.members === -1 ? 'Unlimited' : p.entitlements?.members ?? 1}</td><td>{p.entitlements?.aiAssistant ? '✓' : '—'}</td><td>{p.entitlements?.connectedServices ? '✓' : '—'}</td></tr>)}</tbody></table>
+      <table><thead><tr><th>Plan</th><th>Price</th><th>Members</th><th>AI</th><th>Connected</th><th>Stripe</th><th></th></tr></thead>
+        <tbody>{plans.map((p: any) => <tr key={p.key}>
+          <td><b style={{ textTransform: 'capitalize' }}>{p.name}</b>{p.active === false && <span className="pill p-neutral" style={{ marginLeft: 8 }}>inactive</span>}</td>
+          <td>{p.amount ? gbp(p.amount, p.currency) + '/yr' : 'Free'}</td>
+          <td>{p.entitlements?.members === -1 ? 'Unlimited' : p.entitlements?.members ?? 1}</td>
+          <td>{p.entitlements?.aiAssistant ? '✓' : '—'}</td>
+          <td>{p.entitlements?.connectedServices ? '✓' : '—'}</td>
+          <td>{p.stripePriceId ? <span className="pill p-good">synced</span> : <span className="pill p-neutral">—</span>}</td>
+          <td><button className="btn sm sec" onClick={() => startEdit(p)}>Edit</button></td>
+        </tr>)}</tbody></table>
     </Card>
+
+    {edit && <Card title={edit.isNew ? 'Add plan' : `Edit plan · ${edit.name}`}>
+      <div className="grid2">
+        <label>Key (id, lowercase)<input value={edit.key} disabled={!edit.isNew} onChange={(e) => setEdit({ ...edit, key: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} placeholder="family" /></label>
+        <label>Display name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Family" /></label>
+        <label>Price £ / year<input type="number" value={edit.amountPounds} onChange={(e) => setEdit({ ...edit, amountPounds: e.target.value })} /></label>
+        <label>Members (-1 = unlimited)<input type="number" value={edit.members} onChange={(e) => setEdit({ ...edit, members: e.target.value })} /></label>
+      </div>
+      <div className="flex" style={{ marginTop: 12, gap: 20, flexWrap: 'wrap' }}>
+        <span style={chk}><input type="checkbox" checked={edit.aiAssistant} onChange={(e) => setEdit({ ...edit, aiAssistant: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> AI assistant</span>
+        <span style={chk}><input type="checkbox" checked={edit.connectedServices} onChange={(e) => setEdit({ ...edit, connectedServices: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> Connected services</span>
+        <span style={chk}><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> Active (shown to customers)</span>
+      </div>
+      <div className="flex" style={{ marginTop: 14 }}>
+        <button className="btn" disabled={busy === 'plan'} onClick={savePlan}>{busy === 'plan' ? 'Saving…' : 'Save plan'}</button>
+        <button className="btn sec" onClick={() => setEdit(null)}>Cancel</button>
+      </div>
+      <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>Saving also syncs the plan to Stripe (a product + price) when Stripe is connected.</p>
+    </Card>}
   </>;
 }
 function Audit() { const { data } = useData(() => api.adminAudit()); return <Card title="Audit log">{(data?.logs ?? []).map((l: any) => <div className="row" key={l.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{l.outcome === 'failure' ? '⚠️' : '•'}</div><div className="m"><div className="t">{l.action}</div><div className="s">{l.targetType ?? ''} · {fmt(l.at)}</div></div><span className={`pill ${l.outcome === 'failure' ? 'p-crit' : 'p-neutral'}`}>{l.outcome}</span></div>)}</Card>; }
