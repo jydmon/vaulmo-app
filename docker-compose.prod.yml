@@ -1,0 +1,93 @@
+# Vaulmo — production stack for a single VPS (e.g. Hostinger KVM).
+# Brings up: PostgreSQL, the API, the reminder worker, the web app, and Caddy
+# (which terminates HTTPS automatically via Let's Encrypt and reverse-proxies the domain).
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Reads secrets from a local .env file (copy .env.prod.example -> .env and fill it in).
+name: vaulmo
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      MFA_ISSUER: Vaulmo
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: /data/storage
+      CORS_ORIGINS: https://${APP_DOMAIN}
+      STRIPE_DRIVER: fake
+      EMERGENCY_ACCESS_ENABLED: "false"
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD}
+      LOG_LEVEL: info
+    volumes:
+      - api_storage:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: ./apps/api
+    restart: unless-stopped
+    command: ["npx", "tsx", "src/worker.ts"]
+    environment:
+      APP_ENV: production
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      REMINDER_INTERVAL_MS: "3600000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./apps/web
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      LANDING_DOMAIN: ${LANDING_DOMAIN}
+      APP_DOMAIN: ${APP_DOMAIN}
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./landing:/srv/landing:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  db_data:
+  api_storage:
+  caddy_data:
+  caddy_config:

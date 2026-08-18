@@ -1,0 +1,73 @@
+name: CI
+
+# Build + verify on every push/PR. Proves the foundation before it can be promoted.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lifehub
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: lifehub_test
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U lifehub" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      DATABASE_URL: postgresql://lifehub:devpassword@localhost:5433/lifehub_test
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      APP_ENV: development
+      LOG_LEVEL: silent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm', cache-dependency-path: apps/api/package-lock.json }
+      - name: Install Tesseract (real OCR for the Phase 3 test)
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      - run: npm ci || npm install
+      - run: npm run typecheck
+      - run: npm run db:migrate
+      - run: npm run seed
+      - run: npm run test:e2e                 # Phase 1: 33 checks (auth/MFA/RBAC/audit)
+      - run: npm run test:e2e:vault           # Phase 2/3: 30 checks (vault + AI pipeline)
+      - run: npm run test:e2e:notifications   # Phase 4: 14 checks (reminders/notifications)
+      - run: npm run test:e2e:assistant       # Phase 5: 13 checks (assistant + permissions)
+      - run: npm run test:e2e:billing         # Phase 6: 20 checks (subscriptions/Stripe)
+      - run: npm run test:e2e:family          # Phase 7/8: 21 checks (family/NOK/emergency)
+      - run: npm run test:e2e:integrations    # Phase 9-13: 23 checks (integrations/email/trips/purchases/subs)
+      - run: npm run test:e2e:extra           # Extra: 17 checks (MFA encryption, email verify, reset, manual add)
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm', cache-dependency-path: apps/web/package-lock.json }
+      - run: npm ci || npm install
+      - run: npm run build
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm install
+      - run: npm run typecheck

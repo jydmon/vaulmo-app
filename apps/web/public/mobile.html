@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Vaulmo Mobile</title>
+<style>
+  :root{--bg:#eef1f6;--surface:#fff;--surface-2:#f5f7fb;--ink:#101623;--soft:#5b6472;--muted:#8b93a1;
+    --brand:#1f4e79;--brand-2:#2a78d6;--brand-soft:#e7f0fb;--line:#e6eaf1;--good:#0ca30c;--good-bg:#e6f6e6;
+    --warn:#c98500;--warn-bg:#fdf2d9;--crit:#d03b3b;--crit-bg:#fbe3e3;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--sans);background:#dfe4ec;color:var(--ink);display:grid;place-items:center;min-height:100vh;padding:20px 0}
+  button{font-family:inherit;cursor:pointer;border:0;background:none}input{font-family:inherit}
+  .phone{width:390px;height:844px;max-height:96vh;background:#000;border-radius:52px;padding:12px;box-shadow:0 40px 90px rgba(16,22,35,.4);flex:none}
+  .screen{width:100%;height:100%;background:var(--bg);border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:30px;background:#000;border-radius:0 0 18px 18px;z-index:60}
+  .status{height:50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font-size:14px;font-weight:700;flex:none}
+  .body{flex:1;overflow-y:auto}.body::-webkit-scrollbar{display:none}
+  .pad{padding:6px 18px 110px}
+  h1{font-size:23px;margin:0;font-weight:750;letter-spacing:-.5px}
+  .apphead{padding:4px 18px 10px;display:flex;align-items:center;gap:12px}
+  .apphead .hi{font-size:13px;color:var(--soft);font-weight:600}
+  .apphead .av{margin-left:auto;width:42px;height:42px;border-radius:50%;background:#2a5f97;color:#fff;display:grid;place-items:center;font-weight:700}
+  .titlebar{padding:6px 18px 10px}
+  .hero{background:linear-gradient(135deg,#1f4e79,#2a78d6);color:#fff;border-radius:22px;padding:18px;margin-bottom:16px;box-shadow:0 10px 26px rgba(31,78,121,.32)}
+  .hero .lab{font-size:12.5px;opacity:.85;font-weight:600}.hero .big{font-size:26px;font-weight:750;margin:8px 0 3px;letter-spacing:-.5px}.hero .sub{font-size:13px;opacity:.9}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+  .stat{background:var(--surface);border-radius:18px;padding:15px;box-shadow:0 2px 14px rgba(16,22,35,.05)}
+  .stat .v{font-size:24px;font-weight:750;letter-spacing:-.5px}.stat .l{font-size:12px;color:var(--soft);font-weight:600;margin-top:3px}
+  .sec{display:flex;align-items:center;margin:18px 2px 10px}.sec h2{font-size:17px;margin:0;font-weight:700}.sec .more{margin-left:auto;font-size:13px;color:var(--brand-2);font-weight:600}
+  .item{background:var(--surface);border-radius:16px;padding:13px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 12px rgba(16,22,35,.05);margin-bottom:10px}
+  .item .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none;font-size:19px;background:var(--surface-2)}
+  .item .m{flex:1;min-width:0}.item .t{font-weight:650;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item .s{font-size:12.5px;color:var(--soft);margin-top:1px}
+  .pill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:20px;white-space:nowrap}
+  .p-good{background:var(--good-bg);color:var(--good)}.p-warn{background:var(--warn-bg);color:var(--warn)}.p-crit{background:var(--crit-bg);color:var(--crit)}.p-info{background:var(--brand-soft);color:var(--brand-2)}.p-neutral{background:var(--surface-2);color:var(--soft)}
+  .card{background:var(--surface);border-radius:18px;padding:16px;box-shadow:0 2px 12px rgba(16,22,35,.05);margin-bottom:14px}
+  .btn{background:var(--brand-2);color:#fff;border-radius:13px;padding:13px;font-size:15px;font-weight:700;width:100%;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn.sm{padding:8px 13px;font-size:13px;width:auto;border-radius:10px}
+  .btn.sec{background:var(--surface-2);color:var(--ink)}
+  input,textarea{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px;font-size:15px;outline:none;margin-top:8px;background:#fff}
+  label{font-size:13px;font-weight:600;color:var(--soft)}
+  .tabbar{position:absolute;bottom:0;left:0;right:0;height:86px;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;padding:10px 8px 0;z-index:50}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);font-size:10.5px;font-weight:600;padding-top:4px}
+  .tab .i{font-size:21px}.tab.on{color:var(--brand-2)}
+  .fab{flex:none;width:54px;margin:-14px 6px 0;height:54px;border-radius:17px;background:linear-gradient(135deg,#2a78d6,#1f4e79);color:#fff;display:grid;place-items:center;font-size:26px;box-shadow:0 8px 20px rgba(42,120,214,.4)}
+  .chat{padding:6px 16px 16px}
+  .msg{display:flex;gap:8px;margin-bottom:12px}.msg.me{flex-direction:row-reverse}
+  .ab{width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,#3d7fca,#2a5f97);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+  .bub{padding:11px 14px;border-radius:15px;font-size:14px;max-width:80%}.msg.ai .bub{background:#fff;box-shadow:0 2px 10px rgba(16,22,35,.05)}.msg.me .bub{background:var(--brand-2);color:#fff}
+  .src{font-size:11.5px;color:var(--soft);margin-top:5px}
+  .composer{position:absolute;bottom:86px;left:0;right:0;padding:9px 14px;background:rgba(238,241,246,.92);backdrop-filter:blur(10px);display:flex;gap:8px;border-top:1px solid var(--line)}
+  .composer input{margin-top:0;border-radius:22px}.composer .send{width:42px;height:42px;border-radius:50%;background:var(--brand-2);color:#fff;display:grid;place-items:center;flex:none;font-size:18px}
+  .chips{display:flex;gap:8px;overflow-x:auto;margin:0 -18px 8px;padding:0 18px 4px}.chips::-webkit-scrollbar{display:none}
+  .chip{border:1px solid var(--line);background:#fff;padding:8px 13px;border-radius:20px;font-size:13px;font-weight:600;color:var(--brand);white-space:nowrap;flex:none}
+  .toast{position:absolute;bottom:98px;left:50%;transform:translateX(-50%) translateY(20px);background:#122a43;color:#fff;padding:11px 16px;border-radius:12px;font-size:13px;font-weight:600;z-index:80;opacity:0;transition:.3s;white-space:nowrap}
+  .toast.show{transform:translateX(-50%);opacity:1}
+  .login{padding:60px 26px 0;display:flex;flex-direction:column;height:100%}
+  .logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#3d7fca,#2a5f97);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px;margin-bottom:16px}
+  .empty{text-align:center;color:var(--muted);padding:30px}
+  .banner{border-radius:14px;padding:13px 15px;display:flex;gap:11px;align-items:center;margin-bottom:14px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="phone"><div class="notch"></div><div class="screen">
+  <div class="status"><span id="clock">9:41</span><span>📶 🔋</span></div>
+  <div class="body" id="body"></div>
+  <div class="composer" id="composer" style="display:none">
+    <input id="ask" placeholder="Ask about a document or date…"/><button class="send" onclick="askSubmit()">➤</button>
+  </div>
+  <div class="tabbar" id="tabbar" style="display:none"></div>
+  <div class="toast" id="toast"></div>
+</div></div>
+
+<script>
+let TOKEN=null, REFRESH=null, ME=null, TAB='home';
+async function api(method,path,body){
+  const h={'content-type':'application/json'}; if(TOKEN) h.authorization='Bearer '+TOKEN;
+  const res=await fetch('/api/v1'+path,{method,headers:h,body:body!==undefined?JSON.stringify(body):undefined});
+  const t=await res.text(); let j=null; try{j=t?JSON.parse(t):null}catch{j=t}
+  if(!res.ok) throw Object.assign(new Error(j?.message||'error'),{status:res.status,body:j});
+  return j;
+}
+async function uploadText(url,text){await fetch(url,{method:'PUT',headers:{'content-type':'text/plain',authorization:'Bearer '+TOKEN},body:text});}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+const fmt=s=>s?new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'—';
+const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):'';
+const el=id=>document.getElementById(id);
+
+/* ---- login ---- */
+function renderLogin(){
+  el('tabbar').style.display='none'; el('composer').style.display='none';
+  el('body').innerHTML=`<div class="login">
+    <div class="logo">LH</div><h1>Welcome to Vaulmo</h1>
+    <p style="color:var(--soft);margin:6px 0 20px">Your life, organised and secure.</p>
+    <label>Email</label><input id="email" value="tester@lifehub.local" autocapitalize="off"/>
+    <label style="margin-top:12px">Password</label><input id="pw" type="password" value="Tester123!"/>
+    <div id="lerr" style="color:var(--crit);font-size:13px;margin-top:10px"></div>
+    <button class="btn" style="margin-top:18px" onclick="doLogin()">Sign in</button>
+  </div>`;
+}
+async function doLogin(){
+  el('lerr').textContent='';
+  try{
+    const r=await api('POST','/auth/login',{email:el('email').value,password:el('pw').value});
+    if(r.mfaRequired){el('lerr').textContent='MFA enabled — use the web app for this demo';return;}
+    TOKEN=r.accessToken;REFRESH=r.refreshToken;ME=await api('GET','/users/me');
+    TAB='home';render();
+  }catch(e){el('lerr').textContent=e.message;}
+}
+
+/* ---- tabs ---- */
+const TABS=[{id:'home',ic:'🏠',l:'Home'},{id:'vault',ic:'🗄️',l:'Vault'},{id:'add',ic:'＋'},{id:'ask',ic:'💬',l:'Ask'},{id:'profile',ic:'👤',l:'You'}];
+function renderTabs(){
+  el('tabbar').style.display='flex';
+  el('tabbar').innerHTML=TABS.map(t=>t.id==='add'
+    ?`<button class="fab" onclick="goVaultAdd()">＋</button>`
+    :`<button class="tab ${t.id===TAB?'on':''}" onclick="go('${t.id}')"><span class="i">${t.ic}</span>${t.l}</button>`).join('');
+}
+function go(t){TAB=t;render();}
+function render(){
+  if(!TOKEN){renderLogin();return;}
+  renderTabs();
+  el('composer').style.display=TAB==='ask'?'flex':'none';
+  ({home:vHome,vault:vVault,ask:vAsk,connected:vConnected,profile:vProfile}[TAB]||vHome)();
+  el('body').scrollTop=0;
+}
+
+/* ---- Home ---- */
+async function vHome(){
+  el('body').innerHTML=`<div class="apphead"><div><div class="hi">Welcome back</div><h1>${ME.fullName.split(' ')[0]}</h1></div><div class="av">${ME.fullName.split(' ').map(w=>w[0]).join('').slice(0,2)}</div></div><div class="pad" id="hc"><div class="empty">Loading…</div></div>`;
+  const [cl,brief,rem]=await Promise.all([api('GET','/vault/checklist'),api('GET','/assistant/whats-important'),api('GET','/vault/reminders')]);
+  const up=(rem.live||[]).slice(0,5);
+  el('hc').innerHTML=`
+    <div class="hero"><div class="lab">⏳ Your Vaulmo</div><div class="big">${cl.completionScore}% complete</div><div class="sub">${cl.outstanding.length} recommended documents still to add</div></div>
+    <div class="row2"><div class="stat"><div class="v">${rem.live.length}</div><div class="l">Live reminders</div></div><div class="stat"><div class="v">${cl.confirmed}</div><div class="l">Verified docs</div></div></div>
+    <div class="card"><b>What you need to know</b><p style="margin:8px 0 0;font-size:13.5px;color:var(--soft)">${brief.summary}</p></div>
+    <div class="sec"><h2>Coming up</h2><span class="more" onclick="go('vault')">All</span></div>
+    ${up.map(r=>`<div class="item"><div class="ic">🔔</div><div class="m"><div class="t">${r.title}</div><div class="s">${fmt(r.dueDate)}</div></div>${remPill(r)}</div>`).join('')||'<div class="empty">Nothing scheduled.</div>'}`;
+}
+function remPill(r){const d=r.dueDate?Math.round((new Date(r.dueDate)-Date.now())/864e5):null;const c=d==null?'p-neutral':d<0?'p-crit':d<=7?'p-crit':d<=30?'p-warn':'p-good';return `<span class="pill ${c}">${d==null?'on file':d<0?-d+'d over':'in '+d+'d'}</span>`;}
+
+/* ---- Vault ---- */
+async function vVault(){
+  el('body').innerHTML=`<div class="titlebar"><h1>My Vault</h1></div><div class="pad" id="vc"><div class="empty">Loading…</div></div>`;
+  const d=await api('GET','/vault/documents');
+  el('vc').innerHTML=(d.documents||[]).map(x=>`<div class="item"><div class="ic">📄</div><div class="m"><div class="t">${x.title}</div><div class="s">${x.typeKey||'unclassified'} · ${x.status}</div></div><span class="pill ${x.status==='CONFIRMED'?'p-good':'p-warn'}">${x.status==='CONFIRMED'?'Verified':'Pending'}</span></div>`).join('')||'<div class="empty">No documents yet. Tap ＋ to add one.</div>';
+}
+const SAMPLE=`UNITED KINGDOM\nPASSPORT\nPassport No: 546872331\nSurname: REID\nNationality: British\nDate of expiry: 22 Mar 2027`;
+function goVaultAdd(){
+  TAB='vault';renderTabs();el('composer').style.display='none';
+  el('body').innerHTML=`<div class="titlebar"><h1>Add document</h1></div><div class="pad">
+    <div class="card"><label>Paste a synthetic document</label><textarea id="dt" rows="6" style="font-family:monospace;font-size:12.5px">${SAMPLE}</textarea>
+    <button class="btn" style="margin-top:10px" onclick="doScan()">Scan &amp; extract</button></div><div id="ext"></div></div>`;
+}
+let PEND=null;
+async function doScan(){
+  el('ext').innerHTML='<div class="empty">Scanning…</div>';
+  const text=el('dt').value,bytes=new Blob([text]).size;
+  const init=await api('POST','/vault/documents',{filename:'doc.txt',contentType:'text/plain',sizeBytes:bytes,title:'Document'});
+  await uploadText(init.uploadUrl,text);
+  const r=await api('POST','/vault/documents/'+init.documentId+'/process');
+  PEND={id:init.documentId,meta:{}};r.extracted.forEach(f=>f.value&&(PEND.meta[f.key]=f.value));
+  el('ext').innerHTML=`<div class="card"><div class="banner" style="background:var(--good-bg);color:var(--good)">✓ Classified as <b>&nbsp;${r.classification.typeKey}</b>&nbsp;(${Math.round(r.classification.confidence*100)}%)</div>
+    ${r.extracted.map(f=>`<label>${f.label}</label><input value="${f.value||''}" oninput="PEND.meta['${f.key}']=this.value"/>`).join('')}
+    <button class="btn" style="margin-top:12px" onclick="doConfirm()">Confirm &amp; store</button></div>`;
+}
+async function doConfirm(){await api('POST','/vault/documents/'+PEND.id+'/confirm',{metadata:PEND.meta});toast('Stored & reminders set');go('vault');}
+
+/* ---- Ask ---- */
+let CHAT=[{role:'ai',text:'Hi! Ask me anything about your vault.'}];
+function vAsk(){
+  el('body').innerHTML=`<div class="titlebar"><h1>Ask Vaulmo</h1></div>
+    <div class="chips">${['When does my passport expire?','What do I need to know?','Find my home insurance'].map(s=>`<button class="chip" onclick="askSubmit('${s.replace(/'/g,"\\'")}')">${s}</button>`).join('')}</div>
+    <div class="chat" id="chat"></div>`;
+  paintChat();
+}
+function paintChat(){const c=el('chat');if(!c)return;c.innerHTML=CHAT.map(m=>`<div class="msg ${m.role}">${m.role==='ai'?'<div class="ab">L</div>':''}<div class="bub">${m.text}${m.sources?`<div class="src">Sources: ${m.sources.map(s=>s.ref).join(', ')}</div>`:''}</div></div>`).join('');el('body').scrollTop=el('body').scrollHeight;}
+async function askSubmit(q){
+  q=q||el('ask').value;if(!q.trim())return;el('ask').value='';
+  CHAT.push({role:'me',text:q});paintChat();
+  try{const r=await api('POST','/assistant/ask',{question:q});CHAT.push({role:'ai',text:r.answer,sources:r.sources});}catch{CHAT.push({role:'ai',text:'Something went wrong.'});}
+  paintChat();
+}
+
+/* ---- Connected (reached from Profile) ---- */
+async function vConnected(){
+  el('body').innerHTML=`<div class="titlebar"><h1>Connected</h1></div><div class="pad" id="cc"><div class="empty">Loading…</div></div>`;
+  const [conns,det]=await Promise.all([api('GET','/integrations/connections'),api('GET','/integrations/detected')]);
+  el('cc').innerHTML=`
+    <div class="card"><b>Connect a service</b>
+      ${['gmail','outlook'].map(p=>`<div class="item" style="box-shadow:none;background:var(--surface-2);margin-top:10px"><div class="ic">${p==='gmail'?'📧':'📨'}</div><div class="m"><div class="t">${cap(p)}</div><div class="s">Auto-import trips & receipts</div></div><button class="btn sm" onclick="connect('${p}')">Connect</button></div>`).join('')}</div>
+    <div class="sec"><h2>Your connections</h2></div>
+    ${(conns.connections||[]).map(c=>`<div class="item"><div class="ic">🔌</div><div class="m"><div class="t">${cap(c.provider)}</div><div class="s">${c.status}</div></div><button class="btn sm sec" onclick="sync('${c.id}')">Sync</button></div>`).join('')||'<div class="empty">No connections yet.</div>'}
+    <div class="sec"><h2>Detected — confirm to add</h2></div>
+    ${(det.detected||[]).map(i=>`<div class="item"><div class="ic">${i.type==='travel'?'✈️':i.type==='purchase'?'🧾':i.type==='ticket'?'🎟️':'🔁'}</div><div class="m"><div class="t">${i.rawSubject}</div><div class="s">${i.type}</div></div><button class="btn sm" onclick="confirmDet('${i.id}')">Add</button></div>`).join('')||'<div class="empty">Nothing pending — sync a connection.</div>'}`;
+}
+async function connect(p){await api('POST','/integrations/'+p+'/connect');await api('POST','/integrations/'+p+'/callback',{code:'demo_'+Math.random().toString(36).slice(2,8)});toast(cap(p)+' connected');vConnected();}
+async function sync(id){const r=await api('POST','/integrations/connections/'+id+'/sync');toast('Imported '+r.created+' items');vConnected();}
+async function confirmDet(id){const r=await api('POST','/inbox/detected/'+id+'/confirm');toast('Added to '+r.entityType);vConnected();}
+
+/* ---- Profile ---- */
+async function vProfile(){
+  el('body').innerHTML=`<div class="titlebar"><h1>You & Family</h1></div><div class="pad" id="pc"><div class="empty">Loading…</div></div>`;
+  const [nok,emg,ent]=await Promise.all([api('GET','/family/nok'),api('GET','/emergency/status'),api('GET','/billing/entitlements').catch(()=>({planKey:'starter'}))]);
+  el('pc').innerHTML=`
+    <div class="card" style="text-align:center"><div class="av" style="margin:0 auto 8px;width:64px;height:64px;font-size:22px">${ME.fullName.split(' ').map(w=>w[0]).join('').slice(0,2)}</div><b style="font-size:17px">${ME.fullName}</b><div style="color:var(--soft);font-size:13px">${ME.email}</div></div>
+    <div class="card" style="background:linear-gradient(135deg,#4a3aa7,#6a5ae0);color:#fff"><div style="font-size:12px;opacity:.85;font-weight:600">YOUR PLAN</div><div style="font-size:20px;font-weight:750;margin:3px 0;text-transform:capitalize">${ent.planKey||'Starter'}</div><div style="font-size:12.5px;opacity:.85">${ent.entitlements?.aiAssistant?'AI assistant included':'Upgrade for AI'}</div></div>
+    <div class="banner" style="background:${emg.enabled?'var(--good-bg)':'var(--warn-bg)'};color:${emg.enabled?'var(--good)':'var(--warn)'}">${emg.enabled?'🛡️':'⏳'}&nbsp;<b>Emergency Access</b>&nbsp;— ${emg.message}</div>
+    <div class="sec"><h2>Next of kin</h2></div>
+    ${(nok.nextOfKin||[]).map(n=>`<div class="item"><div class="ic">👤</div><div class="m"><div class="t">${n.name}</div><div class="s">${n.email}</div></div><span class="pill ${n.status==='confirmed'?'p-good':'p-neutral'}">${n.status}</span></div>`).join('')||'<div class="empty">No next of kin yet.</div>'}
+    <div class="item" onclick="go('connected')" style="cursor:pointer"><div class="ic">🔌</div><div class="m"><div class="t">Connected services</div><div class="s">Import from email</div></div><span>›</span></div>
+    <button class="btn sec" style="margin-top:14px" onclick="TOKEN=null;render()">Sign out</button>`;
+}
+
+/* clock + boot */
+function tick(){const d=new Date();el('clock').textContent=d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');}
+tick();setInterval(tick,10000);
+renderLogin();
+</script>
+</body>
+</html>

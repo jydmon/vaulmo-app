@@ -1,0 +1,18 @@
+<svg width="640" height="170" viewBox="0 0 640 170" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Vaulmo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B82F6"/><stop offset="0.55" stop-color="#2563EB"/><stop offset="1" stop-color="#1E3A8A"/>
+    </linearGradient>
+    <linearGradient id="vgrad" x1="176" y1="196" x2="336" y2="196" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/><stop offset="1" stop-color="#1E40AF"/>
+    </linearGradient>
+  </defs>
+  <!-- icon scaled from the 512 master into a 138px box at (16,16) -->
+  <g transform="translate(16,16) scale(0.2695)">
+    <rect x="0" y="0" width="512" height="512" rx="116" fill="url(#bg)"/>
+    <path d="M256 120 C300 120 336 132 372 150 L372 262 C372 336 326 388 256 414 C186 388 140 336 140 262 L140 150 C176 132 212 120 256 120 Z" fill="#ffffff"/>
+    <path d="M196 196 L256 322 L316 196" fill="none" stroke="url(#vgrad)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="256" cy="300" r="19" fill="#22D3EE"/>
+  </g>
+  <text x="176" y="112" font-family="Arial, Helvetica, sans-serif" font-size="92" font-weight="800" letter-spacing="-2" fill="#0F172A">Vaulmo</text>
+</svg>

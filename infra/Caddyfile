@@ -1,0 +1,18 @@
+# Caddy automatically obtains and renews free HTTPS certificates, then routes
+# each hostname. Domains come from the .env file.
+#
+#   LANDING_DOMAIN (vaulmo.com)      -> serves the static marketing landing page
+#   APP_DOMAIN     (app.vaulmo.com)  -> serves the web app (which proxies /api internally)
+
+# Marketing / landing page
+{$LANDING_DOMAIN} {
+	encode gzip
+	root * /srv/landing
+	file_server
+}
+
+# Web application (and its /api, proxied inside the web container)
+{$APP_DOMAIN} {
+	encode gzip
+	reverse_proxy web:8080
+}

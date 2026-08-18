@@ -1,0 +1,55 @@
+# LifeHub Platform — portable Development environment.
+# `docker compose up` brings the whole stack up identically on any machine.
+# Nothing is published to a public interface; ports bind to localhost only.
+
+name: lifehub-dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lifehub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-lifehub_dev}
+    ports:
+      - "127.0.0.1:5433:5432"     # localhost only
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lifehub}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    environment:
+      APP_ENV: development
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lifehub}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-lifehub_dev}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
+      MFA_ISSUER: LifeHub
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: /data/storage
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      LOG_LEVEL: info
+    volumes:
+      - api_storage:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:4000:4000"     # localhost only
+
+  web:
+    build: ./apps/web
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:8080:8080"     # localhost only — the internal admin/app entrypoint
+
+volumes:
+  db_data:
+  api_storage:

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+build/
+.storage/
+*.log
+
+# Secrets — never commit real environment files
+.env
+apps/api/.env
+infra/env/*.env
+!infra/env/*.env.example
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Expo / RN
+.expo/

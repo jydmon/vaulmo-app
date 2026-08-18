@@ -1,0 +1,40 @@
+name: Mobile (EAS)
+
+# Build and submit the native iOS/Android apps with EAS.
+# Requires an Expo account + EXPO_TOKEN secret. Store store credentials as EAS secrets,
+# not in the repo. Triggered manually (choose a profile) or on a version tag.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'EAS build profile'
+        type: choice
+        options: [preview, production]
+        default: preview
+      submit:
+        description: 'Submit to stores after build (production only)'
+        type: boolean
+        default: false
+  push:
+    tags: ['mobile-v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm install
+      - name: EAS build (iOS + Android)
+        run: eas build --non-interactive --platform all --profile ${{ github.event.inputs.profile || 'preview' }}
+      - name: EAS submit (stores)
+        if: ${{ github.event.inputs.submit == 'true' && github.event.inputs.profile == 'production' }}
+        run: eas submit --non-interactive --platform all --profile production

@@ -1,0 +1,153 @@
+name: Deploy
+
+# Deployment pipeline: build images once, deploy to DEVELOPMENT automatically,
+# then require a manual approval to PROMOTE the SAME images to STAGING.
+# Nothing here exposes the app publicly — deploy targets are private environments.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: ${{ github.actor }}, password: ${{ secrets.GITHUB_TOKEN }} }
+      - name: Build & push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          push: true
+          tags: ${{ env.REGISTRY }}/lifehub-api:${{ steps.meta.outputs.tag }}
+      - name: Build & push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/web
+          push: true
+          tags: ${{ env.REGISTRY }}/lifehub-web:${{ steps.meta.outputs.tag }}
+
+  deploy-development:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: development         # auto-deploys; no approval gate
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run DB migrations (development)
+        run: echo "Run 'npx tsx src/db/migrate.ts' against the DEV database via your runner/bastion"
+      - name: Deploy to development
+        run: |
+          echo "Deploying ${REGISTRY}/lifehub-api:${{ needs.build.outputs.tag }} to DEVELOPMENT"
+          # e.g. ssh deploy@dev-host 'cd /srv/lifehub && TAG=${{ needs.build.outputs.tag }} docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d'
+      - name: Smoke test (development)
+        run: echo "curl -fsS http://dev-internal:4000/readyz"
+
+  promote-staging:
+    needs: [build, deploy-development]
+    runs-on: ubuntu-latest
+    environment: staging             # REQUIRES a reviewer to approve in GitHub → promotion gate
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run DB migrations (staging)
+        run: echo "Run migrations against the STAGING database (separate DB, separate secrets)"
+      - name: Promote the same image to staging
+        run: |
+          echo "Promoting ${REGISTRY}/lifehub-api:${{ needs.build.outputs.tag }} to STAGING (private, not public)"
+      - name: Smoke test (staging)
+        run: echo "curl -fsS http://staging-internal:4000/readyz"
+
+  promote-internal-alpha:
+    needs: [build, promote-staging]
+    runs-on: ubuntu-latest
+    environment: internal-alpha      # gated: second approval. Restricted to internal testers.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run DB migrations (internal alpha)
+        run: echo "Run migrations against the INTERNAL ALPHA database"
+      - name: Promote the same image to internal alpha
+        run: |
+          echo "Promoting ${REGISTRY}/lifehub-api:${{ needs.build.outputs.tag }} to INTERNAL ALPHA"
+          echo "Access is limited to accounts flagged is_internal_tester (Phase 2/3 vault gate)."
+          echo "Testers use SYNTHETIC documents only — no real highly-sensitive data at this stage."
+      - name: Smoke test (internal alpha)
+        run: echo "curl -fsS http://alpha-internal:4000/readyz"
+
+  promote-closed-pilot:
+    needs: [build, promote-internal-alpha]
+    runs-on: ubuntu-latest
+    environment: closed-pilot       # gated: third approval. Small group of real pilot users.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run DB migrations (closed pilot)
+        run: echo "Run migrations against the CLOSED PILOT database"
+      - name: Promote the same image to closed pilot
+        run: |
+          echo "Promoting ${REGISTRY}/lifehub-api:${{ needs.build.outputs.tag }} to CLOSED PILOT"
+          echo "Phases 4 & 5 make LifeHub genuinely useful: reminders/notifications + AI assistant."
+          echo "Pilot access stays gated by is_internal_tester; billing (Phase 6) runs Stripe in TEST mode here."
+      - name: Reminder engine schedule
+        run: echo "Ensure the reminder tick (POST /notifications/run-tick) is scheduled (cron/worker) in this environment."
+      - name: Smoke test (closed pilot)
+        run: echo "curl -fsS http://pilot-internal:4000/readyz"
+
+  # --- Phase 8 Emergency Access has its OWN, stricter path because of sensitivity ---
+  # Development → Dedicated Security Testing → Staging → Controlled Pilot → Production.
+  # Ships behind EMERGENCY_ACCESS_ENABLED=false ("coming soon") until legal process,
+  # identity verification and operating procedures are fully defined.
+  emergency-security-testing:
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: emergency-security-testing   # dedicated, isolated security environment
+    steps:
+      - name: Dedicated security testing (Emergency Access)
+        run: |
+          echo "Run the emergency-access workflow tests + pen test in an ISOLATED environment."
+          echo "EMERGENCY_ACCESS_ENABLED stays false everywhere else until sign-off."
+  emergency-controlled-pilot:
+    needs: [emergency-security-testing, promote-staging]
+    runs-on: ubuntu-latest
+    environment: emergency-controlled-pilot   # gated: legal + security sign-off required
+    steps:
+      - run: echo "Enable Emergency Access for a small, consented, controlled pilot only."
+  emergency-production:
+    needs: [emergency-controlled-pilot]
+    runs-on: ubuntu-latest
+    environment: emergency-production         # gated: final approval to enable in production
+    steps:
+      - run: echo "Enable Emergency Access in production once operating procedures are live."
+
+  # --- Phase 10 email connectors: gradual, provider-sandbox-first rollout ---
+  email-provider-sandbox:
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: email-provider-sandbox       # Google/Microsoft TEST apps + test mailboxes
+    steps:
+      - run: echo "Verify Gmail/Outlook OAuth against provider TEST apps + sandbox mailboxes before staging."
+      - run: echo "Roll out per-cohort (feature flag), not automatically for everyone."
+
+  # Phase 6 billing follows its OWN promotion for Stripe: Test Mode → Staging → Live.
+  # STRIPE_DRIVER + keys are the only difference; do NOT set live keys until the full
+  # checkout, webhook and cancellation flows have been verified in staging (test mode).
+  stripe-go-live:
+    needs: [promote-closed-pilot]
+    runs-on: ubuntu-latest
+    environment: stripe-live        # gated: explicit human approval to accept real money.
+    steps:
+      - name: Switch Stripe to Live mode
+        run: |
+          echo "Set STRIPE_DRIVER=stripe with LIVE STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET."
+          echo "Register the live webhook endpoint and re-verify checkout + cancellation before opening signups."

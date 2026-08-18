@@ -1,0 +1,13 @@
+# Minimal Prometheus scrape config. The API exposes /metrics (Prometheus text
+# format) and /livez, /readyz for probes. Point your monitoring stack here, or
+# forward these into Datadog/Grafana Cloud per environment.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: lifehub-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api:4000']
+        labels:
+          env: development

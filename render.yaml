@@ -1,0 +1,120 @@
+# LifeHub — Render Blueprint (Infrastructure as Code)
+# ---------------------------------------------------------------------------
+# Connect this repo to Render as a "Blueprint" and it provisions the whole stack:
+#   - a managed PostgreSQL database
+#   - the API (web service, Docker)               → https://lifehub-api.onrender.com
+#   - the reminder worker (background worker)      → runs the scheduled engine
+#   - the web app (static site, global CDN + TLS)  → https://lifehub-web.onrender.com
+#
+# HTTPS is automatic on every Render service. Migrations run automatically before
+# each API deploy (preDeployCommand). See docs/DEPLOY-RENDER.md for the click-by-click
+# guide, the values you paste in after the first deploy, and the one-time seed step.
+#
+# Region: "virginia" = Render's Ashburn (US East). Change to "oregon" for US West,
+# or "frankfurt" for the EU. Keep every service in the SAME region so the API can
+# reach Postgres over the fast internal network.
+
+databases:
+  - name: lifehub-db
+    databaseName: lifehub
+    user: lifehub
+    region: virginia
+    plan: basic-256mb        # smallest paid tier (does NOT expire). 'free' expires after 30 days.
+
+# Secrets/config shared by the API and the worker. Both MUST see identical values —
+# especially ENCRYPTION_KEY: if it ever changes, previously-encrypted MFA secrets and
+# integration tokens can no longer be decrypted.
+envVarGroups:
+  - name: lifehub-shared
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: MFA_ISSUER
+        value: LifeHub
+      - key: JWT_ACCESS_SECRET
+        generateValue: true      # Render generates a strong random value
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false              # paste a 32-byte key: run `openssl rand -base64 32`
+      # Billing + sensitive features stay gated until you deliberately enable them.
+      - key: STRIPE_DRIVER
+        value: fake
+      - key: EMERGENCY_ACCESS_ENABLED
+        value: "false"
+
+services:
+  # --- API (Express) -------------------------------------------------------
+  - type: web
+    name: lifehub-api
+    runtime: docker
+    rootDir: apps/api
+    dockerfilePath: ./Dockerfile
+    region: virginia
+    plan: starter
+    healthCheckPath: /livez
+    # Run DB migrations once before each new version goes live.
+    preDeployCommand: "npx tsx src/db/migrate.ts"
+    # Override the image default so this service runs ONLY the API (no migrate here).
+    dockerCommand: "npx tsx src/index.ts"
+    # Persistent storage for uploaded vault files (Render's normal disk is wiped on
+    # every deploy). For larger scale, switch STORAGE_DRIVER to s3 and remove this disk.
+    disk:
+      name: lifehub-storage
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - fromGroup: lifehub-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lifehub-db
+          property: connectionString
+      - key: STORAGE_DRIVER
+        value: local
+      - key: STORAGE_LOCAL_DIR
+        value: /data
+      # Allowed browser origin(s). Paste your web URL after the first deploy, e.g.
+      # https://lifehub-web.onrender.com (and later your custom domain).
+      - key: CORS_ORIGINS
+        sync: false
+      # First-run admin account (used by the one-time seed). Choose a strong password.
+      - key: SUPERADMIN_EMAIL
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+
+  # --- Reminder worker -----------------------------------------------------
+  - type: worker
+    name: lifehub-worker
+    runtime: docker
+    rootDir: apps/api
+    dockerfilePath: ./Dockerfile
+    region: virginia
+    plan: starter
+    dockerCommand: "npx tsx src/worker.ts"
+    envVars:
+      - fromGroup: lifehub-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lifehub-db
+          property: connectionString
+      - key: REMINDER_INTERVAL_MS
+        value: "3600000"          # run the reminder tick hourly
+
+  # --- Web app (static site) ----------------------------------------------
+  - type: web
+    name: lifehub-web
+    runtime: static
+    rootDir: apps/web
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    # Single-page app: send all routes to index.html so client-side routing works.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Point the browser app at the API. Paste the API URL after the first deploy,
+      # e.g. https://lifehub-api.onrender.com  (no trailing slash).
+      - key: VITE_API_URL
+        sync: false

@@ -1,0 +1,37 @@
+# Staging overlay:  docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# Differences from dev:
+#  - Uses prebuilt, tagged images from the registry (set by CI on promotion).
+#  - Secrets & DATABASE_URL come from an env_file that is NOT committed
+#    (delivered by the platform's secret store — see ENVIRONMENTS.md).
+#  - STILL NOT PUBLIC: ports are bound to the internal interface only; access is
+#    via the team VPN / bastion. Put a real TLS terminator in front before any
+#    public launch (a later phase).
+
+name: lifehub-staging
+
+services:
+  db:
+    image: postgres:16-alpine
+    env_file: [infra/env/staging.env]
+    ports: []                     # not published at all in staging; internal network only
+    restart: unless-stopped
+
+  api:
+    image: ${REGISTRY:-ghcr.io/your-org}/lifehub-api:${TAG:-staging}
+    build: null
+    env_file: [infra/env/staging.env]
+    environment:
+      APP_ENV: staging
+      NODE_ENV: production
+      STORAGE_DRIVER: s3
+    ports:
+      - "127.0.0.1:4000:4000"     # reachable only from the host / VPN
+    restart: unless-stopped
+
+  web:
+    image: ${REGISTRY:-ghcr.io/your-org}/lifehub-web:${TAG:-staging}
+    build: null
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped

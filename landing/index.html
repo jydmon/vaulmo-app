@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vaulmo — Your family's document vault, locked down</title>
+<meta name="description" content="Vaulmo keeps your family's most important documents secure, organised, and always to hand. Bank-level encryption, smart scanning, and renewal reminders." />
+<style>
+  :root{
+    --navy:#0F172A; --navy2:#111c33; --blue:#2563EB; --blue-d:#1E3A8A;
+    --aqua:#22D3EE; --ink:#0F172A; --muted:#5b6b85; --line:#e6ebf3; --bg:#f6f8fc; --card:#ffffff;
+    --radius:18px; --shadow:0 18px 50px rgba(15,23,42,.10);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;background:rgba(246,248,252,.82);backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line)}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:68px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px;letter-spacing:-.5px}
+  .brand svg{display:block}
+  .nav-links{display:flex;align-items:center;gap:26px}
+  .nav-links a{color:var(--muted);font-weight:600;font-size:15px}
+  .nav-links a:hover{color:var(--ink)}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:var(--blue);color:#fff;font-weight:700;padding:11px 18px;border-radius:12px;font-size:15px;transition:transform .15s ease, box-shadow .15s}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(37,99,235,.35)}
+  @media(max-width:720px){.nav-links a:not(.btn){display:none}}
+
+  /* hero */
+  .hero{background:radial-gradient(1200px 500px at 80% -10%, #24407e 0%, transparent 60%), linear-gradient(160deg,#0F172A 0%, #16233f 60%, #1E3A8A 140%);color:#fff;overflow:hidden}
+  .hero-in{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding:78px 0 90px}
+  .pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#cfe0ff;font-weight:600;font-size:13px;padding:7px 13px;border-radius:999px;margin-bottom:22px}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--aqua);box-shadow:0 0 10px var(--aqua)}
+  h1{font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-1.5px;font-weight:850;margin-bottom:18px}
+  h1 .grad{background:linear-gradient(90deg,#7cc7ff,#22D3EE);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{font-size:19px;color:#c4d1ea;max-width:520px;margin-bottom:30px}
+  .stores{display:flex;gap:14px;flex-wrap:wrap}
+  .store{display:inline-flex;align-items:center;gap:11px;background:#000;color:#fff;border:1px solid #2c3550;padding:11px 18px;border-radius:14px;transition:transform .15s, border-color .15s}
+  .store:hover{transform:translateY(-2px);border-color:#4b5875}
+  .store small{display:block;font-size:11px;opacity:.8;line-height:1.1;letter-spacing:.3px}
+  .store strong{display:block;font-size:19px;line-height:1.15;font-weight:700;margin-top:1px}
+  .store svg{flex:none}
+  .hero-note{margin-top:16px;font-size:13px;color:#8ea3c8}
+
+  /* phone */
+  .phone-col{display:flex;justify-content:center}
+  .phone{width:290px;height:590px;background:#0b1220;border-radius:44px;padding:12px;box-shadow:0 40px 80px rgba(0,0,0,.5), inset 0 0 0 2px #2a3350;position:relative}
+  .phone .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:130px;height:26px;background:#0b1220;border-radius:0 0 16px 16px;z-index:3}
+  .screen{width:100%;height:100%;background:linear-gradient(180deg,#eef3fb,#ffffff);border-radius:34px;overflow:hidden;position:relative;color:var(--ink)}
+  .s-top{background:linear-gradient(160deg,#2563EB,#1E3A8A);color:#fff;padding:34px 20px 22px}
+  .s-top .stitle{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px}
+  .s-hero{margin-top:16px}
+  .s-hero .lab{font-size:12px;color:#cfe0ff}
+  .s-hero .big{font-size:30px;font-weight:850;letter-spacing:-1px}
+  .s-hero .sub{font-size:12px;color:#cfe0ff;margin-top:2px}
+  .s-body{padding:16px}
+  .doc{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 12px;margin-bottom:10px;box-shadow:0 4px 14px rgba(15,23,42,.04)}
+  .doc .ic{width:34px;height:34px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center}
+  .doc .m{flex:1;min-width:0}
+  .doc .t{font-size:13px;font-weight:700}
+  .doc .d{font-size:11px;color:var(--muted)}
+  .chip{font-size:10px;font-weight:700;padding:4px 8px;border-radius:999px}
+  .s-tabs{position:absolute;bottom:0;left:0;right:0;height:58px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;padding:0 6px}
+  .s-tabs span{width:22px;height:22px;border-radius:6px;background:#dfe7f4}
+  .s-tabs span.act{background:var(--blue)}
+
+  /* sections */
+  section{padding:82px 0}
+  .eyebrow{color:var(--blue);font-weight:800;letter-spacing:.6px;text-transform:uppercase;font-size:13px;text-align:center}
+  h2{font-size:clamp(28px,4vw,40px);letter-spacing:-1px;font-weight:850;text-align:center;margin:10px 0 12px}
+  .sub2{color:var(--muted);text-align:center;max-width:620px;margin:0 auto 46px;font-size:17px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px 22px;box-shadow:var(--shadow)}
+  .card .fic{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+  .card h3{font-size:17px;margin-bottom:7px;letter-spacing:-.3px}
+  .card p{color:var(--muted);font-size:14.5px}
+  @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+
+  /* security band */
+  .band{background:linear-gradient(160deg,#0F172A,#1E3A8A);color:#fff;border-radius:26px;padding:56px 44px;display:grid;grid-template-columns:1.1fr .9fr;gap:34px;align-items:center}
+  .band h2{text-align:left;margin-top:0}
+  .band .sub2{text-align:left;margin:0 0 22px;color:#c4d1ea}
+  .band ul{list-style:none;display:grid;gap:12px}
+  .band li{display:flex;gap:11px;align-items:flex-start;color:#dbe6fb;font-size:15px}
+  .band li svg{flex:none;margin-top:2px}
+  @media(max-width:820px){.band{grid-template-columns:1fr;padding:40px 26px}.hero-in{grid-template-columns:1fr;padding:56px 0 64px}.phone-col{order:-1;margin-bottom:10px}}
+
+  /* cta + footer */
+  .cta{text-align:center}
+  .cta .stores{justify-content:center}
+  footer{border-top:1px solid var(--line);padding:34px 0;color:var(--muted);font-size:14px}
+  .foot-in{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .foot-links{display:flex;gap:20px}
+</style>
+</head>
+<body>
+
+<!-- ================= NAV ================= -->
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#">
+      <svg width="34" height="34" viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="ng" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B82F6"/><stop offset=".55" stop-color="#2563EB"/><stop offset="1" stop-color="#1E3A8A"/></linearGradient></defs><rect width="512" height="512" rx="116" fill="url(#ng)"/><path d="M256 120c44 0 80 12 116 30v112c0 74-46 126-116 152-70-26-116-78-116-152V150c36-18 72-30 116-30Z" fill="#fff"/><path d="M196 196l60 126 60-126" fill="none" stroke="#2563EB" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/><circle cx="256" cy="300" r="19" fill="#22D3EE"/></svg>
+      Vaulmo
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#security">Security</a>
+      <a class="btn" href="#download">Download</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ================= HERO ================= -->
+<header class="hero">
+  <div class="wrap hero-in">
+    <div>
+      <span class="pill"><span class="dot"></span> Bank-level encryption · Family-ready</span>
+      <h1>Your family's important documents, <span class="grad">locked down.</span></h1>
+      <p class="lead">Vaulmo keeps passports, policies, warranties and wills secure, organised and always to hand — with smart scanning and reminders so nothing important ever slips.</p>
+      <div class="stores" id="download">
+        <!-- Replace href="#" with your App Store listing URL when live -->
+        <a class="store" href="#" aria-label="Download on the App Store">
+          <svg width="26" height="26" viewBox="0 0 384 512" fill="#fff"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zM255.9 90.7c17.3-20.5 26.4-45.7 24.2-71.3-22.9 1-49.4 15.4-64.9 33.9-14.4 17.2-24.9 42.3-22.3 65.6 25.6 2 49.4-12.7 63-28.2z"/></svg>
+          <span><small>Download on the</small><strong>App Store</strong></span>
+        </a>
+        <!-- Replace href="#" with your Google Play listing URL when live -->
+        <a class="store" href="#" aria-label="Get it on Google Play">
+          <svg width="24" height="26" viewBox="0 0 512 512"><path d="M48 59.5v393a12 12 0 0 0 18.4 10.2l238-206.2z" fill="#22D3EE"/><path d="M304.4 256.5 66.4 462.7A12 12 0 0 0 82 463l289-166.9z" fill="#34D399"/><path d="M371 296.1 82 463c-.1 0-.1.1-.2.1l222.6-206.6z" fill="#34D399"/><path d="M436.5 222.9 371 185.1l-66.6 71.4L371 327.9l65.5-37.8a20 20 0 0 0 0-67.2z" fill="#FBBF24"/><path d="M82 49c-.1 0-.1 0 0 0L304.4 256.5 371 185.1 82 49z" fill="#60A5FA"/></svg>
+          <span><small>GET IT ON</small><strong>Google Play</strong></span>
+        </a>
+      </div>
+      <p class="hero-note">Coming soon to iOS &amp; Android. Free to download.</p>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="s-top">
+            <div class="stitle">
+              <svg width="22" height="22" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#fff" opacity=".16"/><path d="M256 120c44 0 80 12 116 30v112c0 74-46 126-116 152-70-26-116-78-116-152V150c36-18 72-30 116-30Z" fill="#fff"/><path d="M196 196l60 126 60-126" fill="none" stroke="#2563EB" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/><circle cx="256" cy="300" r="19" fill="#22D3EE"/></svg>
+              Vaulmo
+            </div>
+            <div class="s-hero">
+              <div class="lab">Your vault</div>
+              <div class="big">82% complete</div>
+              <div class="sub">3 recommended documents to add</div>
+            </div>
+          </div>
+          <div class="s-body">
+            <div class="doc"><div class="ic" style="background:#e7efff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg></div><div class="m"><div class="t">Passport</div><div class="d">Expires 12 Mar 2029</div></div><span class="chip" style="background:#e7f8ee;color:#0f9d58">Verified</span></div>
+            <div class="doc"><div class="ic" style="background:#eafaf1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f9d58" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg></div><div class="m"><div class="t">Home insurance</div><div class="d">Renews 01 Sep 2026</div></div><span class="chip" style="background:#fff3e0;color:#e08600">Soon</span></div>
+            <div class="doc"><div class="ic" style="background:#f0ecff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6d5cff" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg></div><div class="m"><div class="t">TV warranty</div><div class="d">Expires 03 Aug 2028</div></div><span class="chip" style="background:#eef2f8;color:#5b6b85">Saved</span></div>
+            <div class="doc"><div class="ic" style="background:#e7f6ff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg></div><div class="m"><div class="t">Next of kin</div><div class="d">1 nominated</div></div><span class="chip" style="background:#e7f8ee;color:#0f9d58">Set</span></div>
+          </div>
+          <div class="s-tabs"><span class="act"></span><span></span><span></span><span></span><span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ================= FEATURES ================= -->
+<section id="features">
+  <div class="wrap">
+    <div class="eyebrow">Everything in one place</div>
+    <h2>Built to keep life's paperwork safe</h2>
+    <p class="sub2">Snap a photo and Vaulmo reads the details, files it, and reminds you before anything expires.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="fic" style="background:#e7efff"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>Bank-level security</h3>
+        <p>Documents are encrypted, protected by two-factor login, and only ever visible to you and the people you choose.</p>
+      </div>
+      <div class="card">
+        <div class="fic" style="background:#eafaf1"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0f9d58" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h8M8 12h6M8 16h4"/></svg></div>
+        <h3>Smart scanning</h3>
+        <p>Photograph a document and Vaulmo pulls out the key dates and details automatically — no typing.</p>
+      </div>
+      <div class="card">
+        <div class="fic" style="background:#fff3e0"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e08600" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></div>
+        <h3>Never miss a renewal</h3>
+        <p>Passports, insurance, warranties, MOTs — get reminded in good time, only after you confirm the dates.</p>
+      </div>
+      <div class="card">
+        <div class="fic" style="background:#f0ecff"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6d5cff" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 3-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><circle cx="17.5" cy="9" r="2.6"/><path d="M16 14.6c3 .3 5.5 2 5.5 5"/></svg></div>
+        <h3>Family &amp; next of kin</h3>
+        <p>Share the right documents with your household, and nominate a trusted next of kin for emergencies.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SECURITY BAND ================= -->
+<section id="security" style="padding-top:0">
+  <div class="wrap">
+    <div class="band">
+      <div>
+        <h2>Your privacy is the product</h2>
+        <p class="sub2">Vaulmo is built security-first, because it holds the documents that matter most.</p>
+        <a class="btn" href="#download">Get the app</a>
+      </div>
+      <ul>
+        <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg> Encryption at rest for your most sensitive data</li>
+        <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg> Two-factor authentication and device management</li>
+        <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg> You decide who sees what — nothing is shared by default</li>
+        <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg> A full activity log of every action on your account</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DOWNLOAD CTA ================= -->
+<section class="cta" style="padding-top:0">
+  <div class="wrap">
+    <div class="eyebrow">Get started</div>
+    <h2>Bring your paperwork into one secure place</h2>
+    <p class="sub2">Download Vaulmo and set up your family vault in minutes.</p>
+    <div class="stores">
+      <a class="store" href="#" aria-label="Download on the App Store">
+        <svg width="26" height="26" viewBox="0 0 384 512" fill="#fff"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zM255.9 90.7c17.3-20.5 26.4-45.7 24.2-71.3-22.9 1-49.4 15.4-64.9 33.9-14.4 17.2-24.9 42.3-22.3 65.6 25.6 2 49.4-12.7 63-28.2z"/></svg>
+        <span><small>Download on the</small><strong>App Store</strong></span>
+      </a>
+      <a class="store" href="#" aria-label="Get it on Google Play">
+        <svg width="24" height="26" viewBox="0 0 512 512"><path d="M48 59.5v393a12 12 0 0 0 18.4 10.2l238-206.2z" fill="#22D3EE"/><path d="M304.4 256.5 66.4 462.7A12 12 0 0 0 82 463l289-166.9z" fill="#34D399"/><path d="M436.5 222.9 371 185.1l-66.6 71.4L371 327.9l65.5-37.8a20 20 0 0 0 0-67.2z" fill="#FBBF24"/><path d="M82 49 304.4 256.5 371 185.1 82 49z" fill="#60A5FA"/></svg>
+        <span><small>GET IT ON</small><strong>Google Play</strong></span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer>
+  <div class="wrap foot-in">
+    <div class="brand" style="font-size:18px">
+      <svg width="26" height="26" viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="fg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B82F6"/><stop offset=".55" stop-color="#2563EB"/><stop offset="1" stop-color="#1E3A8A"/></linearGradient></defs><rect width="512" height="512" rx="116" fill="url(#fg)"/><path d="M256 120c44 0 80 12 116 30v112c0 74-46 126-116 152-70-26-116-78-116-152V150c36-18 72-30 116-30Z" fill="#fff"/><path d="M196 196l60 126 60-126" fill="none" stroke="#2563EB" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/><circle cx="256" cy="300" r="19" fill="#22D3EE"/></svg>
+      Vaulmo
+    </div>
+    <div class="foot-links">
+      <a href="#features">Features</a>
+      <a href="#security">Security</a>
+      <a href="#">Privacy</a>
+      <a href="#">Support</a>
+    </div>
+    <div>© 2026 Vaulmo. All rights reserved.</div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,37 @@
+{
+  "cli": { "version": ">= 12.0.0", "appVersionSource": "remote" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_API_URL": "http://localhost:4000" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "env": { "EXPO_PUBLIC_API_URL": "https://staging-api.lifehub.example" },
+      "ios": { "simulator": false },
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "channel": "production",
+      "autoIncrement": true,
+      "env": { "EXPO_PUBLIC_API_URL": "https://app.vaulmo.com" }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "//": "Fill from App Store Connect. Store secrets in EAS, not here.",
+        "appleId": "APPLE_ID_EMAIL",
+        "ascAppId": "APP_STORE_CONNECT_APP_ID",
+        "appleTeamId": "APPLE_TEAM_ID"
+      },
+      "android": {
+        "//": "Path to a Google Play service-account JSON (provided via EAS secret).",
+        "serviceAccountKeyPath": "./play-service-account.json",
+        "track": "internal"
+      }
+    }
+  }
+}
