@@ -12,6 +12,7 @@ import { authRouter } from './modules/auth/auth.routes';
 import { mfaRouter } from './modules/mfa/mfa.routes';
 import { usersRouter } from './modules/users/users.routes';
 import { adminRouter } from './modules/admin/admin.routes';
+import { supportRouter, adminSupportRouter } from './modules/support/support.routes';
 import { filesRouter } from './modules/files/files.routes';
 import { vaultRouter } from './modules/vault/vault.routes';
 import { notificationsRouter } from './modules/notifications/notifications.routes';
@@ -58,6 +59,8 @@ export function createApp() {
   app.use('/api/v1/mfa', mfaRouter);
   app.use('/api/v1/users', usersRouter);
   app.use('/api/v1/admin', adminRouter);
+  app.use('/api/v1/support', supportRouter);
+  app.use('/api/v1/admin/support', adminSupportRouter);
   app.use('/api/v1/files', filesRouter);
   app.use('/api/v1/vault', vaultRouter);
   app.use('/api/v1/notifications', notificationsRouter);

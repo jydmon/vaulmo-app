@@ -117,4 +117,14 @@ export const api = {
   adminBillingStatus: () => G<any>('/billing/admin/status'),
   adminPlansAll: () => G<any>('/billing/admin/plans'),
   adminUpsertPlan: (b: any) => P<any>('/billing/admin/plans', b),
+  // support (customer)
+  supportTickets: () => G<any>('/support/tickets'),
+  createSupportTicket: (b: any) => P<any>('/support/tickets', b),
+  supportTicket: (id: string) => G<any>(`/support/tickets/${id}`),
+  supportReply: (id: string, body: string) => P<any>(`/support/tickets/${id}/messages`, { body }),
+  // support (admin)
+  adminSupportTickets: (status = '') => G<any>(`/admin/support/tickets${status ? `?status=${status}` : ''}`),
+  adminSupportTicket: (id: string) => G<any>(`/admin/support/tickets/${id}`),
+  adminSupportReply: (id: string, body: string) => P<any>(`/admin/support/tickets/${id}/messages`, { body }),
+  adminSupportStatus: (id: string, status: string) => P<any>(`/admin/support/tickets/${id}/status`, { status }),
 };

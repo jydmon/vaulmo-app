@@ -432,3 +432,33 @@ export const emergencyRequests = pgTable('emergency_requests', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---- Support desk (tickets + messages) ----
+export const supportTickets = pgTable(
+  'support_tickets',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    subject: text('subject').notNull(),
+    category: text('category'),
+    status: text('status').notNull().default('open'), // open | pending | closed
+    priority: text('priority').notNull().default('normal'), // low | normal | high
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ tenantIdx: index('support_tickets_tenant_idx').on(t.tenantId) }),
+);
+
+export const supportMessages = pgTable(
+  'support_messages',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    ticketId: uuid('ticket_id').notNull().references(() => supportTickets.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+    authorRole: text('author_role').notNull(), // customer | support
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ ticketIdx: index('support_messages_ticket_idx').on(t.ticketId) }),
+);

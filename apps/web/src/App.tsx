@@ -17,6 +17,7 @@ const ICONS: Record<string, string> = {
   connected: 'M9 7l-2 2a4 4 0 000 6l2 2M15 7l2 2a4 4 0 010 6l-2 2M9 12h6', family: 'M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 2.7-5 6-5M17 11a3 3 0 000-6M21 20c0-2.4-1.6-4-4-4.4',
   billing: 'M3 7h18v11H3zM3 10h18M7 15h4', settings: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12l2-1.5-2-3.4-2.3 1a7 7 0 00-2.3-1.3L14 4h-4l-.3 2.8a7 7 0 00-2.3 1.3l-2.3-1-2 3.4L3 12l-2 1.5 2 3.4 2.3-1a7 7 0 002.3 1.3L10 20h4l.3-2.8a7 7 0 002.3-1.3l2.3 1 2-3.4z',
   overview: 'M4 13h7V4H4zM13 20h7v-9h-7zM4 20h7v-4H4zM13 4v5h7V4z', tenants: 'M4 20V8l6-4 6 4v12M4 20h12M14 11h3v9', users: 'M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 2.7-5 6-5M17 11a3 3 0 000-6M21 20c0-2.4-1.6-4-4-4.4', audit: 'M7 4h10v16H7zM10 8h4M10 12h4M10 16h2',
+  support: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z',
 };
 const Icon = ({ k, size = 20 }: { k: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[k] ?? ICONS.home} /></svg>;
 
@@ -83,9 +84,9 @@ const TENANT_NAV = [
   { id: 'assistant', label: 'Ask Vaulmo', ic: 'assistant' }, { id: 'reminders', label: 'Reminders', ic: 'reminders' },
   { grp: 'Life' }, { id: 'trips', label: 'Trips', ic: 'trips' }, { id: 'purchases', label: 'Purchases', ic: 'purchases' },
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
-  { grp: 'Account' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'settings', label: 'Settings', ic: 'settings' },
+  { grp: 'Account' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'audit', label: 'Audit', ic: 'audit' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'audit', label: 'Audit', ic: 'audit' }];
 
 function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -101,10 +102,10 @@ function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
-  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -523,3 +524,96 @@ function Subscriptions({ toast }: any) {
   </>;
 }
 function Audit() { const { data } = useData(() => api.adminAudit()); return <Card title="Audit log">{(data?.logs ?? []).map((l: any) => <div className="row" key={l.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{l.outcome === 'failure' ? '⚠️' : '•'}</div><div className="m"><div className="t">{l.action}</div><div className="s">{l.targetType ?? ''} · {fmt(l.at)}</div></div><span className={`pill ${l.outcome === 'failure' ? 'p-crit' : 'p-neutral'}`}>{l.outcome}</span></div>)}</Card>; }
+
+const tkPill = (s: string) => (s === 'open' ? 'p-warn' : s === 'pending' ? 'p-info' : 'p-neutral');
+const taStyle = { width: '100%', marginTop: 6, borderRadius: 10, border: '1px solid var(--line)', padding: 10, fontFamily: 'inherit', fontSize: 14, boxSizing: 'border-box' } as const;
+function Thread({ messages }: any) {
+  return <>{(messages ?? []).map((m: any) => <div key={m.id} style={{ display: 'flex', justifyContent: m.authorRole === 'support' ? 'flex-start' : 'flex-end', marginBottom: 10 }}>
+    <div style={{ maxWidth: '75%', background: m.authorRole === 'support' ? 'var(--brand-soft)' : 'var(--surface-2)', padding: '10px 12px', borderRadius: 12 }}>
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 3 }}>{m.authorRole === 'support' ? 'Vaulmo Support' : 'Customer'} · {fmt(m.createdAt)}</div>
+      <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body}</div>
+    </div></div>)}</>;
+}
+
+function SupportTenant({ toast }: any) {
+  const { data, reload } = useData(() => api.supportTickets());
+  const [sel, setSel] = useState<any>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState<any>({ subject: '', priority: 'normal', body: '' });
+  const [reply, setReply] = useState('');
+  const tickets = data?.tickets ?? [];
+  async function open(id: string) { setSel(await api.supportTicket(id)); }
+  async function submit() { if (!form.subject || !form.body) { toast('Subject and message are required'); return; } await api.createSupportTicket(form); setCreating(false); setForm({ subject: '', priority: 'normal', body: '' }); toast('Ticket raised'); await reload(); }
+  async function send() { if (!reply.trim()) return; await api.supportReply(sel.ticket.id, reply); setReply(''); setSel(await api.supportTicket(sel.ticket.id)); await reload(); }
+
+  if (sel) return <>
+    <a onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All tickets</a>
+    <div style={{ height: 10 }} />
+    <Card title={sel.ticket.subject} right={<span className={`pill ${tkPill(sel.ticket.status)}`}>{sel.ticket.status}</span>}>
+      <Thread messages={sel.messages} />
+      {sel.ticket.status !== 'closed'
+        ? <div className="flex" style={{ marginTop: 12 }}><input placeholder="Type a reply…" value={reply} onChange={(e) => setReply(e.target.value)} style={{ marginTop: 0 }} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} /><button className="btn" onClick={send}>Send</button></div>
+        : <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>This ticket is closed — send a reply to reopen it.</div>}
+    </Card>
+  </>;
+
+  return <Card title="Your tickets" right={<a onClick={() => setCreating(!creating)} style={{ cursor: 'pointer', color: 'var(--brand)' }}>{creating ? 'Cancel' : '+ New ticket'}</a>}>
+    {creating && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
+      <div className="grid2">
+        <label>Subject<input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="What do you need help with?" /></label>
+        <label>Priority<select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label>
+      </div>
+      <label>Message<textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} rows={3} placeholder="Describe your issue…" style={taStyle} /></label>
+      <button className="btn" style={{ marginTop: 10 }} onClick={submit}>Raise ticket</button>
+    </div>}
+    {tickets.map((t: any) => <div className="row" key={t.id} onClick={() => open(t.id)} style={{ cursor: 'pointer' }}><div className="ic" style={{ background: 'var(--surface-2)' }}>💬</div><div className="m"><div className="t">{t.subject}</div><div className="s">{t.messageCount} message{t.messageCount === 1 ? '' : 's'} · updated {fmt(t.updatedAt)}</div></div><span className={`pill ${tkPill(t.status)}`}>{t.status}</span></div>)}
+    {!tickets.length && !creating && <div className="empty">No tickets yet. Raise one and we'll help.</div>}
+  </Card>;
+}
+
+function AdminSupport({ toast }: any) {
+  const { data, reload } = useData(() => api.adminSupportTickets());
+  const [status, setStatus] = useState('all');
+  const [sel, setSel] = useState<any>(null);
+  const [reply, setReply] = useState('');
+  const all = data?.tickets ?? [];
+  const counts = data?.counts ?? { open: 0, pending: 0, closed: 0 };
+  const tickets = status === 'all' ? all : all.filter((t: any) => t.status === status);
+  async function open(id: string) { setSel(await api.adminSupportTicket(id)); }
+  async function send() { if (!reply.trim()) return; await api.adminSupportReply(sel.ticket.id, reply); setReply(''); setSel(await api.adminSupportTicket(sel.ticket.id)); await reload(); toast('Reply sent'); }
+  async function setSt(s: string) { await api.adminSupportStatus(sel.ticket.id, s); setSel(await api.adminSupportTicket(sel.ticket.id)); await reload(); }
+
+  if (sel) return <>
+    <a onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All tickets</a>
+    <div style={{ height: 10 }} />
+    <Card title={sel.ticket.subject} right={<span className={`pill ${tkPill(sel.ticket.status)}`}>{sel.ticket.status}</span>}>
+      <div className="muted" style={{ fontSize: 13, marginTop: -4, marginBottom: 12 }}>{sel.ticket.customer} · {sel.ticket.requester?.email ?? '—'} · {sel.ticket.priority} priority</div>
+      <Thread messages={sel.messages} />
+      <div className="flex" style={{ marginTop: 12 }}><input placeholder="Reply to the customer…" value={reply} onChange={(e) => setReply(e.target.value)} style={{ marginTop: 0 }} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} /><button className="btn" onClick={send}>Send</button></div>
+      <div className="flex" style={{ marginTop: 12, gap: 8 }}>
+        {sel.ticket.status !== 'closed' ? <button className="btn sm sec" onClick={() => setSt('closed')}>Close ticket</button> : <button className="btn sm sec" onClick={() => setSt('open')}>Reopen</button>}
+        {sel.ticket.status !== 'pending' && sel.ticket.status !== 'closed' && <button className="btn sm sec" onClick={() => setSt('pending')}>Mark awaiting customer</button>}
+      </div>
+    </Card>
+  </>;
+
+  return <>
+    <div className="tiles">
+      <Tile ic="🟠" bg="var(--warn-bg)" lab="Open" val={counts.open ?? 0} />
+      <Tile ic="🔵" bg="var(--aqua-bg)" lab="Awaiting customer" val={counts.pending ?? 0} />
+      <Tile ic="✅" bg="var(--good-bg)" lab="Closed" val={counts.closed ?? 0} />
+      <Tile ic="📨" bg="var(--brand-soft)" lab="Total" val={all.length} />
+    </div>
+    <Card title="Tickets" right={<select value={status} onChange={(e) => setStatus(e.target.value)} style={{ marginTop: 0, maxWidth: 170 }}><option value="all">All</option><option value="open">Open</option><option value="pending">Awaiting customer</option><option value="closed">Closed</option></select>}>
+      <table><thead><tr><th>Subject</th><th>Customer</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead>
+        <tbody>{tickets.map((t: any) => <tr key={t.id} onClick={() => open(t.id)} style={{ cursor: 'pointer' }}>
+          <td><b>{t.subject}</b><div className="muted" style={{ fontSize: 12 }}>{t.messageCount} message{t.messageCount === 1 ? '' : 's'}</div></td>
+          <td>{t.customer}<div className="muted" style={{ fontSize: 12 }}>{t.requester ?? ''}</div></td>
+          <td style={{ textTransform: 'capitalize' }}>{t.priority}</td>
+          <td><span className={`pill ${tkPill(t.status)}`}>{t.status}</span></td>
+          <td>{fmt(t.updatedAt)}</td>
+        </tr>)}</tbody></table>
+      {!tickets.length && <div className="empty">No tickets{status !== 'all' ? ` with status "${status}"` : ' yet'}.</div>}
+    </Card>
+  </>;
+}
