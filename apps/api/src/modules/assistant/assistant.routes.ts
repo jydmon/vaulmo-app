@@ -8,6 +8,7 @@ import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
 import { searchDocuments } from '../../lib/search';
 import { ask, whatDoINeedToKnow } from '../../lib/assistant';
+import { logAiUsage } from '../../lib/aiUsage';
 
 export const assistantRouter = Router();
 assistantRouter.use(requireAuth, requireMfaSatisfied, requireInternalTester, requirePermission(PERMISSIONS.FILE_READ));
@@ -22,6 +23,7 @@ const searchSchema = z.object({ query: z.string().min(1).max(300), limit: z.numb
 assistantRouter.post('/search', async (req, res) => {
   const body = searchSchema.parse(req.body);
   const hits = await searchDocuments(tid(req), body.query, body.limit ?? 5);
+  await logAiUsage({ userId: req.auth!.sub, tenantId: tid(req), feature: 'search', promptText: body.query, completionText: JSON.stringify(hits) });
   res.json({ results: hits });
 });
 
@@ -31,6 +33,7 @@ assistantRouter.post('/ask', async (req, res) => {
   const body = askSchema.parse(req.body);
   const result = await ask(tid(req), body.question);
   await audit({ action: 'assistant.ask', actorId: req.auth!.sub, tenantId: tid(req), metadata: { retrieved: result.retrieved }, req });
+  await logAiUsage({ userId: req.auth!.sub, tenantId: tid(req), feature: 'assistant', promptText: body.question, completionText: JSON.stringify((result as any).answer ?? result) });
   res.json(result);
 });
 

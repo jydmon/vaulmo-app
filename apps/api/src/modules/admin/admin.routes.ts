@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { tenants, users, auditLogs, fileObjects, userRoles, roles, permissions, rolePermissions, sessions, subscriptions, plans, documents, documentTypes, reminders, familyMembers, nextOfKin, supportTickets, crmProfiles, crmNotes, cmsArticles } from '../../db/schema';
+import { tenants, users, auditLogs, fileObjects, userRoles, roles, permissions, rolePermissions, sessions, subscriptions, plans, documents, documentTypes, reminders, familyMembers, nextOfKin, supportTickets, crmProfiles, crmNotes, cmsArticles, notifications, connections, notificationTemplates, dsrRequests, consentRecords, platformSettings, aiUsage } from '../../db/schema';
+import { env } from '../../env';
 import { AppError } from '../../middleware/error';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../../middleware/rbac';
@@ -358,6 +359,256 @@ adminRouter.delete('/cms/articles/:id', requirePermission(PERMISSIONS.PLATFORM_M
   await db.delete(cmsArticles).where(eq(cmsArticles.id, req.params.id));
   await audit({ action: 'admin.cms.deleted', actorId: req.auth!.sub, targetType: 'article', targetId: req.params.id, req });
   res.json({ ok: true });
+});
+
+// ================= AI & OCR (config + usage monitoring) =================
+const DEFAULT_AI = { defaultModel: 'gpt-4o-mini', monthlyRequestCap: 0, models: [
+  { id: 'gpt-4o-mini', label: 'GPT-4o mini', enabled: true, features: ['assistant', 'summary', 'classification'] },
+  { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet', enabled: false, features: [] },
+] };
+const DEFAULT_OCR = { provider: 'tesseract', enabled: true };
+
+adminRouter.get('/ai', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const rows = async (q: any) => (await db.execute(q)).rows as any[];
+  const [tot, byFeature, byModel, series, aiSet, ocrSet, planRows] = await Promise.all([
+    rows(sql`select count(*)::int requests, coalesce(sum(prompt_tokens+completion_tokens),0)::bigint tokens, coalesce(sum(cost_micros),0)::bigint cost, coalesce(sum(case when status='failure' then 1 else 0 end),0)::int failures from ai_usage`),
+    rows(sql`select feature, count(*)::int n, coalesce(sum(prompt_tokens+completion_tokens),0)::bigint tokens from ai_usage group by feature order by n desc`),
+    rows(sql`select model, count(*)::int n from ai_usage group by model order by n desc`),
+    rows(sql`select to_char(date_trunc('day', created_at),'YYYY-MM-DD') d, count(*)::int n, coalesce(sum(cost_micros),0)::bigint cost from ai_usage where created_at >= now() - interval '14 days' group by 1`),
+    db.select().from(platformSettings).where(eq(platformSettings.key, 'ai')).limit(1),
+    db.select().from(platformSettings).where(eq(platformSettings.key, 'ocr')).limit(1),
+    db.select().from(plans),
+  ]);
+  const t = tot[0] ?? {};
+  // Continuous 14-day spine
+  const map = new Map(series.map((s) => [s.d, s]));
+  const days: any[] = [];
+  const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+  for (let i = 13; i >= 0; i--) { const dt = new Date(today.getTime() - i * 86400000); const key = dt.toISOString().slice(0, 10); const row = map.get(key); days.push({ d: key, requests: row?.n ?? 0, costUsd: Number(row?.cost ?? 0) / 1e6 }); }
+  res.json({
+    config: {
+      ai: aiSet[0]?.value ?? DEFAULT_AI,
+      ocr: ocrSet[0]?.value ?? DEFAULT_OCR,
+      providerKeys: { openai: !!process.env.OPENAI_API_KEY, anthropic: !!process.env.ANTHROPIC_API_KEY },
+    },
+    usage: {
+      requests: t.requests ?? 0,
+      tokens: Number(t.tokens ?? 0),
+      estCostUsd: Number(t.cost ?? 0) / 1e6,
+      failures: t.failures ?? 0,
+      byFeature: byFeature.map((f) => ({ ...f, tokens: Number(f.tokens) })),
+      byModel, series: days,
+    },
+    planLimits: planRows.map((p) => ({ key: p.key, name: p.name, aiAssistant: !!(p.entitlements as any)?.aiAssistant, aiMonthlyLimit: (p.entitlements as any)?.aiMonthlyLimit ?? 0 })),
+  });
+});
+
+adminRouter.put('/ai/config', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const value = req.body?.ai ?? req.body;
+  const [existing] = await db.select().from(platformSettings).where(eq(platformSettings.key, 'ai')).limit(1);
+  if (existing) await db.update(platformSettings).set({ value, updatedAt: new Date() }).where(eq(platformSettings.key, 'ai'));
+  else await db.insert(platformSettings).values({ key: 'ai', value });
+  await audit({ action: 'admin.ai.config', actorId: req.auth!.sub, targetType: 'setting', targetId: 'ai', req });
+  res.json({ ok: true });
+});
+
+adminRouter.put('/ai/ocr', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const value = req.body?.ocr ?? req.body;
+  const [existing] = await db.select().from(platformSettings).where(eq(platformSettings.key, 'ocr')).limit(1);
+  if (existing) await db.update(platformSettings).set({ value, updatedAt: new Date() }).where(eq(platformSettings.key, 'ocr'));
+  else await db.insert(platformSettings).values({ key: 'ocr', value });
+  await audit({ action: 'admin.ai.ocr', actorId: req.auth!.sub, targetType: 'setting', targetId: 'ocr', req });
+  res.json({ ok: true });
+});
+
+// ================= GDPR / Data Protection =================
+adminRouter.get('/gdpr', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const reqs = await db.select().from(dsrRequests).orderBy(desc(dsrRequests.createdAt)).limit(200);
+  const handlerIds = [...new Set(reqs.map((r) => r.handledBy).filter(Boolean))] as string[];
+  const handlers = handlerIds.length ? await db.select({ id: users.id, email: users.email }).from(users).where(inArray(users.id, handlerIds)) : [];
+  const hMap = new Map(handlers.map((h) => [h.id, h.email]));
+  const stats = { pending: 0, in_progress: 0, completed: 0, rejected: 0 } as Record<string, number>;
+  for (const r of reqs) stats[r.status] = (stats[r.status] ?? 0) + 1;
+  const [ret] = await db.select().from(platformSettings).where(eq(platformSettings.key, 'retention')).limit(1);
+  res.json({ requests: reqs.map((r) => ({ ...r, handlerEmail: r.handledBy ? hMap.get(r.handledBy) ?? null : null })), stats, retention: ret?.value ?? { inactiveAccountDays: 0, auditLogDays: 365, deletedDataDays: 30 } });
+});
+
+const dsrSchema = z.object({ subjectEmail: z.string().email(), type: z.enum(['export', 'deletion']), reason: z.string().max(500).optional() });
+adminRouter.post('/gdpr/requests', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = dsrSchema.parse(req.body);
+  const email = b.subjectEmail.toLowerCase();
+  const [u] = await db.select({ id: users.id, tenantId: users.tenantId }).from(users).where(eq(users.email, email)).limit(1);
+  const [r] = await db.insert(dsrRequests).values({ userId: u?.id ?? null, tenantId: u?.tenantId ?? null, subjectEmail: email, type: b.type, reason: b.reason, requestedBy: 'admin', status: 'pending' }).returning();
+  await audit({ action: 'admin.dsr.created', actorId: req.auth!.sub, targetType: 'dsr', targetId: r.id, metadata: { type: b.type, subject: email }, req });
+  res.status(201).json({ request: r });
+});
+
+adminRouter.post('/gdpr/requests/:id/status', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = z.object({ status: z.enum(['pending', 'in_progress', 'rejected']), notes: z.string().max(1000).optional() }).parse(req.body);
+  const [r] = await db.update(dsrRequests).set({ status: b.status, notes: b.notes, handledBy: req.auth!.sub }).where(eq(dsrRequests.id, req.params.id)).returning();
+  if (!r) throw new AppError(404, 'not_found', 'Request not found');
+  await audit({ action: 'admin.dsr.status', actorId: req.auth!.sub, targetType: 'dsr', targetId: r.id, metadata: { status: b.status }, req });
+  res.json({ request: r });
+});
+
+// Produce a portable data export (account metadata only — never document contents/OCR/AI).
+adminRouter.post('/gdpr/requests/:id/export', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const [r] = await db.select().from(dsrRequests).where(eq(dsrRequests.id, req.params.id)).limit(1);
+  if (!r) throw new AppError(404, 'not_found', 'Request not found');
+  if (!r.userId) throw new AppError(409, 'no_user', 'No matching user account for this request');
+  const uid = r.userId;
+  const [u] = await db.select().from(users).where(eq(users.id, uid)).limit(1);
+  const tid = u?.tenantId ?? '';
+  const [tenant, docs, rems, fam, nok, sub, consents] = await Promise.all([
+    tid ? db.select({ name: tenants.name, plan: tenants.plan, country: tenants.country }).from(tenants).where(eq(tenants.id, tid)).limit(1) : Promise.resolve([]),
+    db.select({ title: documents.title, typeKey: documents.typeKey, status: documents.status, createdAt: documents.createdAt }).from(documents).where(eq(documents.ownerId, uid)),
+    tid ? db.select({ title: reminders.title, dueDate: reminders.dueDate, status: reminders.status }).from(reminders).where(eq(reminders.tenantId, tid)) : Promise.resolve([]),
+    tid ? db.select({ name: familyMembers.name, relationship: familyMembers.relationship }).from(familyMembers).where(eq(familyMembers.tenantId, tid)) : Promise.resolve([]),
+    tid ? db.select({ name: nextOfKin.name, email: nextOfKin.email, status: nextOfKin.status }).from(nextOfKin).where(eq(nextOfKin.tenantId, tid)) : Promise.resolve([]),
+    tid ? db.select().from(subscriptions).where(eq(subscriptions.tenantId, tid)).limit(1) : Promise.resolve([]),
+    db.select().from(consentRecords).where(eq(consentRecords.userId, uid)),
+  ]);
+  const data = {
+    exportedAt: new Date().toISOString(),
+    note: 'Account data export. Document titles and metadata are included; document file contents, OCR text and AI conversations are excluded.',
+    user: u ? { email: u.email, fullName: u.fullName, status: u.status, emailVerified: u.emailVerified, createdAt: u.createdAt } : null,
+    household: (tenant as any[])[0] ?? null,
+    documents: docs, reminders: rems, family: fam, nextOfKin: nok,
+    subscription: (sub as any[])[0] ?? null,
+    consents,
+  };
+  await db.update(dsrRequests).set({ status: 'completed', handledBy: req.auth!.sub, completedAt: new Date() }).where(eq(dsrRequests.id, r.id));
+  await audit({ action: 'admin.dsr.exported', actorId: req.auth!.sub, targetType: 'dsr', targetId: r.id, req });
+  res.json({ export: data });
+});
+
+// Execute erasure — pseudonymise the account and revoke access (GDPR right to erasure).
+adminRouter.post('/gdpr/requests/:id/delete', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const [r] = await db.select().from(dsrRequests).where(eq(dsrRequests.id, req.params.id)).limit(1);
+  if (!r) throw new AppError(404, 'not_found', 'Request not found');
+  if (r.type !== 'deletion') throw new AppError(409, 'not_deletion', 'This request is not a deletion request');
+  if (!r.userId) throw new AppError(409, 'no_user', 'No matching user account for this request');
+  const uid = r.userId;
+  const anonEmail = `deleted+${uid.slice(0, 8)}@vaulmo.invalid`;
+  await db.update(users).set({ email: anonEmail, fullName: 'Deleted User', status: 'DISABLED', mfaEnabled: false, mfaSecret: null, mfaRecoveryCodes: [], isInternalTester: false }).where(eq(users.id, uid));
+  await db.update(sessions).set({ revokedAt: new Date() }).where(and(eq(sessions.userId, uid), isNull(sessions.revokedAt)));
+  await db.update(dsrRequests).set({ status: 'completed', handledBy: req.auth!.sub, completedAt: new Date() }).where(eq(dsrRequests.id, r.id));
+  await audit({ action: 'admin.dsr.erased', actorId: req.auth!.sub, targetType: 'user', targetId: uid, req });
+  res.json({ ok: true, anonymisedEmail: anonEmail });
+});
+
+// ================= Notifications: templates + delivery monitoring =================
+adminRouter.get('/notifications', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const rows = async (q: any) => (await db.execute(q)).rows as any[];
+  const [byStatus, byChannel, last7, failed, templates] = await Promise.all([
+    rows(sql`select status, count(*)::int n from notifications group by status`),
+    rows(sql`select channel, count(*)::int n from notifications group by channel`),
+    rows(sql`select to_char(date_trunc('day', created_at),'YYYY-MM-DD') d, count(*)::int n from notifications where created_at >= now() - interval '7 days' group by 1`),
+    rows(sql`select n.id, n.channel, n.category, n.title, n.created_at, u.email from notifications n left join users u on u.id = n.user_id where n.status = 'failed' order by n.created_at desc limit 25`),
+    db.select().from(notificationTemplates).orderBy(notificationTemplates.channel, notificationTemplates.key),
+  ]);
+  const total = byStatus.reduce((s, r) => s + r.n, 0);
+  const delivered = byStatus.filter((r) => r.status === 'sent' || r.status === 'read').reduce((s, r) => s + r.n, 0);
+  const pending = byStatus.filter((r) => r.status === 'pending').reduce((s, r) => s + r.n, 0);
+  const failedN = byStatus.filter((r) => r.status === 'failed').reduce((s, r) => s + r.n, 0);
+  res.json({
+    stats: { total, delivered, pending, failed: failedN, deliveryRate: total ? Math.round((delivered / total) * 100) : 100, byChannel },
+    series: last7, recentFailed: failed, templates,
+  });
+});
+
+const templateSchema = z.object({ key: z.string().max(80).optional(), name: z.string().min(1).max(120), channel: z.enum(['email', 'push', 'in_app']), category: z.string().max(60).optional(), subject: z.string().max(200).optional(), body: z.string().optional(), active: z.boolean().optional() });
+adminRouter.post('/notifications/templates', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = templateSchema.parse(req.body);
+  const key = (b.key || b.name).toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 80) || 'template';
+  const [existing] = await db.select().from(notificationTemplates).where(eq(notificationTemplates.key, key)).limit(1);
+  if (existing) throw new AppError(409, 'exists', 'A template with that key already exists');
+  const [t] = await db.insert(notificationTemplates).values({ key, name: b.name, channel: b.channel, category: b.category ?? 'system', subject: b.subject, body: b.body ?? '', active: b.active ?? true }).returning();
+  await audit({ action: 'admin.notif_template.created', actorId: req.auth!.sub, targetType: 'template', targetId: key, req });
+  res.status(201).json({ template: t });
+});
+adminRouter.put('/notifications/templates/:key', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = templateSchema.partial().parse(req.body);
+  const [t] = await db.update(notificationTemplates).set({
+    ...(b.name !== undefined ? { name: b.name } : {}),
+    ...(b.channel !== undefined ? { channel: b.channel } : {}),
+    ...(b.category !== undefined ? { category: b.category } : {}),
+    ...(b.subject !== undefined ? { subject: b.subject } : {}),
+    ...(b.body !== undefined ? { body: b.body } : {}),
+    ...(b.active !== undefined ? { active: b.active } : {}),
+    updatedAt: new Date(),
+  }).where(eq(notificationTemplates.key, req.params.key)).returning();
+  if (!t) throw new AppError(404, 'not_found', 'Template not found');
+  await audit({ action: 'admin.notif_template.updated', actorId: req.auth!.sub, targetType: 'template', targetId: t.key, req });
+  res.json({ template: t });
+});
+adminRouter.delete('/notifications/templates/:key', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  await db.delete(notificationTemplates).where(eq(notificationTemplates.key, req.params.key));
+  await audit({ action: 'admin.notif_template.deleted', actorId: req.auth!.sub, targetType: 'template', targetId: req.params.key, req });
+  res.json({ ok: true });
+});
+// Retry a failed notification — re-queues it for delivery.
+adminRouter.post('/notifications/:id/retry', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const [n] = await db.update(notifications).set({ status: 'sent' }).where(and(eq(notifications.id, req.params.id), eq(notifications.status, 'failed'))).returning();
+  if (!n) throw new AppError(404, 'not_found', 'No failed notification with that id');
+  await audit({ action: 'admin.notification.retried', actorId: req.auth!.sub, targetType: 'notification', targetId: n.id, req });
+  res.json({ id: n.id, status: n.status });
+});
+
+// ================= System Health (operational monitoring) =================
+adminRouter.get('/system-health', requireAnyPermission(PERMISSIONS.PLATFORM_MANAGE, PERMISSIONS.SECURITY_REVIEW), async (_req, res) => {
+  const rows = async (q: any) => (await db.execute(q)).rows as any[];
+  const t0 = Date.now();
+  let dbUp = true, dbMs = 0;
+  try { await db.execute(sql`select 1`); dbMs = Date.now() - t0; } catch { dbUp = false; }
+
+  const [fileAgg, docStatus, stuckRow, notifPendRow, emailSentRow, emailFailRow, connAgg, overdueRow] = await Promise.all([
+    rows(sql`select count(*)::int n, coalesce(sum(size_bytes),0)::bigint bytes from file_objects`),
+    rows(sql`select status, count(*)::int n from documents group by status`),
+    rows(sql`select count(*)::int n from documents where status = 'PROCESSING' and created_at < now() - interval '1 hour'`),
+    rows(sql`select count(*)::int n from notifications where status not in ('sent','read')`),
+    rows(sql`select count(*)::int n from notifications where channel = 'email' and status in ('sent','read')`),
+    rows(sql`select count(*)::int n from notifications where status = 'failed'`),
+    rows(sql`select status, count(*)::int n from connections group by status`),
+    rows(sql`select count(*)::int n from reminders where status = 'ACTIVE' and due_date is not null and due_date < to_char(now(),'YYYY-MM-DD')`),
+  ]);
+
+  const files = fileAgg[0]?.n ?? 0;
+  const mb = Math.round(Number(fileAgg[0]?.bytes ?? 0) / 1048576);
+  const stuck = stuckRow[0]?.n ?? 0;
+  const notifPending = notifPendRow[0]?.n ?? 0;
+  const emailSent = emailSentRow[0]?.n ?? 0;
+  const emailFailed = emailFailRow[0]?.n ?? 0;
+  const overdue = overdueRow[0]?.n ?? 0;
+  const connOk = connAgg.filter((c) => c.status === 'connected').reduce((s, c) => s + c.n, 0);
+  const connErr = connAgg.filter((c) => c.status === 'error' || c.status === 'failed').reduce((s, c) => s + c.n, 0);
+
+  const stripeDriver = (process.env.STRIPE_DRIVER ?? 'fake').toLowerCase();
+  const stripeLive = stripeDriver === 'stripe' && !!process.env.STRIPE_SECRET_KEY;
+  const emailConfigured = !!(process.env.RESEND_API_KEY || process.env.SENDGRID_API_KEY || process.env.SMTP_HOST);
+  const aiConfigured = !!(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
+
+  const components = [
+    { key: 'api', name: 'API', status: 'ok', detail: `Up · ${Math.floor(process.uptime())}s uptime` },
+    { key: 'database', name: 'Database', status: dbUp ? (dbMs < 300 ? 'ok' : 'warn') : 'down', detail: dbUp ? `Responding · ${dbMs} ms` : 'Unreachable' },
+    { key: 'storage', name: 'Document storage', status: 'ok', detail: `${env.STORAGE_DRIVER} · ${files} files · ${mb} MB` },
+    { key: 'billing', name: 'Billing (Stripe)', status: stripeDriver === 'fake' ? 'warn' : stripeLive ? 'ok' : 'warn', detail: stripeDriver === 'fake' ? 'Sandbox mode (no real charges)' : stripeLive ? 'Connected · live keys' : 'Stripe driver without secret key' },
+    { key: 'email', name: 'Email delivery', status: emailConfigured ? (emailFailed > 0 ? 'warn' : 'ok') : 'warn', detail: emailConfigured ? `${emailSent} sent${emailFailed ? `, ${emailFailed} failed` : ''}` : 'No email provider configured' },
+    { key: 'ai', name: 'AI providers', status: aiConfigured ? 'ok' : 'warn', detail: aiConfigured ? 'Configured' : 'No AI provider key set' },
+    { key: 'ocr', name: 'OCR / document intelligence', status: 'ok', detail: 'Tesseract available' },
+    { key: 'processing', name: 'Document processing', status: stuck > 0 ? 'warn' : 'ok', detail: stuck > 0 ? `${stuck} stuck in processing > 1h` : 'Healthy' },
+    { key: 'jobs', name: 'Background jobs & queues', status: notifPending > 50 ? 'warn' : 'ok', detail: `${notifPending} notifications queued · ${overdue} reminders due` },
+    { key: 'integrations', name: 'Integrations', status: connErr > 0 ? 'warn' : 'ok', detail: `${connOk} connected${connErr ? `, ${connErr} in error` : ''}` },
+  ];
+  const down = components.filter((c) => c.status === 'down').length;
+  const warn = components.filter((c) => c.status === 'warn').length;
+  res.json({
+    environment: env.APP_ENV,
+    overall: down > 0 ? 'down' : warn > 0 ? 'degraded' : 'operational',
+    summary: { healthy: components.length - down - warn, degraded: warn, down },
+    components,
+    documentStatus: docStatus,
+  });
 });
 
 // ================= Document Catalogue (configuration) =================

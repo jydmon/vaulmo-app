@@ -28,6 +28,10 @@ const ICONS: Record<string, string> = {
   roles: 'M8 11a3 3 0 100-6 3 3 0 000 6zM2 20a6 6 0 0112 0M17 11l1.5 1.5L22 9M15 4a3 3 0 010 6',
   catalogue: 'M4 4h11l5 5v11a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zM14 4v5h5M7 13h8M7 17h5',
   config: 'M4 6h10M18 6h2M4 12h2M10 12h10M4 18h8M16 18h4M14 4v4M6 10v4M12 16v4',
+  health: 'M3 12h4l2 6 4-14 2 8 2-4h4',
+  notif: 'M6 9a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6zM10 20a2 2 0 004 0',
+  gdpr: 'M12 3l7 3v5c0 4.4-2.9 8.3-7 9.5-4.1-1.2-7-5.1-7-9.5V6l7-3zM9.5 12l1.8 1.8 3.2-3.6',
+  ai: 'M12 3a9 9 0 00-9 9c0 1.6.4 3 1.1 4.3L3 21l4.8-1.1A9 9 0 1012 3zM9 11h.01M12 11h.01M15 11h.01',
 };
 const Icon = ({ k, size = 20 }: { k: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[k] ?? ICONS.home} /></svg>;
 
@@ -163,7 +167,7 @@ const TENANT_NAV = [
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
   { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
 
 function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; refreshMe: () => Promise<void> }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -184,10 +188,10 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], config: ['Configuration', 'Feature flags, announcements & platform settings'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
-  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, config: <AdminConfig toast={toast} />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -1547,5 +1551,262 @@ function AdminConfig({ toast }: any) {
         <button className="btn" style={{ marginTop: 10 }} onClick={() => saveSetting('support', sup)}>Save support</button>
       </>}
     </Card>
+  </>;
+}
+
+/* ---------------- System Health ---------------- */
+const healthDot = (s: string) => (s === 'ok' ? '#0ca30c' : s === 'warn' ? '#c98500' : '#d03b3b');
+const healthLabel = (s: string) => (s === 'ok' ? 'Operational' : s === 'warn' ? 'Degraded' : 'Down');
+function AdminSystemHealth() {
+  const { data, reload } = useData(() => api.adminSystemHealth());
+  if (!data) return <Card title="System Health"><div className="empty">Checking components…</div></Card>;
+  const overall = data.overall;
+  const s = data.summary ?? {};
+  const comps = data.components ?? [];
+  const docStatus = data.documentStatus ?? [];
+  const banner = overall === 'operational' ? { bg: 'var(--good-bg)', txt: 'All systems operational' } : overall === 'degraded' ? { bg: 'var(--warn-bg)', txt: 'Some components degraded' } : { bg: 'var(--crit-bg)', txt: 'Outage — components down' };
+  return <>
+    <div className="card" style={{ marginBottom: 18, background: banner.bg, border: 0 }}>
+      <div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="flex" style={{ gap: 10, alignItems: 'center' }}><span style={{ width: 12, height: 12, borderRadius: 6, background: healthDot(overall === 'operational' ? 'ok' : overall === 'degraded' ? 'warn' : 'down') }} /><b style={{ fontSize: 15 }}>{banner.txt}</b><span className="muted" style={{ fontSize: 12.5, textTransform: 'capitalize' }}>· {data.environment}</span></div>
+        <a onClick={reload} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>Refresh</a>
+      </div>
+    </div>
+    <div className="tiles">
+      <Tile ic="✅" bg="var(--good-bg)" lab="Healthy" val={s.healthy ?? 0} />
+      <Tile ic="⚠️" bg="var(--warn-bg)" lab="Degraded" val={s.degraded ?? 0} />
+      <Tile ic="🔴" bg="var(--crit-bg)" lab="Down" val={s.down ?? 0} />
+      <Tile ic="🧩" bg="var(--brand-soft)" lab="Components" val={comps.length} />
+    </div>
+    <Card title="Components">
+      {comps.map((c: any) => <div className="row" key={c.key}>
+        <span style={{ width: 10, height: 10, borderRadius: 5, background: healthDot(c.status), flex: 'none' }} />
+        <div className="m"><div className="t">{c.name}</div><div className="s">{c.detail}</div></div>
+        <span className={`pill ${c.status === 'ok' ? 'p-good' : c.status === 'warn' ? 'p-warn' : 'p-crit'}`}>{healthLabel(c.status)}</span>
+      </div>)}
+    </Card>
+    {docStatus.length > 0 && <Card title="Document processing pipeline">
+      <div className="flex" style={{ gap: 20, flexWrap: 'wrap' }}>{docStatus.map((d: any) => <div key={d.status}><div className="muted" style={{ fontSize: 12, textTransform: 'lowercase' }}>{String(d.status).replace('_', ' ')}</div><div style={{ fontSize: 22, fontWeight: 750 }}>{d.n}</div></div>)}</div>
+      <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>Operational status only — admins see where documents are in the pipeline, never their contents.</p>
+    </Card>}
+  </>;
+}
+
+/* ---------------- Notifications: monitoring + templates ---------------- */
+const chIcon = (c: string) => (c === 'email' ? '✉️' : c === 'push' ? '📱' : '🔔');
+function AdminNotifications({ toast }: any) {
+  const { data, reload } = useData(() => api.adminNotifications());
+  const [edit, setEdit] = useState<any>(null);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const st = data?.stats ?? {};
+  const templates = data?.templates ?? [];
+  const failed = data?.recentFailed ?? [];
+  const byChannel = st.byChannel ?? [];
+
+  function startNew() { setConfirmDel(false); setEdit({ isNew: true, name: '', channel: 'email', category: 'system', subject: '', body: '', active: true }); }
+  function openEdit(t: any) { setConfirmDel(false); setEdit({ isNew: false, ...t }); }
+  async function save() {
+    if (!edit.name.trim()) { toast('Name is required'); return; }
+    const payload = { name: edit.name, channel: edit.channel, category: edit.category, subject: edit.subject, body: edit.body, active: edit.active };
+    try { if (edit.isNew) await api.adminCreateNotifTemplate(payload); else await api.adminUpdateNotifTemplate(edit.key, payload); toast('Saved'); setEdit(null); await reload(); }
+    catch (e) { toast((e as any).message); }
+  }
+  async function del() { if (!confirmDel) { setConfirmDel(true); return; } await api.adminDeleteNotifTemplate(edit.key); toast('Deleted'); setEdit(null); await reload(); }
+  async function retry(id: string) { try { await api.adminRetryNotification(id); toast('Re-queued for delivery'); await reload(); } catch (e) { toast((e as any).message); } }
+
+  if (edit) return <>
+    <a onClick={() => setEdit(null)} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>← All templates</a>
+    <div style={{ height: 10 }} />
+    <Card title={edit.isNew ? 'New template' : `Edit · ${edit.name}`} right={<span className={`pill ${edit.active ? 'p-good' : 'p-neutral'}`}>{edit.active ? 'active' : 'inactive'}</span>}>
+      <div className="grid2">
+        <label>Name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Passport expiry reminder" /></label>
+        <label>Channel<select value={edit.channel} onChange={(e) => setEdit({ ...edit, channel: e.target.value })}><option value="email">Email</option><option value="push">Push</option><option value="in_app">In-app</option></select></label>
+        <label>Category<input value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value })} placeholder="reminder" /></label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 24 }}><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> Active</label>
+      </div>
+      {edit.channel === 'email' && <label style={{ display: 'block', marginTop: 8 }}>Subject<input value={edit.subject ?? ''} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} placeholder="Your {{document}} expires soon" /></label>}
+      <label style={{ display: 'block', marginTop: 8 }}>Body<textarea value={edit.body ?? ''} onChange={(e) => setEdit({ ...edit, body: e.target.value })} rows={7} placeholder="Hi {{name}}, your {{document}} expires on {{date}}…" style={taStyle} /></label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Use {'{{variables}}'} like {'{{name}}'}, {'{{document}}'}, {'{{date}}'} — they're filled in when the notification is sent.</p>
+      <div className="flex" style={{ marginTop: 14, gap: 8, justifyContent: 'space-between' }}>
+        <button className="btn" onClick={save}>{edit.isNew ? 'Create template' : 'Save changes'}</button>
+        {!edit.isNew && <button className={`btn sm ${confirmDel ? '' : 'sec'}`} onClick={del}>{confirmDel ? 'Click to confirm delete' : 'Delete'}</button>}
+      </div>
+    </Card>
+  </>;
+
+  return <>
+    <div className="tiles">
+      <Tile ic="📨" bg="var(--brand-soft)" lab="Total sent" val={st.total ?? 0} />
+      <Tile ic="✅" bg="var(--good-bg)" lab="Delivery rate" val={`${st.deliveryRate ?? 100}%`} note={`${st.delivered ?? 0} delivered`} />
+      <Tile ic="🕓" bg="var(--warn-bg)" lab="Pending" val={st.pending ?? 0} />
+      <Tile ic="🔴" bg="var(--crit-bg)" lab="Failed" val={st.failed ?? 0} />
+    </div>
+    <div className="grid2">
+      <Card title="By channel">
+        {byChannel.map((c: any) => <div className="row" key={c.channel}><div className="ic" style={{ background: 'var(--surface-2)' }}>{chIcon(c.channel)}</div><div className="m"><div className="t" style={{ textTransform: 'capitalize' }}>{String(c.channel).replace('_', '-')}</div></div><b>{c.n}</b></div>)}
+        {!byChannel.length && <div className="empty">No notifications yet.</div>}
+      </Card>
+      <Card title="Recent failures" right={failed.length ? <span className="pill p-crit">{failed.length}</span> : undefined}>
+        {failed.map((f: any) => <div className="row" key={f.id}><div className="ic" style={{ background: 'var(--crit-bg)' }}>{chIcon(f.channel)}</div><div className="m"><div className="t">{f.title}</div><div className="s">{f.email ?? '—'} · {fmt(f.created_at)}</div></div><button className="btn sm sec" onClick={() => retry(f.id)}>Retry</button></div>)}
+        {!failed.length && <div className="empty">No failed deliveries. 🎉</div>}
+      </Card>
+    </div>
+
+    <Card title="Templates" right={<a onClick={startNew} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>+ New template</a>}>
+      <table><thead><tr><th>Template</th><th>Channel</th><th>Category</th><th>Status</th><th>Updated</th></tr></thead>
+        <tbody>{templates.map((t: any) => <tr key={t.key} onClick={() => openEdit(t)} style={{ cursor: 'pointer' }}>
+          <td><b>{t.name}</b><div className="muted" style={{ fontSize: 12 }}>{t.key}</div></td>
+          <td>{chIcon(t.channel)} <span style={{ textTransform: 'capitalize' }}>{String(t.channel).replace('_', '-')}</span></td>
+          <td>{t.category}</td>
+          <td><span className={`pill ${t.active ? 'p-good' : 'p-neutral'}`}>{t.active ? 'active' : 'inactive'}</span></td>
+          <td>{fmt(t.updatedAt)}</td>
+        </tr>)}</tbody></table>
+      {!templates.length && <div className="empty">No templates yet. Create email, push and in-app templates to standardise your messaging.</div>}
+    </Card>
+  </>;
+}
+
+/* ---------------- GDPR / Data Protection ---------------- */
+const dsrPill = (s: string) => (s === 'completed' ? 'p-good' : s === 'in_progress' ? 'p-info' : s === 'rejected' ? 'p-crit' : 'p-warn');
+function AdminGdpr({ toast }: any) {
+  const { data, reload } = useData(() => api.adminGdpr());
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState<any>({ subjectEmail: '', type: 'export', reason: '' });
+  const [ret, setRet] = useState<any>(null);
+  const [busy, setBusy] = useState('');
+  const reqs = data?.requests ?? [];
+  const stats = data?.stats ?? {};
+  useEffect(() => { if (data) setRet(data.retention ?? { inactiveAccountDays: 0, auditLogDays: 365, deletedDataDays: 30 }); }, [data]);
+
+  async function create() { if (!form.subjectEmail) { toast('Subject email is required'); return; } try { await api.adminCreateDsr(form); toast('Request logged'); setAdding(false); setForm({ subjectEmail: '', type: 'export', reason: '' }); await reload(); } catch (e) { toast((e as any).message); } }
+  async function setStatus(id: string, status: string) { try { await api.adminDsrStatus(id, { status }); await reload(); } catch (e) { toast((e as any).message); } }
+  async function runExport(r: any) {
+    setBusy(r.id);
+    try {
+      const res = await api.adminDsrExport(r.id);
+      const blob = new Blob([JSON.stringify(res.export, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `vaulmo-export-${r.subjectEmail}.json`; a.click(); URL.revokeObjectURL(url);
+      toast('Export generated & downloaded'); await reload();
+    } catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
+  const [confirmDel, setConfirmDel] = useState('');
+  async function erase(r: any) {
+    if (confirmDel !== r.id) { setConfirmDel(r.id); return; }
+    setBusy(r.id);
+    try { const res = await api.adminDsrDelete(r.id); toast(`Account erased → ${res.anonymisedEmail}`); setConfirmDel(''); await reload(); } catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
+  async function saveRetention() { try { await api.adminSetSetting('retention', { inactiveAccountDays: Number(ret.inactiveAccountDays) || 0, auditLogDays: Number(ret.auditLogDays) || 365, deletedDataDays: Number(ret.deletedDataDays) || 30 }); toast('Retention policy saved'); await reload(); } catch (e) { toast((e as any).message); } }
+
+  return <>
+    <div className="tiles">
+      <Tile ic="🕓" bg="var(--warn-bg)" lab="Pending" val={stats.pending ?? 0} />
+      <Tile ic="⚙️" bg="var(--aqua-bg)" lab="In progress" val={stats.in_progress ?? 0} />
+      <Tile ic="✅" bg="var(--good-bg)" lab="Completed" val={stats.completed ?? 0} />
+      <Tile ic="🚫" bg="var(--crit-bg)" lab="Rejected" val={stats.rejected ?? 0} />
+    </div>
+
+    <Card title="Data subject requests" right={<a onClick={() => setAdding(!adding)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{adding ? 'Cancel' : '+ New request'}</a>}>
+      {adding && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
+        <div className="grid2">
+          <label>Subject email<input value={form.subjectEmail} onChange={(e) => setForm({ ...form, subjectEmail: e.target.value })} placeholder="customer@email.com" /></label>
+          <label>Type<select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="export">Data export (portability)</option><option value="deletion">Deletion (erasure)</option></select></label>
+        </div>
+        <label>Reason / reference<input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. GDPR Art. 17 request, ref #1234" /></label>
+        <button className="btn" style={{ marginTop: 10 }} onClick={create}>Log request</button>
+      </div>}
+      <table><thead><tr><th>Subject</th><th>Type</th><th>Status</th><th>Requested</th><th>Actions</th></tr></thead>
+        <tbody>{reqs.map((r: any) => <tr key={r.id}>
+          <td><b>{r.subjectEmail}</b>{!r.userId && <div className="muted" style={{ fontSize: 12 }}>no matching account</div>}{r.reason && <div className="muted" style={{ fontSize: 12 }}>{r.reason}</div>}</td>
+          <td><span className={`pill ${r.type === 'deletion' ? 'p-crit' : 'p-info'}`}>{r.type}</span></td>
+          <td><span className={`pill ${dsrPill(r.status)}`}>{String(r.status).replace('_', ' ')}</span></td>
+          <td>{fmt(r.createdAt)}</td>
+          <td><div className="flex" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {r.status !== 'completed' && r.status !== 'rejected' && <>
+              {r.type === 'export' && <button className="btn sm" disabled={busy === r.id || !r.userId} onClick={() => runExport(r)}>{busy === r.id ? '…' : 'Run export'}</button>}
+              {r.type === 'deletion' && <button className={`btn sm ${confirmDel === r.id ? '' : 'sec'}`} disabled={busy === r.id || !r.userId} onClick={() => erase(r)}>{confirmDel === r.id ? 'Confirm erase' : 'Erase account'}</button>}
+              {r.status === 'pending' && <button className="btn sm sec" onClick={() => setStatus(r.id, 'in_progress')}>Start</button>}
+              <button className="btn sm sec" onClick={() => setStatus(r.id, 'rejected')}>Reject</button>
+            </>}
+            {r.status === 'completed' && <span className="muted" style={{ fontSize: 12 }}>{r.completedAt ? 'done ' + fmt(r.completedAt) : 'done'}</span>}
+          </div></td>
+        </tr>)}</tbody></table>
+      {!reqs.length && <div className="empty">No data subject requests. Log an export or erasure request to track it here.</div>}
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Exports include account data and document titles/metadata only — never document file contents, extracted text or AI conversations. Erasure pseudonymises the account and revokes all sessions.</p>
+    </Card>
+
+    {ret && <Card title="Retention policy">
+      <div className="grid2">
+        <label>Delete inactive accounts after (days, 0 = never)<input type="number" value={ret.inactiveAccountDays} onChange={(e) => setRet({ ...ret, inactiveAccountDays: e.target.value })} /></label>
+        <label>Keep audit logs for (days)<input type="number" value={ret.auditLogDays} onChange={(e) => setRet({ ...ret, auditLogDays: e.target.value })} /></label>
+        <label>Purge erased data after (days)<input type="number" value={ret.deletedDataDays} onChange={(e) => setRet({ ...ret, deletedDataDays: e.target.value })} /></label>
+      </div>
+      <button className="btn" style={{ marginTop: 12 }} onClick={saveRetention}>Save retention policy</button>
+    </Card>}
+  </>;
+}
+
+/* ---------------- AI & OCR ---------------- */
+const AI_FEATURES = ['assistant', 'summary', 'classification', 'search'];
+function AdminAI({ toast }: any) {
+  const { data, reload } = useData(() => api.adminAi());
+  const [ai, setAi] = useState<any>(null);
+  const [ocr, setOcr] = useState<any>(null);
+  useEffect(() => { if (data) { setAi(JSON.parse(JSON.stringify(data.config.ai))); setOcr(JSON.parse(JSON.stringify(data.config.ocr))); } }, [data]);
+  if (!data || !ai || !ocr) return <Card title="AI & OCR"><div className="empty">Loading…</div></Card>;
+  const u = data.usage ?? {};
+  const keys = data.config.providerKeys ?? {};
+  const plans = data.planLimits ?? [];
+
+  function toggleModel(i: number, patch: any) { const m = ai.models.slice(); m[i] = { ...m[i], ...patch }; setAi({ ...ai, models: m }); }
+  function toggleFeature(i: number, f: string) { const m = ai.models.slice(); const has = (m[i].features ?? []).includes(f); m[i] = { ...m[i], features: has ? m[i].features.filter((x: string) => x !== f) : [...(m[i].features ?? []), f] }; setAi({ ...ai, models: m }); }
+  async function saveAi() { try { await api.adminSetAiConfig(ai); toast('AI configuration saved'); await reload(); } catch (e) { toast((e as any).message); } }
+  async function saveOcr() { try { await api.adminSetOcrConfig(ocr); toast('OCR configuration saved'); await reload(); } catch (e) { toast((e as any).message); } }
+
+  return <>
+    <div className="tiles">
+      <Tile ic="🤖" bg="var(--brand-soft)" lab="AI requests" val={u.requests ?? 0} />
+      <Tile ic="🔤" bg="var(--aqua-bg)" lab="Tokens used" val={(u.tokens ?? 0).toLocaleString()} />
+      <Tile ic="💵" bg="var(--good-bg)" lab="Est. cost" val={`$${(u.estCostUsd ?? 0).toFixed(2)}`} />
+      <Tile ic="🔴" bg="var(--crit-bg)" lab="Failures" val={u.failures ?? 0} />
+    </div>
+
+    <Card title="AI requests — last 14 days"><BarChart data={u.series ?? []} k="requests" color="#2563eb" /></Card>
+
+    <div className="grid2">
+      <Card title="Usage by feature">
+        <HBars items={(u.byFeature ?? []).map((f: any) => ({ k: f.feature, n: f.n }))} />
+      </Card>
+      <Card title="Usage by model">
+        <HBars items={(u.byModel ?? []).map((m: any) => ({ k: m.model, n: m.n }))} />
+      </Card>
+    </div>
+
+    <Card title="AI providers & models" right={<button className="btn sm" onClick={saveAi}>Save</button>}>
+      <div className="card" style={{ background: 'var(--surface-2)', border: 0, marginBottom: 12 }}><div className="card-b" style={{ fontSize: 13 }}>
+        Provider API keys are set on the server, never here. <b>OpenAI:</b> {keys.openai ? '✓ configured' : '— not set'} · <b>Anthropic:</b> {keys.anthropic ? '✓ configured' : '— not set'}
+      </div></div>
+      <label>Default model<select value={ai.defaultModel} onChange={(e) => setAi({ ...ai, defaultModel: e.target.value })} style={{ maxWidth: 260 }}>{ai.models.map((m: any) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
+      <div style={{ height: 12 }} />
+      {ai.models.map((m: any, i: number) => <div key={m.id} style={{ borderTop: '1px solid var(--line)', padding: '12px 0' }}>
+        <div className="flex" style={{ justifyContent: 'space-between' }}>
+          <div><b>{m.label}</b> <span className="muted" style={{ fontSize: 12, fontFamily: 'monospace' }}>{m.id}</span></div>
+          <button className={`pill ${m.enabled ? 'p-good' : 'p-neutral'}`} style={{ cursor: 'pointer' }} onClick={() => toggleModel(i, { enabled: !m.enabled })}>{m.enabled ? 'Enabled' : 'Disabled'}</button>
+        </div>
+        <div className="flex" style={{ gap: 14, marginTop: 8, flexWrap: 'wrap' }}>{AI_FEATURES.map((f) => <span key={f} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, textTransform: 'capitalize' }}><input type="checkbox" checked={(m.features ?? []).includes(f)} onChange={() => toggleFeature(i, f)} style={{ width: 'auto', marginTop: 0 }} />{f}</span>)}</div>
+      </div>)}
+      <label style={{ display: 'block', marginTop: 12 }}>Monthly request cap (0 = unlimited)<input type="number" value={ai.monthlyRequestCap ?? 0} onChange={(e) => setAi({ ...ai, monthlyRequestCap: Number(e.target.value) })} style={{ maxWidth: 200 }} /></label>
+    </Card>
+
+    <div className="grid2">
+      <Card title="OCR / document intelligence" right={<button className="btn sm" onClick={saveOcr}>Save</button>}>
+        <label>Provider<select value={ocr.provider} onChange={(e) => setOcr({ ...ocr, provider: e.target.value })}><option value="tesseract">Tesseract (self-hosted)</option><option value="textract">AWS Textract</option><option value="google_docai">Google Document AI</option><option value="azure_di">Azure Document Intelligence</option></select></label>
+        <div className="flex" style={{ marginTop: 10, alignItems: 'center', gap: 8 }}><input type="checkbox" checked={!!ocr.enabled} onChange={(e) => setOcr({ ...ocr, enabled: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /><span style={{ fontSize: 14 }}>OCR enabled</span></div>
+      </Card>
+      <Card title="AI allowance by plan">
+        <table><thead><tr><th>Plan</th><th>AI</th><th>Monthly limit</th></tr></thead>
+          <tbody>{plans.map((p: any) => <tr key={p.key}><td style={{ textTransform: 'capitalize' }}><b>{p.name}</b></td><td>{p.aiAssistant ? <span className="pill p-good">on</span> : <span className="pill p-neutral">off</span>}</td><td>{p.aiMonthlyLimit ? p.aiMonthlyLimit.toLocaleString() : 'unlimited'}</td></tr>)}</tbody></table>
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Per-plan AI limits are edited in Subscriptions → plan entitlements.</p>
+      </Card>
+    </div>
   </>;
 }

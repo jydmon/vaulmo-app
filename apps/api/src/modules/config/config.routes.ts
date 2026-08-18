@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { featureFlags, announcements, platformSettings, users } from '../../db/schema';
+import { featureFlags, announcements, platformSettings, users, consentRecords } from '../../db/schema';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
@@ -51,6 +51,14 @@ configPublicRouter.get('/public', async (req, res) => {
   for (const s of setRows) settings[s.key] = s.value;
 
   res.json({ environment: env.APP_ENV, flags, announcements: visible, settings });
+});
+
+// Record a user's consent to a policy version (consent versioning).
+const consentSchema = z.object({ policy: z.enum(['terms', 'privacy', 'cookie', 'marketing']), version: z.string().min(1).max(40) });
+configPublicRouter.post('/consent', async (req, res) => {
+  const b = consentSchema.parse(req.body);
+  const [c] = await db.insert(consentRecords).values({ userId: req.auth!.sub, policy: b.policy, version: b.version, ip: req.ip }).returning();
+  res.status(201).json({ consent: c });
 });
 
 // ---------------- Admin (Super Admin) ----------------

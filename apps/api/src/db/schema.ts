@@ -537,3 +537,66 @@ export const platformSettings = pgTable('platform_settings', {
   value: jsonb('value').notNull().default({}),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---- Notification templates (admin-managed content) ----
+export const notificationTemplates = pgTable('notification_templates', {
+  key: text('key').primaryKey(),
+  name: text('name').notNull(),
+  channel: text('channel').notNull().default('email'), // email | push | in_app
+  category: text('category').notNull().default('system'),
+  subject: text('subject'),
+  body: text('body').notNull().default(''),
+  active: boolean('active').notNull().default(true),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---- GDPR / data protection ----
+export const dsrRequests = pgTable(
+  'dsr_requests',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+    subjectEmail: text('subject_email').notNull(),
+    type: text('type').notNull(), // export | deletion
+    status: text('status').notNull().default('pending'), // pending | in_progress | completed | rejected
+    reason: text('reason'),
+    notes: text('notes'),
+    requestedBy: text('requested_by').notNull().default('self'), // self | admin
+    handledBy: uuid('handled_by').references(() => users.id, { onDelete: 'set null' }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ statusIdx: index('dsr_status_idx').on(t.status) }),
+);
+
+export const consentRecords = pgTable(
+  'consent_records',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    policy: text('policy').notNull(), // terms | privacy | cookie | marketing
+    version: text('version').notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+    ip: text('ip'),
+  },
+  (t) => ({ userIdx: index('consent_user_idx').on(t.userId) }),
+);
+
+// ---- AI usage tracking (for cost/volume monitoring) ----
+export const aiUsage = pgTable(
+  'ai_usage',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+    feature: text('feature').notNull(), // assistant | search | classification | summary
+    model: text('model').notNull().default('local'),
+    promptTokens: integer('prompt_tokens').notNull().default(0),
+    completionTokens: integer('completion_tokens').notNull().default(0),
+    costMicros: integer('cost_micros').notNull().default(0), // millionths of a USD
+    status: text('status').notNull().default('success'), // success | failure
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ createdIdx: index('ai_usage_created_idx').on(t.createdAt) }),
+);

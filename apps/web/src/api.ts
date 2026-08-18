@@ -155,6 +155,23 @@ export const api = {
   adminUpdateAnnouncement: (id: string, b: any) => PUT<any>(`/admin/config/announcements/${id}`, b),
   adminDeleteAnnouncement: (id: string) => DEL<any>(`/admin/config/announcements/${id}`),
   adminSetSetting: (key: string, value: any) => PUT<any>('/admin/config/settings', { key, value }),
+  adminSystemHealth: () => G<any>('/admin/system-health'),
+  // notifications monitoring + templates
+  adminNotifications: () => G<any>('/admin/notifications'),
+  adminCreateNotifTemplate: (b: any) => P<any>('/admin/notifications/templates', b),
+  adminUpdateNotifTemplate: (key: string, b: any) => PUT<any>(`/admin/notifications/templates/${key}`, b),
+  adminDeleteNotifTemplate: (key: string) => DEL<any>(`/admin/notifications/templates/${key}`),
+  adminRetryNotification: (id: string) => P<any>(`/admin/notifications/${id}/retry`),
+  // GDPR / data protection
+  adminGdpr: () => G<any>('/admin/gdpr'),
+  adminCreateDsr: (b: any) => P<any>('/admin/gdpr/requests', b),
+  adminDsrStatus: (id: string, b: any) => P<any>(`/admin/gdpr/requests/${id}/status`, b),
+  adminDsrExport: (id: string) => P<any>(`/admin/gdpr/requests/${id}/export`),
+  adminDsrDelete: (id: string) => P<any>(`/admin/gdpr/requests/${id}/delete`),
+  // AI & OCR
+  adminAi: () => G<any>('/admin/ai'),
+  adminSetAiConfig: (ai: any) => PUT<any>('/admin/ai/config', { ai }),
+  adminSetOcrConfig: (ocr: any) => PUT<any>('/admin/ai/ocr', { ocr }),
   // emergency access (Phase 8) — owner + super admin console
   emergencyFeature: () => G<any>('/emergency/status'),
   emergencyRequests: () => G<any>('/emergency/requests'),
