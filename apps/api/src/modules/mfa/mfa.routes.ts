@@ -6,6 +6,8 @@ import { users } from '../../db/schema';
 import { requireAuth } from '../../middleware/auth';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
+import { env } from '../../env';
+import { loadUserAuthz, issueSession } from '../auth/auth.service';
 import {
   generateMfaSecret,
   buildOtpAuthUrl,
@@ -48,7 +50,11 @@ mfaRouter.post('/confirm', async (req, res) => {
   const { plain, hashed } = generateRecoveryCodes();
   await db.update(users).set({ mfaEnabled: true, mfaRecoveryCodes: hashed }).where(eq(users.id, user.id));
   await audit({ action: 'mfa.enabled', actorId: user.id, tenantId: user.tenantId, req });
-  res.json({ enabled: true, recoveryCodes: plain });
+  // The user just proved possession of the TOTP secret, so upgrade the session to
+  // MFA-satisfied — this lets a newly-enrolled admin continue without a second sign-in.
+  const { roles: rKeys, perms } = await loadUserAuthz(user.id);
+  const tokens = await issueSession({ userId: user.id, tenantId: user.tenantId, roles: rKeys, perms, mfaSatisfied: true, req, refreshTtlDays: env.REFRESH_TOKEN_TTL_DAYS });
+  res.json({ enabled: true, recoveryCodes: plain, user: { id: user.id, email: user.email, fullName: user.fullName, tenantId: user.tenantId, mfaEnabled: true, status: user.status }, ...tokens });
 });
 
 mfaRouter.post('/disable', async (req, res) => {

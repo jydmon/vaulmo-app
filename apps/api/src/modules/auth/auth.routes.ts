@@ -18,6 +18,11 @@ import { loadUserAuthz, issueSession, rotateRefresh, revokeByRefresh } from './a
 export const authRouter = Router();
 
 const MAX_FAILED = 5;
+// Roles for which two-factor authentication is MANDATORY. A privileged admin who has
+// not yet enrolled MFA is issued a limited session (mfa:false) that can reach only the
+// MFA-enrolment endpoints — every admin route stays blocked by requireMfaSatisfied.
+const MFA_REQUIRED_ROLES = ['super_admin', 'security_reviewer', 'support_agent'];
+const requiresMfa = (roleKeys: string[]) => roleKeys.some((r) => MFA_REQUIRED_ROLES.includes(r));
 const LOCK_MINUTES = 15;
 
 type UserRow = typeof users.$inferSelect;
@@ -138,6 +143,18 @@ authRouter.post('/login', authLimiter, async (req, res) => {
     const challenge = signAccessToken({ sub: user.id, tid: user.tenantId, roles: rKeys, perms, mfa: false });
     await audit({ action: 'auth.login.mfa_challenge', actorId: user.id, tenantId: user.tenantId, req });
     res.json({ mfaRequired: true, challengeToken: challenge });
+    return;
+  }
+
+  // Administrators MUST have MFA. If a privileged admin has not enrolled yet, hand back a
+  // restricted session and flag setup — the client forces enrolment before any admin access.
+  if (requiresMfa(rKeys)) {
+    const tokens = await issueSession({
+      userId: user.id, tenantId: user.tenantId, roles: rKeys, perms,
+      mfaSatisfied: false, req, refreshTtlDays: env.REFRESH_TOKEN_TTL_DAYS,
+    });
+    await audit({ action: 'auth.login.mfa_setup_required', actorId: user.id, tenantId: user.tenantId, req });
+    res.json({ user: publicUser(user), ...tokens, mfaSetupRequired: true });
     return;
   }
 

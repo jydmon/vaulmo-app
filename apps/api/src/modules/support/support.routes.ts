@@ -4,7 +4,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { supportTickets, supportMessages, tenants, users } from '../../db/schema';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
-import { requirePermission } from '../../middleware/rbac';
+import { requireAnyPermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
@@ -59,7 +59,26 @@ supportRouter.post('/tickets/:id/messages', async (req, res) => {
 
 // ================= Super Admin support console =================
 export const adminSupportRouter = Router();
-adminSupportRouter.use(requireAuth, requireMfaSatisfied, requirePermission(PERMISSIONS.PLATFORM_MANAGE));
+adminSupportRouter.use(requireAuth, requireMfaSatisfied, requireAnyPermission(PERMISSIONS.PLATFORM_MANAGE, PERMISSIONS.SUPPORT_MANAGE));
+
+// Super Admin raises a ticket ON BEHALF of a customer. The ticket belongs to the
+// customer account; the opening message is attributed to support with a clear note.
+const onBehalfSchema = z.object({ tenantId: z.string().uuid(), userId: z.string().uuid().optional(), subject: z.string().min(1).max(200), category: z.string().optional(), priority: z.enum(['low', 'normal', 'high']).optional(), body: z.string().min(1) });
+adminSupportRouter.post('/tickets', async (req, res) => {
+  const b = onBehalfSchema.parse(req.body);
+  const [tenant] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, b.tenantId)).limit(1);
+  if (!tenant) throw new AppError(404, 'not_found', 'Customer not found');
+  // Default the requester to the tenant owner when a specific user is not given.
+  let userId = b.userId ?? null;
+  if (!userId) {
+    const [owner] = await db.select({ id: users.id }).from(users).where(eq(users.tenantId, b.tenantId)).limit(1);
+    userId = owner?.id ?? null;
+  }
+  const [t] = await db.insert(supportTickets).values({ tenantId: b.tenantId, userId, subject: b.subject, category: b.category, priority: b.priority ?? 'normal', status: 'open' }).returning();
+  await db.insert(supportMessages).values({ ticketId: t.id, authorId: req.auth!.sub, authorRole: 'support', body: b.body });
+  await audit({ action: 'support.ticket.raised_on_behalf', actorId: req.auth!.sub, tenantId: b.tenantId, targetType: 'ticket', targetId: t.id, req });
+  res.status(201).json({ ticket: t });
+});
 
 adminSupportRouter.get('/tickets', async (req, res) => {
   const status = req.query.status ? String(req.query.status) : null;

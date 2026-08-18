@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { tenants, users, auditLogs, fileObjects, userRoles, roles, subscriptions, plans, documents, reminders, familyMembers, nextOfKin, supportTickets, crmProfiles, crmNotes, cmsArticles } from '../../db/schema';
+import { tenants, users, auditLogs, fileObjects, userRoles, roles, permissions, rolePermissions, sessions, subscriptions, plans, documents, documentTypes, reminders, familyMembers, nextOfKin, supportTickets, crmProfiles, crmNotes, cmsArticles } from '../../db/schema';
 import { AppError } from '../../middleware/error';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
-import { requirePermission } from '../../middleware/rbac';
-import { PERMISSIONS } from '../../lib/permissions';
+import { requirePermission, requireAnyPermission } from '../../middleware/rbac';
+import { PERMISSIONS, ADMIN_ROLE_KEYS } from '../../lib/permissions';
+import { hashPassword } from '../../lib/password';
 import { adminSetSubscription } from '../../lib/billing/service';
 import { audit } from '../../lib/audit';
 
@@ -357,4 +358,179 @@ adminRouter.delete('/cms/articles/:id', requirePermission(PERMISSIONS.PLATFORM_M
   await db.delete(cmsArticles).where(eq(cmsArticles.id, req.params.id));
   await audit({ action: 'admin.cms.deleted', actorId: req.auth!.sub, targetType: 'article', targetId: req.params.id, req });
   res.json({ ok: true });
+});
+
+// ================= Document Catalogue (configuration) =================
+// The master list of recommended documents plus, per type: which countries it applies to,
+// what metadata to extract, and the recommended reminder schedule. Business config, not code.
+const fieldSchema = z.object({ key: z.string().min(1).max(60), label: z.string().min(1).max(80), type: z.enum(['date', 'string', 'number']), required: z.boolean().optional() });
+const docTypeSchema = z.object({
+  key: z.string().max(60).optional(),
+  name: z.string().min(1).max(120),
+  category: z.string().min(1).max(60),
+  countries: z.array(z.string().min(2).max(8)).optional(),
+  recommended: z.boolean().optional(),
+  metadataSchema: z.array(fieldSchema).optional(),
+  reminderLeadDays: z.array(z.number().int().min(0).max(3650)).optional(),
+  sort: z.number().int().optional(),
+});
+const catSlug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'document';
+
+adminRouter.get('/catalogue', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const rows = await db.select().from(documentTypes).orderBy(documentTypes.sort);
+  // Usage: how many stored documents reference each type.
+  const counts = (await db.execute(sql`select type_key k, count(*)::int n from documents where type_key is not null group by type_key`)).rows as any[];
+  const usage = new Map(counts.map((c) => [c.k, c.n]));
+  const categories = [...new Set(rows.map((r) => r.category))].sort();
+  const countries = [...new Set(rows.flatMap((r) => r.countries))].sort();
+  res.json({ types: rows.map((r) => ({ ...r, inUse: usage.get(r.key) ?? 0 })), categories, countries });
+});
+
+adminRouter.post('/catalogue', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = docTypeSchema.parse(req.body);
+  const key = catSlug(b.key || b.name);
+  const [existing] = await db.select().from(documentTypes).where(eq(documentTypes.key, key)).limit(1);
+  if (existing) throw new AppError(409, 'exists', 'A document type with that key already exists');
+  const [t] = await db.insert(documentTypes).values({
+    key, name: b.name, category: b.category,
+    countries: b.countries?.length ? b.countries.map((c) => c.toUpperCase()) : ['GLOBAL'],
+    recommended: b.recommended ?? false,
+    metadataSchema: (b.metadataSchema ?? []) as any,
+    reminderLeadDays: b.reminderLeadDays ?? [180, 90, 30, 7],
+    sort: b.sort ?? 100,
+  }).returning();
+  await audit({ action: 'admin.catalogue.created', actorId: req.auth!.sub, targetType: 'document_type', targetId: t.id, metadata: { key }, req });
+  res.status(201).json({ type: t });
+});
+
+adminRouter.put('/catalogue/:id', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = docTypeSchema.partial().parse(req.body);
+  const [t] = await db.update(documentTypes).set({
+    ...(b.name !== undefined ? { name: b.name } : {}),
+    ...(b.category !== undefined ? { category: b.category } : {}),
+    ...(b.countries !== undefined ? { countries: b.countries.length ? b.countries.map((c) => c.toUpperCase()) : ['GLOBAL'] } : {}),
+    ...(b.recommended !== undefined ? { recommended: b.recommended } : {}),
+    ...(b.metadataSchema !== undefined ? { metadataSchema: b.metadataSchema as any } : {}),
+    ...(b.reminderLeadDays !== undefined ? { reminderLeadDays: b.reminderLeadDays } : {}),
+    ...(b.sort !== undefined ? { sort: b.sort } : {}),
+  }).where(eq(documentTypes.id, req.params.id)).returning();
+  if (!t) throw new AppError(404, 'not_found', 'Document type not found');
+  await audit({ action: 'admin.catalogue.updated', actorId: req.auth!.sub, targetType: 'document_type', targetId: t.id, req });
+  res.json({ type: t });
+});
+
+adminRouter.post('/catalogue/:id/archive', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = z.object({ archived: z.boolean() }).parse(req.body);
+  const [t] = await db.update(documentTypes).set({ archived: b.archived }).where(eq(documentTypes.id, req.params.id)).returning();
+  if (!t) throw new AppError(404, 'not_found', 'Document type not found');
+  await audit({ action: b.archived ? 'admin.catalogue.archived' : 'admin.catalogue.restored', actorId: req.auth!.sub, targetType: 'document_type', targetId: t.id, req });
+  res.json({ type: t });
+});
+
+// ================= Roles & permissions =================
+adminRouter.get('/roles', requirePermission(PERMISSIONS.ADMIN_MANAGE), async (_req, res) => {
+  const [roleRows, permRows, rpRows, urRows] = await Promise.all([
+    db.select().from(roles),
+    db.select().from(permissions),
+    db.select().from(rolePermissions),
+    db.select({ roleId: userRoles.roleId }).from(userRoles),
+  ]);
+  const permById = new Map(permRows.map((p) => [p.id, p.key]));
+  const permsByRole = new Map<string, string[]>();
+  for (const rp of rpRows) permsByRole.set(rp.roleId, [...(permsByRole.get(rp.roleId) ?? []), permById.get(rp.permissionId)!].filter(Boolean));
+  const countByRole = new Map<string, number>();
+  for (const ur of urRows) countByRole.set(ur.roleId, (countByRole.get(ur.roleId) ?? 0) + 1);
+  res.json({
+    roles: roleRows.map((r) => ({ id: r.id, key: r.key, name: r.name, description: r.description, isSystem: r.isSystem, isAdmin: ADMIN_ROLE_KEYS.includes(r.key), permissions: (permsByRole.get(r.id) ?? []).sort(), members: countByRole.get(r.id) ?? 0 })),
+    allPermissions: permRows.map((p) => p.key).sort(),
+  });
+});
+
+// ================= Admin user management (Super Admin) =================
+const ADMIN_ROLE = z.enum(['super_admin', 'security_reviewer', 'support_agent']);
+adminRouter.get('/admins', requirePermission(PERMISSIONS.ADMIN_MANAGE), async (_req, res) => {
+  const rows = await db.select({ userId: userRoles.userId, roleKey: roles.key }).from(userRoles).innerJoin(roles, eq(userRoles.roleId, roles.id)).where(inArray(roles.key, ADMIN_ROLE_KEYS));
+  const ids = [...new Set(rows.map((r) => r.userId))];
+  const us = ids.length ? await db.select({ id: users.id, email: users.email, fullName: users.fullName, status: users.status, mfaEnabled: users.mfaEnabled, lastLoginAt: users.lastLoginAt, createdAt: users.createdAt }).from(users).where(inArray(users.id, ids)) : [];
+  const rolesByUser = new Map<string, string[]>();
+  for (const r of rows) rolesByUser.set(r.userId, [...(rolesByUser.get(r.userId) ?? []), r.roleKey]);
+  res.json({ admins: us.map((u) => ({ ...u, roles: rolesByUser.get(u.id) ?? [] })) });
+});
+
+const newAdminSchema = z.object({ email: z.string().email(), fullName: z.string().min(1).max(120), password: z.string().min(10).optional(), role: ADMIN_ROLE });
+adminRouter.post('/admins', requirePermission(PERMISSIONS.ADMIN_MANAGE), async (req, res) => {
+  const b = newAdminSchema.parse(req.body);
+  const email = b.email.toLowerCase();
+  let [u] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (!u) {
+    if (!b.password) throw new AppError(400, 'password_required', 'A temporary password is required for a new admin');
+    [u] = await db.insert(users).values({ email, fullName: b.fullName, passwordHash: await hashPassword(b.password), status: 'ACTIVE', emailVerified: true }).returning();
+  }
+  const [role] = await db.select().from(roles).where(eq(roles.key, b.role)).limit(1);
+  await db.insert(userRoles).values({ userId: u.id, roleId: role.id }).onConflictDoNothing();
+  await audit({ action: 'admin.user.created', actorId: req.auth!.sub, targetType: 'user', targetId: u.id, metadata: { role: b.role, existing: !!b.password ? false : true }, req });
+  res.status(201).json({ id: u.id, email: u.email, role: b.role });
+});
+
+const setRolesSchema = z.object({ roles: z.array(ADMIN_ROLE) });
+adminRouter.put('/admins/:id/roles', requirePermission(PERMISSIONS.ADMIN_MANAGE), async (req, res) => {
+  const b = setRolesSchema.parse(req.body);
+  // Guard against self-lockout: a Super Admin cannot strip their own super_admin role.
+  if (req.params.id === req.auth!.sub && !b.roles.includes('super_admin')) throw new AppError(400, 'self_lockout', 'You cannot remove your own Super Admin role');
+  const adminRoleRows = await db.select().from(roles).where(inArray(roles.key, ADMIN_ROLE_KEYS));
+  const adminRoleIds = adminRoleRows.map((r) => r.id);
+  await db.delete(userRoles).where(and(eq(userRoles.userId, req.params.id), inArray(userRoles.roleId, adminRoleIds)));
+  for (const key of b.roles) { const r = adminRoleRows.find((x) => x.key === key); if (r) await db.insert(userRoles).values({ userId: req.params.id, roleId: r.id }).onConflictDoNothing(); }
+  await audit({ action: 'admin.user.roles_set', actorId: req.auth!.sub, targetType: 'user', targetId: req.params.id, metadata: { roles: b.roles }, req });
+  res.json({ ok: true, roles: b.roles });
+});
+
+// ================= Account security administration =================
+const statusSchema = z.object({ status: z.enum(['ACTIVE', 'SUSPENDED', 'DISABLED']), reason: z.string().max(500).optional() });
+adminRouter.post('/users/:id/status', requireAnyPermission(PERMISSIONS.PLATFORM_MANAGE, PERMISSIONS.SECURITY_REVIEW), async (req, res) => {
+  const b = statusSchema.parse(req.body);
+  // Reactivating also clears any failed-login lockout.
+  const patch = b.status === 'ACTIVE' ? { status: b.status, lockedUntil: null, failedLoginCount: 0 } : { status: b.status };
+  const [u] = await db.update(users).set(patch).where(eq(users.id, req.params.id)).returning();
+  if (!u) throw new AppError(404, 'not_found', 'User not found');
+  // Suspending or disabling immediately revokes all active sessions.
+  if (b.status !== 'ACTIVE') await db.update(sessions).set({ revokedAt: new Date() }).where(and(eq(sessions.userId, u.id), isNull(sessions.revokedAt)));
+  await audit({ action: `admin.user.${b.status.toLowerCase()}`, actorId: req.auth!.sub, targetType: 'user', targetId: u.id, metadata: { reason: b.reason }, req });
+  res.json({ id: u.id, status: u.status });
+});
+
+adminRouter.post('/users/:id/revoke-sessions', requireAnyPermission(PERMISSIONS.PLATFORM_MANAGE, PERMISSIONS.SECURITY_REVIEW), async (req, res) => {
+  const revoked = await db.update(sessions).set({ revokedAt: new Date() }).where(and(eq(sessions.userId, req.params.id), isNull(sessions.revokedAt))).returning();
+  await audit({ action: 'admin.user.sessions_revoked', actorId: req.auth!.sub, targetType: 'user', targetId: req.params.id, metadata: { count: revoked.length }, req });
+  res.json({ revoked: revoked.length });
+});
+
+// ================= Security dashboard =================
+adminRouter.get('/security', requireAnyPermission(PERMISSIONS.PLATFORM_MANAGE, PERMISSIONS.SECURITY_REVIEW), async (_req, res) => {
+  const rows = async (q: any) => (await db.execute(q)).rows as any[];
+  const [failed, denials, emergencyEvents, adminActions, events] = await Promise.all([
+    rows(sql`select count(*)::int n from audit_logs where action = 'auth.login' and outcome = 'failure' and at >= now() - interval '7 days'`),
+    rows(sql`select count(*)::int n from audit_logs where action = 'authz.denied' and at >= now() - interval '7 days'`),
+    rows(sql`select count(*)::int n from audit_logs where action like 'emergency.%' and at >= now() - interval '7 days'`),
+    rows(sql`select count(*)::int n from audit_logs where action like 'admin.%' and at >= now() - interval '7 days'`),
+    rows(sql`select a.id, a.at, a.action, a.outcome, a.ip, u.email actor from audit_logs a left join users u on u.id = a.actor_id
+             where (a.action like 'auth.%' or a.action = 'authz.denied' or a.action like 'emergency.%' or a.action like 'admin.user.%' or a.action like 'mfa.%')
+             order by a.at desc limit 40`),
+  ]);
+  const locked = await db.select({ id: users.id, email: users.email, lockedUntil: users.lockedUntil, failedLoginCount: users.failedLoginCount }).from(users).where(gt(users.lockedUntil, new Date()));
+  const [[suspended]] = await Promise.all([
+    db.select({ n: sql<number>`count(*)` }).from(users).where(inArray(users.status, ['SUSPENDED', 'DISABLED'] as any)),
+  ]);
+  res.json({
+    kpis: {
+      failedLogins7d: failed[0]?.n ?? 0,
+      activeLockouts: locked.length,
+      authzDenials7d: denials[0]?.n ?? 0,
+      emergencyEvents7d: emergencyEvents[0]?.n ?? 0,
+      adminActions7d: adminActions[0]?.n ?? 0,
+      suspendedAccounts: Number(suspended.n),
+    },
+    lockedAccounts: locked,
+    recentEvents: events,
+  });
 });

@@ -4,8 +4,11 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { emergencyRequests, nextOfKin, users, documents } from '../../db/schema';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
-import { requirePermission } from '../../middleware/rbac';
+import { requirePermission, requireAnyPermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
+
+// A Super Admin or a Security Reviewer may see and act on all emergency-access cases.
+const canReview = (req: any) => req.auth?.roles?.includes('super_admin') || req.auth?.perms?.includes(PERMISSIONS.SECURITY_REVIEW);
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
 import { notify } from '../../lib/notify';
@@ -75,7 +78,7 @@ export const emergencyRouter = Router();
 emergencyRouter.use(requireAuth, requireMfaSatisfied);
 
 emergencyRouter.get('/requests', async (req, res) => {
-  const isSuper = req.auth!.roles.includes('super_admin');
+  const isSuper = canReview(req);
   const rows = isSuper
     ? await db.select().from(emergencyRequests).orderBy(desc(emergencyRequests.requestedAt)).limit(200)
     : await db.select().from(emergencyRequests).where(eq(emergencyRequests.tenantId, req.auth!.tid ?? '')).orderBy(desc(emergencyRequests.requestedAt));
@@ -103,7 +106,7 @@ const reviewSchema = z.object({
   accessScope: z.record(z.any()).optional(),
   accessDays: z.number().int().min(1).max(30).optional(),
 });
-emergencyRouter.post('/requests/:id/security-review', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+emergencyRouter.post('/requests/:id/security-review', requireAnyPermission(PERMISSIONS.PLATFORM_MANAGE, PERMISSIONS.SECURITY_REVIEW), async (req, res) => {
   const b = reviewSchema.parse(req.body);
   const [er] = await db.select().from(emergencyRequests).where(eq(emergencyRequests.id, req.params.id)).limit(1);
   if (!er) throw new AppError(404, 'not_found', 'Request not found');
@@ -130,7 +133,7 @@ emergencyRouter.post('/requests/:id/security-review', requirePermission(PERMISSI
 
 // Revoke (owner or super admin) — immediate.
 emergencyRouter.post('/requests/:id/revoke', async (req, res) => {
-  const isSuper = req.auth!.roles.includes('super_admin');
+  const isSuper = canReview(req);
   const where = isSuper ? eq(emergencyRequests.id, req.params.id) : and(eq(emergencyRequests.id, req.params.id), eq(emergencyRequests.tenantId, req.auth!.tid ?? ''));
   const [row] = await db.update(emergencyRequests).set({ status: 'revoked', revokedAt: new Date() }).where(where).returning();
   if (!row) throw new AppError(404, 'not_found', 'Request not found');

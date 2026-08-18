@@ -157,6 +157,8 @@ export const documentTypes = pgTable('document_types', {
   countries: text('countries').array().notNull().default(['GLOBAL']),
   recommended: boolean('recommended').notNull().default(false),
   metadataSchema: jsonb('metadata_schema').notNull().default([]),
+  reminderLeadDays: integer('reminder_lead_days').array().notNull().default([180, 90, 30, 7]),
+  archived: boolean('archived').notNull().default(false),
   sort: integer('sort').notNull().default(100),
 });
 

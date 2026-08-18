@@ -8,6 +8,10 @@ export const PERMISSIONS = {
   TENANT_MANAGE_ALL: 'tenant:manage:all',
   USER_READ_ALL: 'user:read:all',
   AUDIT_READ_ALL: 'audit:read:all',
+  // Granular admin capabilities (for least-privilege admin roles)
+  ADMIN_MANAGE: 'admin:manage', // manage admin users & roles
+  SECURITY_REVIEW: 'security:review', // emergency-access review + security dashboard
+  SUPPORT_MANAGE: 'support:manage', // manage support tickets
 
   // Tenant-scoped
   TENANT_READ: 'tenant:read',
@@ -23,9 +27,14 @@ export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
+  SECURITY_REVIEWER: 'security_reviewer',
+  SUPPORT_AGENT: 'support_agent',
   TENANT_OWNER: 'tenant_owner',
   MEMBER: 'member',
 } as const;
+
+// Administrative roles for which two-factor authentication is mandatory.
+export const ADMIN_ROLE_KEYS = [ROLES.SUPER_ADMIN, ROLES.SECURITY_REVIEWER, ROLES.SUPPORT_AGENT] as string[];
 
 export const ROLE_DEFINITIONS: Record<
   string,
@@ -40,6 +49,28 @@ export const ROLE_DEFINITIONS: Record<
       PERMISSIONS.TENANT_MANAGE_ALL,
       PERMISSIONS.USER_READ_ALL,
       PERMISSIONS.AUDIT_READ_ALL,
+      PERMISSIONS.ADMIN_MANAGE,
+      PERMISSIONS.SECURITY_REVIEW,
+      PERMISSIONS.SUPPORT_MANAGE,
+    ],
+  },
+  [ROLES.SECURITY_REVIEWER]: {
+    name: 'Security Reviewer',
+    description: 'Reviews emergency-access cases and monitors security. Read-only on customer accounts; cannot manage billing or content.',
+    permissions: [
+      PERMISSIONS.TENANT_READ_ALL,
+      PERMISSIONS.USER_READ_ALL,
+      PERMISSIONS.AUDIT_READ_ALL,
+      PERMISSIONS.SECURITY_REVIEW,
+    ],
+  },
+  [ROLES.SUPPORT_AGENT]: {
+    name: 'Support Agent',
+    description: 'Handles support tickets and views non-sensitive account information. Cannot review emergency access or manage billing.',
+    permissions: [
+      PERMISSIONS.TENANT_READ_ALL,
+      PERMISSIONS.USER_READ_ALL,
+      PERMISSIONS.SUPPORT_MANAGE,
     ],
   },
   [ROLES.TENANT_OWNER]: {

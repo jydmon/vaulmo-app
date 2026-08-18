@@ -4,7 +4,6 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { notifications, notificationSettings, deviceTokens, reminders } from '../../db/schema';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
-import { requireInternalTester } from '../../middleware/internalTester';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
@@ -12,7 +11,9 @@ import { audit } from '../../lib/audit';
 import { runReminderTick } from '../../lib/reminderEngine';
 
 export const notificationsRouter = Router();
-notificationsRouter.use(requireAuth, requireMfaSatisfied, requireInternalTester);
+// In-app notifications are available to every authenticated user (the internal-tester
+// gate was removed so the inbox, unread badge and preferences work platform-wide).
+notificationsRouter.use(requireAuth, requireMfaSatisfied);
 
 // Platform: run the reminder engine tick (a cron calls this in prod).
 notificationsRouter.post('/run-tick', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {

@@ -23,6 +23,10 @@ const ICONS: Record<string, string> = {
   crm: 'M3 4h18l-7 8v6l-4 2v-8z',
   cms: 'M4 5a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2zM14 3v5h5M8 13h8M8 17h5',
   help: 'M12 3a9 9 0 100 18 9 9 0 000-18zM9.6 9a2.5 2.5 0 014.6 1.4c0 1.7-2.2 2-2.2 3.6M12 17h.01',
+  profile: 'M12 12a4 4 0 100-8 4 4 0 000 8zM5 21a7 7 0 0114 0',
+  security: 'M12 3l7 3v5c0 4.4-2.9 8.3-7 9.5-4.1-1.2-7-5.1-7-9.5V6l7-3z',
+  roles: 'M8 11a3 3 0 100-6 3 3 0 000 6zM2 20a6 6 0 0112 0M17 11l1.5 1.5L22 9M15 4a3 3 0 010 6',
+  catalogue: 'M4 4h11l5 5v11a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zM14 4v5h5M7 13h8M7 17h5',
 };
 const Icon = ({ k, size = 20 }: { k: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[k] ?? ICONS.home} /></svg>;
 
@@ -47,13 +51,17 @@ export function App() {
   const [me, setMe] = useState<any>(null);
   const [view, setView] = useState<'login' | 'register' | 'mfa'>('login');
   const [challenge, setChallenge] = useState<string | null>(null);
+  const [forceMfa, setForceMfa] = useState<any>(null);
   const [error, setError] = useState('');
 
   async function afterAuth(r: AuthResult) {
     if (r.mfaRequired && r.challengeToken) { setChallenge(r.challengeToken); setView('mfa'); return; }
+    // Privileged admin without MFA — hold a restricted session and force enrolment.
+    if (r.mfaSetupRequired && r.accessToken && r.refreshToken) { setTokens(r.accessToken, r.refreshToken); setForceMfa(r.user); return; }
     if (r.accessToken && r.refreshToken) { setTokens(r.accessToken, r.refreshToken); setMe(await api.me()); }
   }
-  if (me) return <Shell me={me} onSignOut={() => { setTokens(null, null); setMe(null); setView('login'); }} />;
+  if (forceMfa) return <ForceMfaSetup user={forceMfa} onDone={(u: any) => { setForceMfa(null); setMe(u); }} onCancel={() => { setTokens(null, null); setForceMfa(null); setView('login'); }} />;
+  if (me) return <Shell me={me} onSignOut={() => { setTokens(null, null); setMe(null); setView('login'); }} refreshMe={async () => setMe(await api.me())} />;
 
   return (
     <div className="auth-wrap">
@@ -99,17 +107,64 @@ function MfaForm(props: { onSubmit: (c: string) => void }) {
   </form>;
 }
 
+// Mandatory MFA enrolment for administrators — shown after a privileged sign-in with no MFA.
+function ForceMfaSetup({ user, onDone, onCancel }: { user: any; onDone: (u: any) => void; onCancel: () => void }) {
+  const [enroll, setEnroll] = useState<any>(null);
+  const [code, setCode] = useState('');
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [pendingUser, setPendingUser] = useState<any>(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function begin() { setErr(''); try { setEnroll(await api.enrollMfa()); } catch (e) { setErr((e as any).message); } }
+  async function confirm() {
+    setErr(''); setBusy(true);
+    try {
+      const r: any = await api.confirmMfa(code);
+      if (r.accessToken && r.refreshToken) setTokens(r.accessToken, r.refreshToken);
+      setPendingUser(r.user ?? user);
+      setCodes(r.recoveryCodes ?? []);
+    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Code did not match'); } finally { setBusy(false); }
+  }
+
+  return <div className="auth-wrap"><div>
+    <div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Administrator security</span></div></div>
+    {err && <div className="err" style={{ width: 420, maxWidth: '92vw' }}>{err}</div>}
+    <div className="card auth-card" style={{ width: 460 }}>
+      {codes ? <>
+        <h1>Save your recovery codes</h1>
+        <p className="muted">Two-factor authentication is now on. Store these one-time recovery codes somewhere safe — each works once if you lose your authenticator.</p>
+        <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 14, margin: '12px 0', fontFamily: 'monospace', fontSize: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>{codes.map((c) => <div key={c}>{c}</div>)}</div>
+        <button className="btn block" onClick={() => onDone(pendingUser)}>I've saved them — continue</button>
+      </> : <>
+        <h1>Set up two-factor authentication</h1>
+        <p className="muted">Two-factor authentication is <b>required</b> for administrator accounts. Add Vaulmo to an authenticator app (Google Authenticator, 1Password, Authy) to continue.</p>
+        {!enroll ? <button className="btn block" style={{ marginTop: 14 }} onClick={begin}>Begin setup</button> : <>
+          <div style={{ textAlign: 'center', margin: '14px 0' }}>
+            <img src={enroll.qrDataUrl} width={172} height={172} style={{ borderRadius: 10, border: '1px solid var(--line)' }} alt="Scan this QR code" />
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Or enter this key manually:</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 13, wordBreak: 'break-all' }}>{enroll.secret}</div>
+          </div>
+          <label>Enter the 6-digit code<input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" onKeyDown={(e) => { if (e.key === 'Enter') confirm(); }} /></label>
+          <button className="btn block" style={{ marginTop: 10 }} disabled={busy || code.length < 6} onClick={confirm}>{busy ? 'Verifying…' : 'Verify & enable'}</button>
+        </>}
+        <div className="foot"><a onClick={onCancel}>Cancel and sign out</a></div>
+      </>}
+    </div>
+  </div></div>;
+}
+
 /* ---------------- shell ---------------- */
 const TENANT_NAV = [
   { grp: 'Vaulmo' }, { id: 'home', label: 'Home', ic: 'home' }, { id: 'vault', label: 'My Vault', ic: 'vault' },
   { id: 'assistant', label: 'Ask Vaulmo', ic: 'assistant' }, { id: 'reminders', label: 'Reminders', ic: 'reminders' },
   { grp: 'Life' }, { id: 'trips', label: 'Trips', ic: 'trips' }, { id: 'purchases', label: 'Purchases', ic: 'purchases' },
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
-  { grp: 'Account' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
+  { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { grp: 'Security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'audit', label: 'Audit', ic: 'audit' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
 
-function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
+function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; refreshMe: () => Promise<void> }) {
   const isSuper = me?.roles?.includes('super_admin');
   const nav = isSuper ? ADMIN_NAV : TENANT_NAV;
   const [active, setActive] = useState(isSuper ? 'home' : 'home');
@@ -123,10 +178,10 @@ function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], help: ['Help Centre', 'Guides & answers'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
-  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, help: <HelpCenter />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -138,12 +193,77 @@ function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
     </aside>
     <main className="main">
       <div className="top"><div><h2>{t0}</h2><div className="sub">{t1}</div></div>
-        <div className="sp">{!isSuper && <button className="bell" onClick={() => setActive('reminders')}>🔔{unread > 0 && <span className="dot">{unread}</span>}</button>}<button className="btn sec sm" onClick={onSignOut}>Sign out</button></div>
+        <div className="sp"><NotificationBell onOpenReminders={!isSuper ? () => setActive('reminders') : undefined} /><button className="btn sec sm" onClick={onSignOut}>Sign out</button></div>
       </div>
       <div className="view" key={active}>{views[active]}</div>
     </main>
     {node}
   </div>;
+}
+
+/* ---------------- notifications bell ---------------- */
+const notifIcon = (c: string) => (c === 'missing_document' ? '📄' : c === 'system' ? '⚙️' : c === 'emergency' ? '🛡️' : c === 'billing' ? '💳' : '🔔');
+function NotificationBell({ onOpenReminders }: { onOpenReminders?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<any[]>([]);
+  const [unread, setUnread] = useState(0);
+  const loadCount = () => api.unread().then((r) => setUnread(r.unread)).catch(() => {});
+  const loadList = () => api.notifications().then((r) => setItems(r.notifications ?? [])).catch(() => {});
+  useEffect(() => { loadCount(); const t = setInterval(loadCount, 60000); return () => clearInterval(t); }, []);
+  function toggle() { const n = !open; setOpen(n); if (n) loadList(); }
+  async function read(id: string) { await api.markRead(id); loadList(); loadCount(); }
+  async function readAll() { await api.readAll(); loadList(); loadCount(); }
+  return <div style={{ position: 'relative' }}>
+    <button className="bell" onClick={toggle}>🔔{unread > 0 && <span className="dot">{unread}</span>}</button>
+    {open && <>
+      <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+      <div style={{ position: 'absolute', right: 0, top: 48, width: 344, maxHeight: 460, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, boxShadow: '0 12px 34px rgba(16,22,35,.16)', zIndex: 50 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--line)' }}><b style={{ fontSize: 14 }}>Notifications</b>{items.some((n) => !n.readAt) && <a onClick={readAll} style={{ fontSize: 12.5 }}>Mark all read</a>}</div>
+        {items.length ? items.slice(0, 20).map((n) => <div key={n.id} onClick={() => !n.readAt && read(n.id)} style={{ display: 'flex', gap: 10, padding: '11px 16px', borderBottom: '1px solid var(--surface-2)', cursor: n.readAt ? 'default' : 'pointer', background: n.readAt ? 'transparent' : 'var(--brand-soft)' }}>
+          <span style={{ fontSize: 16, flex: 'none' }}>{notifIcon(n.category)}</span>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600 }}>{n.title}</div><div style={{ fontSize: 12.5, color: 'var(--soft)' }}>{n.body}</div><div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{fmt(n.createdAt)}</div></div>
+          {!n.readAt && <span style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--brand-2)', flex: 'none', marginTop: 6 }} />}
+        </div>) : <div className="empty" style={{ padding: '26px 16px' }}>You're all caught up.</div>}
+        {onOpenReminders && <div style={{ padding: 10, textAlign: 'center', borderTop: '1px solid var(--line)' }}><a onClick={() => { setOpen(false); onOpenReminders(); }} style={{ fontSize: 13 }}>View all in Reminders →</a></div>}
+      </div>
+    </>}
+  </div>;
+}
+
+/* ---------------- my profile ---------------- */
+function Profile({ me, toast, refreshMe, go }: any) {
+  const [name, setName] = useState(me.fullName);
+  const [busy, setBusy] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState('');
+  const isSuper = me?.roles?.includes('super_admin');
+  const initials = (me.fullName || '?').split(' ').map((w: string) => w[0]).join('').slice(0, 2);
+  const dirty = name.trim() && name.trim() !== me.fullName;
+  async function save() { setBusy(true); try { await api.updateProfile(name.trim()); await refreshMe(); toast('Profile updated'); } catch (e) { toast((e as any).message); } finally { setBusy(false); } }
+  async function verify() { try { const r = await api.requestVerification(); if (r.devToken) { await api.verifyEmail(r.devToken); setVerifyMsg('Email verified ✓'); await refreshMe(); } else setVerifyMsg('Verification email sent — check your inbox.'); } catch (e) { toast((e as any).message); } }
+
+  return <>
+    <Card title="Profile">
+      <div className="flex" style={{ gap: 16, alignItems: 'center' }}>
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: 'linear-gradient(135deg,#3B82F6,#1E3A8A)', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 22, flex: 'none' }}>{initials.toUpperCase()}</div>
+        <div><div style={{ fontSize: 18, fontWeight: 700 }}>{me.fullName}</div><div className="muted" style={{ fontSize: 13.5 }}>{me.email}</div>
+          <div style={{ marginTop: 5 }}><span className={`pill ${isSuper ? 'p-info' : 'p-neutral'}`}>{isSuper ? 'Super Admin' : me.tenant?.name ?? 'Member'}</span> {me.mfaEnabled ? <span className="pill p-good" style={{ marginLeft: 4 }}>2FA on</span> : <span className="pill p-warn" style={{ marginLeft: 4 }}>2FA off</span>}</div>
+        </div>
+      </div>
+      <div style={{ borderTop: '1px solid var(--line)', marginTop: 16, paddingTop: 14 }}>
+        <label>Full name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <button className="btn" style={{ marginTop: 10 }} disabled={!dirty || busy} onClick={save}>{busy ? 'Saving…' : 'Save changes'}</button>
+      </div>
+    </Card>
+
+    <Card title="Account details">
+      <div className="row"><div className="m"><div className="t">Email</div><div className="s">{me.email}</div></div>{me.emailVerified ? <span className="pill p-good">verified</span> : <button className="btn sm sec" onClick={verify}>Verify email</button>}</div>
+      {verifyMsg && <div className="ok" style={{ margin: '10px 0' }}>{verifyMsg}</div>}
+      <div className="row"><div className="m"><div className="t">Account type</div><div className="s">{isSuper ? 'Platform administrator' : 'Household member'}</div></div></div>
+      {!isSuper && me.tenant && <div className="row"><div className="m"><div className="t">Plan</div><div className="s" style={{ textTransform: 'capitalize' }}>{me.tenant.plan} · {me.tenant.status}</div></div>{go && <button className="btn sm sec" onClick={() => go('billing')}>Manage</button>}</div>}
+      <div className="row"><div className="m"><div className="t">Member since</div><div className="s">{fmt(me.createdAt)}</div></div></div>
+      <div className="row"><div className="m"><div className="t">Two-factor authentication</div><div className="s">{me.mfaEnabled ? 'Enabled' : 'Not enabled'}</div></div><button className="btn sm sec" onClick={() => go && go('settings')}>Security settings</button></div>
+    </Card>
+  </>;
 }
 
 /* ---------------- data hook ---------------- */
@@ -594,15 +714,24 @@ function SupportTenant({ toast }: any) {
 
 function AdminSupport({ toast }: any) {
   const { data, reload } = useData(() => api.adminSupportTickets());
+  const { data: cust } = useData(() => api.adminCustomers());
   const [status, setStatus] = useState('all');
   const [sel, setSel] = useState<any>(null);
   const [reply, setReply] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState<any>({ tenantId: '', subject: '', priority: 'normal', body: '' });
   const all = data?.tickets ?? [];
+  const customers = cust?.customers ?? [];
   const counts = data?.counts ?? { open: 0, pending: 0, closed: 0 };
   const tickets = status === 'all' ? all : all.filter((t: any) => t.status === status);
   async function open(id: string) { setSel(await api.adminSupportTicket(id)); }
   async function send() { if (!reply.trim()) return; await api.adminSupportReply(sel.ticket.id, reply); setReply(''); setSel(await api.adminSupportTicket(sel.ticket.id)); await reload(); toast('Reply sent'); }
   async function setSt(s: string) { await api.adminSupportStatus(sel.ticket.id, s); setSel(await api.adminSupportTicket(sel.ticket.id)); await reload(); }
+  async function raise() {
+    if (!form.tenantId || !form.subject || !form.body) { toast('Choose a customer and add a subject and message'); return; }
+    try { await api.adminCreateTicketFor(form); toast('Ticket raised on behalf'); setCreating(false); setForm({ tenantId: '', subject: '', priority: 'normal', body: '' }); await reload(); }
+    catch (e) { toast((e as any).message); }
+  }
 
   if (sel) return <>
     <a onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All tickets</a>
@@ -625,7 +754,16 @@ function AdminSupport({ toast }: any) {
       <Tile ic="✅" bg="var(--good-bg)" lab="Closed" val={counts.closed ?? 0} />
       <Tile ic="📨" bg="var(--brand-soft)" lab="Total" val={all.length} />
     </div>
-    <Card title="Tickets" right={<select value={status} onChange={(e) => setStatus(e.target.value)} style={{ marginTop: 0, maxWidth: 170 }}><option value="all">All</option><option value="open">Open</option><option value="pending">Awaiting customer</option><option value="closed">Closed</option></select>}>
+    <Card title="Tickets" right={<div className="flex" style={{ gap: 10, alignItems: 'center' }}><a onClick={() => setCreating(!creating)} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>{creating ? 'Cancel' : '+ Raise on behalf'}</a><select value={status} onChange={(e) => setStatus(e.target.value)} style={{ marginTop: 0, maxWidth: 170 }}><option value="all">All</option><option value="open">Open</option><option value="pending">Awaiting customer</option><option value="closed">Closed</option></select></div>}>
+      {creating && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
+        <div className="grid2">
+          <label>Customer<select value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value })}><option value="">Choose a customer…</option>{customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}{c.owner ? ` · ${c.owner.email}` : ''}</option>)}</select></label>
+          <label>Priority<select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label>
+        </div>
+        <label>Subject<input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Summarise the issue" /></label>
+        <label style={{ display: 'block', marginTop: 8 }}>Message<textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} rows={3} placeholder="Describe the issue on the customer's behalf…" style={taStyle} /></label>
+        <button className="btn" style={{ marginTop: 10 }} onClick={raise}>Raise ticket</button>
+      </div>}
       <table><thead><tr><th>Subject</th><th>Customer</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead>
         <tbody>{tickets.map((t: any) => <tr key={t.id} onClick={() => open(t.id)} style={{ cursor: 'pointer' }}>
           <td><b>{t.subject}</b><div className="muted" style={{ fontSize: 12 }}>{t.messageCount} message{t.messageCount === 1 ? '' : 's'}</div></td>
@@ -1110,5 +1248,198 @@ function HelpCenter() {
       {list.map((a: any) => <div className="row" key={a.id} onClick={() => open(a.slug)} style={{ cursor: 'pointer' }}><div className="ic" style={{ background: 'var(--surface-2)' }}>📄</div><div className="m"><div className="t">{a.title}</div><div className="s">{a.excerpt ?? ''}</div></div><span className="muted" style={{ fontSize: 18 }}>›</span></div>)}
     </Card>)}
     {!articles.length && <Card title="Help Centre"><div className="empty">No articles published yet. Check back soon.</div></Card>}
+  </>;
+}
+
+/* ---------------- Security dashboard ---------------- */
+const secIcon = (a: string) => (a.startsWith('emergency') ? '🛡️' : a === 'authz.denied' ? '🚫' : a.startsWith('mfa') ? '🔐' : a.includes('login') ? '🔑' : a.includes('suspend') || a.includes('sessions_revoked') ? '⛔' : '•');
+function AdminSecurity({ toast }: any) {
+  const { data, reload } = useData(() => api.adminSecurity());
+  const [busy, setBusy] = useState('');
+  const k = data?.kpis ?? {};
+  const locked = data?.lockedAccounts ?? [];
+  const events = data?.recentEvents ?? [];
+  async function unlock(id: string) { setBusy(id); try { await api.adminSetUserStatus(id, { status: 'ACTIVE' }); toast('Account unlocked'); await reload(); } catch (e) { toast((e as any).message); } finally { setBusy(''); } }
+  async function revoke(id: string) { setBusy(id); try { const r = await api.adminRevokeUserSessions(id); toast(`Revoked ${r.revoked} session${r.revoked === 1 ? '' : 's'}`); } catch (e) { toast((e as any).message); } finally { setBusy(''); } }
+  return <>
+    <div className="tiles">
+      <Tile ic="🔑" bg="var(--warn-bg)" lab="Failed logins (7d)" val={k.failedLogins7d ?? 0} />
+      <Tile ic="🔒" bg="var(--crit-bg)" lab="Active lockouts" val={k.activeLockouts ?? 0} />
+      <Tile ic="🚫" bg="var(--surface-2)" lab="Access denials (7d)" val={k.authzDenials7d ?? 0} />
+      <Tile ic="⛔" bg="var(--crit-bg)" lab="Suspended accounts" val={k.suspendedAccounts ?? 0} />
+    </div>
+    <div className="tiles">
+      <Tile ic="🛡️" bg="var(--aqua-bg)" lab="Emergency events (7d)" val={k.emergencyEvents7d ?? 0} />
+      <Tile ic="⚙️" bg="var(--brand-soft)" lab="Admin actions (7d)" val={k.adminActions7d ?? 0} />
+    </div>
+    <div className="grid2">
+      <Card title="Locked-out accounts">
+        {locked.map((u: any) => <div className="row" key={u.id}><div className="ic" style={{ background: 'var(--crit-bg)' }}>🔒</div>
+          <div className="m"><div className="t">{u.email}</div><div className="s">{u.failedLoginCount} failed attempts · until {fmt(u.lockedUntil)}</div></div>
+          <button className="btn sm sec" disabled={busy === u.id} onClick={() => unlock(u.id)}>Unlock</button></div>)}
+        {!locked.length && <div className="empty">No accounts are currently locked.</div>}
+      </Card>
+      <Card title="Recent security events">
+        {events.slice(0, 18).map((e: any) => <div className="row" key={e.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{secIcon(e.action)}</div>
+          <div className="m"><div className="t">{e.action}{e.outcome === 'failure' ? ' · failed' : ''}</div><div className="s">{e.actor ?? 'system'} · {e.ip ?? 'no ip'} · {fmt(e.at)}</div></div></div>)}
+        {!events.length && <div className="empty">No recent security events.</div>}
+      </Card>
+    </div>
+  </>;
+}
+
+/* ---------------- Admins & Roles ---------------- */
+const ADMIN_ROLE_OPTS = [{ key: 'super_admin', label: 'Super Admin' }, { key: 'security_reviewer', label: 'Security Reviewer' }, { key: 'support_agent', label: 'Support Agent' }];
+const roleLabel = (k: string) => ADMIN_ROLE_OPTS.find((r) => r.key === k)?.label ?? k;
+function AdminRoles({ toast, me }: any) {
+  const { data: adminsData, reload } = useData(() => api.adminAdmins());
+  const { data: rolesData } = useData(() => api.adminRoles());
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState<any>({ email: '', fullName: '', password: '', role: 'support_agent' });
+  const [editRoles, setEditRoles] = useState<Record<string, string[]>>({});
+  const admins = adminsData?.admins ?? [];
+  const roles = rolesData?.roles ?? [];
+
+  async function create() {
+    if (!form.email || !form.fullName || !form.password) { toast('Email, name and a temporary password are required'); return; }
+    try { await api.adminCreateAdmin(form); toast('Admin created'); setAdding(false); setForm({ email: '', fullName: '', password: '', role: 'support_agent' }); await reload(); }
+    catch (e) { toast((e as any).message); }
+  }
+  async function saveRoles(id: string) {
+    const roleKeys = editRoles[id] ?? [];
+    try { await api.adminSetAdminRoles(id, roleKeys); toast('Roles updated'); setEditRoles((s) => { const n = { ...s }; delete n[id]; return n; }); await reload(); }
+    catch (e) { toast((e as any).message); }
+  }
+  async function setStatus(id: string, status: string) {
+    try { await api.adminSetUserStatus(id, { status }); toast(status === 'ACTIVE' ? 'Reactivated' : 'Suspended'); await reload(); }
+    catch (e) { toast((e as any).message); }
+  }
+  function toggleRole(id: string, current: string[], key: string) {
+    const base = editRoles[id] ?? current;
+    const next = base.includes(key) ? base.filter((k) => k !== key) : [...base, key];
+    setEditRoles((s) => ({ ...s, [id]: next }));
+  }
+
+  return <>
+    <Card title="Administrator accounts" right={<a onClick={() => setAdding(!adding)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{adding ? 'Cancel' : '+ New admin'}</a>}>
+      {adding && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
+        <div className="grid2">
+          <label>Email<input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@vaulmo.com" /></label>
+          <label>Full name<input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Jordan Smith" /></label>
+          <label>Temporary password<input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 10 characters" /></label>
+          <label>Role<select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>{ADMIN_ROLE_OPTS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}</select></label>
+        </div>
+        <button className="btn" style={{ marginTop: 10 }} onClick={create}>Create admin</button>
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>The new administrator must set up two-factor authentication on first sign-in — it's mandatory for all admin accounts.</p>
+      </div>}
+      <table><thead><tr><th>Admin</th><th>Roles</th><th>2FA</th><th>Status</th><th>Last active</th><th></th></tr></thead>
+        <tbody>{admins.map((a: any) => { const cur = editRoles[a.id] ?? a.roles; const dirty = !!editRoles[a.id]; return <tr key={a.id}>
+          <td><b>{a.fullName}</b><div className="muted" style={{ fontSize: 12 }}>{a.email}</div></td>
+          <td><div className="flex" style={{ gap: 4, flexWrap: 'wrap' }}>{ADMIN_ROLE_OPTS.map((r) => <button key={r.key} className={`pill ${cur.includes(r.key) ? 'p-info' : 'p-neutral'}`} style={{ cursor: 'pointer' }} onClick={() => toggleRole(a.id, a.roles, r.key)}>{r.label}</button>)}{dirty && <button className="btn sm" onClick={() => saveRoles(a.id)}>Save</button>}</div></td>
+          <td>{a.mfaEnabled ? <span className="pill p-good">on</span> : <span className="pill p-warn">off</span>}</td>
+          <td><span className={`pill ${a.status === 'ACTIVE' ? 'p-good' : 'p-crit'}`}>{a.status}</span></td>
+          <td>{a.lastLoginAt ? fmt(a.lastLoginAt) : 'never'}</td>
+          <td>{a.id !== me?.id && (a.status === 'ACTIVE' ? <button className="btn sm sec" onClick={() => setStatus(a.id, 'SUSPENDED')}>Suspend</button> : <button className="btn sm sec" onClick={() => setStatus(a.id, 'ACTIVE')}>Reactivate</button>)}</td>
+        </tr>; })}</tbody></table>
+      {!admins.length && <div className="empty">No administrators yet.</div>}
+    </Card>
+
+    <div className="section">Roles & permissions</div>
+    {roles.filter((r: any) => r.isAdmin).map((r: any) => <Card key={r.id} title={r.name} right={<span className="muted" style={{ fontSize: 12 }}>{r.members} member{r.members === 1 ? '' : 's'}</span>}>
+      <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>{r.description}</div>
+      <div className="flex" style={{ gap: 6, flexWrap: 'wrap' }}>{r.permissions.map((p: string) => <span key={p} className="pill p-neutral" style={{ fontFamily: 'monospace', fontSize: 11 }}>{p}</span>)}</div>
+    </Card>)}
+    <p className="muted" style={{ fontSize: 12.5 }}>Roles follow least privilege: a Security Reviewer can review emergency cases and monitor security but cannot manage billing or content; a Support Agent handles tickets and sees non-sensitive account information only. Two-factor authentication is mandatory for every administrator.</p>
+  </>;
+}
+
+/* ---------------- Document Catalogue (configuration) ---------------- */
+const FIELD_TYPES = ['string', 'date', 'number'];
+function AdminCatalogue({ toast }: any) {
+  const { data, reload } = useData(() => api.adminCatalogue());
+  const [edit, setEdit] = useState<any>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const types = data?.types ?? [];
+  const shown = types.filter((t: any) => showArchived || !t.archived);
+  const byCat = new Map<string, any[]>();
+  for (const t of shown) byCat.set(t.category, [...(byCat.get(t.category) ?? []), t]);
+
+  function startNew() { setEdit({ isNew: true, name: '', category: '', countriesStr: 'GLOBAL', recommended: true, sort: 100, reminderStr: '180, 90, 30, 7', metadataSchema: [] }); }
+  function openEdit(t: any) { setEdit({ isNew: false, id: t.id, key: t.key, name: t.name, category: t.category, countriesStr: (t.countries ?? []).join(', '), recommended: t.recommended, sort: t.sort, reminderStr: (t.reminderLeadDays ?? []).join(', '), metadataSchema: (t.metadataSchema ?? []).map((f: any) => ({ ...f })), archived: t.archived }); }
+  function toArr(s: string) { return s.split(',').map((x) => x.trim()).filter(Boolean); }
+  async function save() {
+    if (!edit.name.trim() || !edit.category.trim()) { toast('Name and category are required'); return; }
+    const payload = {
+      name: edit.name, category: edit.category,
+      countries: toArr(edit.countriesStr).map((c) => c.toUpperCase()),
+      recommended: !!edit.recommended, sort: Number(edit.sort) || 100,
+      reminderLeadDays: toArr(edit.reminderStr).map(Number).filter((n) => !isNaN(n)),
+      metadataSchema: edit.metadataSchema.filter((f: any) => f.key && f.label),
+    };
+    try {
+      if (edit.isNew) await api.adminCreateDocType(payload); else await api.adminUpdateDocType(edit.id, payload);
+      toast('Saved'); setEdit(null); await reload();
+    } catch (e) { toast((e as any).message); }
+  }
+  async function archive(t: any) { try { await api.adminArchiveDocType(t.id, !t.archived); toast(t.archived ? 'Restored' : 'Archived'); await reload(); } catch (e) { toast((e as any).message); } }
+  function addField() { setEdit({ ...edit, metadataSchema: [...edit.metadataSchema, { key: '', label: '', type: 'string', required: false }] }); }
+  function setField(i: number, patch: any) { const m = edit.metadataSchema.slice(); m[i] = { ...m[i], ...patch }; setEdit({ ...edit, metadataSchema: m }); }
+  function delField(i: number) { setEdit({ ...edit, metadataSchema: edit.metadataSchema.filter((_: any, j: number) => j !== i) }); }
+
+  if (edit) return <>
+    <a onClick={() => setEdit(null)} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>← All document types</a>
+    <div style={{ height: 10 }} />
+    <Card title={edit.isNew ? 'New document type' : `Edit · ${edit.name}`} right={edit.recommended ? <span className="pill p-good">recommended</span> : undefined}>
+      <div className="grid2">
+        <label>Name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Passport" /></label>
+        <label>Category<input value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value })} placeholder="Identity" /></label>
+        <label>Countries (comma-separated, or GLOBAL)<input value={edit.countriesStr} onChange={(e) => setEdit({ ...edit, countriesStr: e.target.value })} placeholder="GB, US or GLOBAL" /></label>
+        <label>Sort order<input type="number" value={edit.sort} onChange={(e) => setEdit({ ...edit, sort: e.target.value })} /></label>
+      </div>
+      <label style={{ display: 'block', marginTop: 8 }}>Reminder schedule — days before expiry<input value={edit.reminderStr} onChange={(e) => setEdit({ ...edit, reminderStr: e.target.value })} placeholder="180, 90, 30, 7" /></label>
+      <div className="flex" style={{ marginTop: 12, alignItems: 'center', gap: 8 }}><input type="checkbox" checked={edit.recommended} onChange={(e) => setEdit({ ...edit, recommended: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /><span style={{ fontSize: 14 }}>Recommend this document to users (shows in their checklist)</span></div>
+
+      <div className="section">Metadata to extract <a onClick={addField} style={{ float: 'right', fontSize: 13, cursor: 'pointer', color: 'var(--brand-2)' }}>+ Add field</a></div>
+      <table><thead><tr><th>Field key</th><th>Label</th><th>Type</th><th>Required</th><th></th></tr></thead>
+        <tbody>{edit.metadataSchema.map((f: any, i: number) => <tr key={i}>
+          <td><input value={f.key} onChange={(e) => setField(i, { key: e.target.value })} placeholder="expiryDate" style={{ marginTop: 0 }} /></td>
+          <td><input value={f.label} onChange={(e) => setField(i, { label: e.target.value })} placeholder="Expiry date" style={{ marginTop: 0 }} /></td>
+          <td><select value={f.type} onChange={(e) => setField(i, { type: e.target.value })} style={{ marginTop: 0, maxWidth: 120 }}>{FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
+          <td><input type="checkbox" checked={!!f.required} onChange={(e) => setField(i, { required: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /></td>
+          <td><button className="btn sm sec" onClick={() => delField(i)}>Remove</button></td>
+        </tr>)}</tbody></table>
+      {!edit.metadataSchema.length && <div className="empty">No metadata fields. Add fields Vaulmo should try to extract (e.g. expiry date, policy number).</div>}
+
+      <div className="flex" style={{ marginTop: 16, gap: 8 }}>
+        <button className="btn" onClick={save}>{edit.isNew ? 'Create type' : 'Save changes'}</button>
+        {!edit.isNew && <button className={`btn sm sec`} onClick={() => archive({ id: edit.id, archived: edit.archived })}>{edit.archived ? 'Restore' : 'Archive'}</button>}
+      </div>
+    </Card>
+  </>;
+
+  const active = types.filter((t: any) => !t.archived);
+  return <>
+    <div className="tiles">
+      <Tile ic="📚" bg="var(--brand-soft)" lab="Document types" val={active.length} />
+      <Tile ic="⭐" bg="var(--good-bg)" lab="Recommended" val={active.filter((t: any) => t.recommended).length} />
+      <Tile ic="🗂️" bg="var(--aqua-bg)" lab="Categories" val={(data?.categories ?? []).length} />
+      <Tile ic="🌍" bg="var(--warn-bg)" lab="Countries covered" val={(data?.countries ?? []).length} />
+    </div>
+    <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} style={{ width: 'auto', marginTop: 0 }} /> Show archived</span>
+      <button className="btn sm" onClick={startNew}>+ New document type</button>
+    </div>
+    {[...byCat.entries()].map(([cat, list]) => <Card key={cat} title={cat}>
+      <table><thead><tr><th>Document</th><th>Countries</th><th>Fields</th><th>Reminders (days)</th><th>In use</th><th></th></tr></thead>
+        <tbody>{list.sort((a: any, b: any) => a.sort - b.sort).map((t: any) => <tr key={t.id} style={{ opacity: t.archived ? 0.55 : 1 }}>
+          <td onClick={() => openEdit(t)} style={{ cursor: 'pointer' }}><b>{t.name}</b>{t.recommended && <span className="pill p-good" style={{ marginLeft: 8 }}>recommended</span>}{t.archived && <span className="pill p-neutral" style={{ marginLeft: 6 }}>archived</span>}<div className="muted" style={{ fontSize: 12 }}>/{t.key}</div></td>
+          <td>{(t.countries ?? []).join(', ')}</td>
+          <td>{(t.metadataSchema ?? []).length}</td>
+          <td>{(t.reminderLeadDays ?? []).join(', ')}</td>
+          <td>{t.inUse}</td>
+          <td><div className="flex" style={{ gap: 6 }}><button className="btn sm sec" onClick={() => openEdit(t)}>Edit</button><button className="btn sm sec" onClick={() => archive(t)}>{t.archived ? 'Restore' : 'Archive'}</button></div></td>
+        </tr>)}</tbody></table>
+    </Card>)}
+    {!shown.length && <div className="empty">No document types{!showArchived ? ' (archived hidden)' : ''}.</div>}
   </>;
 }

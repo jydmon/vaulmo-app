@@ -35,6 +35,7 @@ async function tryRefresh(): Promise<boolean> {
 export interface AuthResult {
   user?: { id: string; email: string; fullName: string; tenantId: string | null; mfaEnabled: boolean };
   accessToken?: string; refreshToken?: string; mfaRequired?: boolean; challengeToken?: string;
+  mfaSetupRequired?: boolean; recoveryCodes?: string[];
 }
 
 export async function uploadText(url: string, text: string): Promise<void> {
@@ -52,6 +53,7 @@ export const api = {
   login: (b: any) => P<AuthResult>('/auth/login', b),
   loginMfa: (code: string, challengeToken: string) => { accessToken = challengeToken; return request<AuthResult>('POST', '/auth/login/mfa', { code }, false); },
   me: () => G<any>('/users/me'),
+  updateProfile: (fullName: string) => PUT<any>('/users/me', { fullName }),
   // vault
   checklist: () => G<any>('/vault/checklist'),
   documents: () => G<any>('/vault/documents'),
@@ -130,6 +132,20 @@ export const api = {
   adminSupportTicket: (id: string) => G<any>(`/admin/support/tickets/${id}`),
   adminSupportReply: (id: string, body: string) => P<any>(`/admin/support/tickets/${id}/messages`, { body }),
   adminSupportStatus: (id: string, status: string) => P<any>(`/admin/support/tickets/${id}/status`, { status }),
+  adminCreateTicketFor: (b: any) => P<any>('/admin/support/tickets', b),
+  // roles, admin users & security
+  adminRoles: () => G<any>('/admin/roles'),
+  adminAdmins: () => G<any>('/admin/admins'),
+  adminCreateAdmin: (b: any) => P<any>('/admin/admins', b),
+  adminSetAdminRoles: (id: string, roles: string[]) => PUT<any>(`/admin/admins/${id}/roles`, { roles }),
+  adminSetUserStatus: (id: string, b: any) => P<any>(`/admin/users/${id}/status`, b),
+  adminRevokeUserSessions: (id: string) => P<any>(`/admin/users/${id}/revoke-sessions`),
+  adminSecurity: () => G<any>('/admin/security'),
+  // document catalogue (configuration)
+  adminCatalogue: () => G<any>('/admin/catalogue'),
+  adminCreateDocType: (b: any) => P<any>('/admin/catalogue', b),
+  adminUpdateDocType: (id: string, b: any) => PUT<any>(`/admin/catalogue/${id}`, b),
+  adminArchiveDocType: (id: string, archived: boolean) => P<any>(`/admin/catalogue/${id}/archive`, { archived }),
   // emergency access (Phase 8) — owner + super admin console
   emergencyFeature: () => G<any>('/emergency/status'),
   emergencyRequests: () => G<any>('/emergency/requests'),
