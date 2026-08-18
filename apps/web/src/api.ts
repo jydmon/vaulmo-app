@@ -146,6 +146,15 @@ export const api = {
   adminCreateDocType: (b: any) => P<any>('/admin/catalogue', b),
   adminUpdateDocType: (id: string, b: any) => PUT<any>(`/admin/catalogue/${id}`, b),
   adminArchiveDocType: (id: string, archived: boolean) => P<any>(`/admin/catalogue/${id}/archive`, { archived }),
+  // configuration: flags, announcements, settings, environment
+  configPublic: () => G<any>('/config/public'),
+  adminConfig: () => G<any>('/admin/config'),
+  adminSetFlag: (b: any) => PUT<any>('/admin/config/flags', b),
+  adminDeleteFlag: (key: string) => DEL<any>(`/admin/config/flags/${key}`),
+  adminCreateAnnouncement: (b: any) => P<any>('/admin/config/announcements', b),
+  adminUpdateAnnouncement: (id: string, b: any) => PUT<any>(`/admin/config/announcements/${id}`, b),
+  adminDeleteAnnouncement: (id: string) => DEL<any>(`/admin/config/announcements/${id}`),
+  adminSetSetting: (key: string, value: any) => PUT<any>('/admin/config/settings', { key, value }),
   // emergency access (Phase 8) — owner + super admin console
   emergencyFeature: () => G<any>('/emergency/status'),
   emergencyRequests: () => G<any>('/emergency/requests'),

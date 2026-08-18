@@ -506,3 +506,34 @@ export const cmsArticles = pgTable(
   },
   (t) => ({ statusIdx: index('cms_articles_status_idx').on(t.status) }),
 );
+
+// ---- Configuration: feature flags, announcements, platform settings ----
+export const featureFlags = pgTable('feature_flags', {
+  key: text('key').primaryKey(),
+  description: text('description'),
+  enabled: boolean('enabled').notNull().default(false),
+  rollout: text('rollout').notNull().default('off'), // off | internal | pilot | everyone
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const announcements = pgTable(
+  'announcements',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    title: text('title').notNull(),
+    body: text('body').notNull().default(''),
+    level: text('level').notNull().default('info'), // info | warning | critical
+    audience: text('audience').notNull().default('all'), // all | customers | admins
+    active: boolean('active').notNull().default(true),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ activeIdx: index('announcements_active_idx').on(t.active) }),
+);
+
+export const platformSettings = pgTable('platform_settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull().default({}),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

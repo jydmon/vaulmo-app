@@ -27,6 +27,7 @@ const ICONS: Record<string, string> = {
   security: 'M12 3l7 3v5c0 4.4-2.9 8.3-7 9.5-4.1-1.2-7-5.1-7-9.5V6l7-3z',
   roles: 'M8 11a3 3 0 100-6 3 3 0 000 6zM2 20a6 6 0 0112 0M17 11l1.5 1.5L22 9M15 4a3 3 0 010 6',
   catalogue: 'M4 4h11l5 5v11a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zM14 4v5h5M7 13h8M7 17h5',
+  config: 'M4 6h10M18 6h2M4 12h2M10 12h10M4 18h8M16 18h4M14 4v4M6 10v4M12 16v4',
 };
 const Icon = ({ k, size = 20 }: { k: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[k] ?? ICONS.home} /></svg>;
 
@@ -162,7 +163,7 @@ const TENANT_NAV = [
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
   { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
 
 function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; refreshMe: () => Promise<void> }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -171,6 +172,11 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
   const [unread, setUnread] = useState(0);
   const { toast, node } = useToast();
   useEffect(() => { if (!isSuper) api.unread().then((r) => setUnread(r.unread)).catch(() => {}); }, [active, isSuper]);
+  const [cfg, setCfg] = useState<any>({ announcements: [], environment: '' });
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  useEffect(() => { api.configPublic().then(setCfg).catch(() => {}); }, []);
+  const anns = (cfg.announcements ?? []).filter((a: any) => !dismissed.includes(a.id));
+  const envPill = (e: string) => (e === 'production' ? 'p-good' : e === 'staging' ? 'p-warn' : 'p-neutral');
 
   const titles: any = {
     home: isSuper ? ['Platform Overview', 'Every tenant at a glance'] : [`Hi, ${me.fullName.split(' ')[0]}`, "Here's what matters today"],
@@ -178,10 +184,10 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], config: ['Configuration', 'Feature flags, announcements & platform settings'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
-  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, config: <AdminConfig toast={toast} />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -193,9 +199,12 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     </aside>
     <main className="main">
       <div className="top"><div><h2>{t0}</h2><div className="sub">{t1}</div></div>
-        <div className="sp"><NotificationBell onOpenReminders={!isSuper ? () => setActive('reminders') : undefined} /><button className="btn sec sm" onClick={onSignOut}>Sign out</button></div>
+        <div className="sp">{isSuper && cfg.environment && <span className={`pill ${envPill(cfg.environment)}`} style={{ textTransform: 'capitalize' }}>{cfg.environment}</span>}<NotificationBell onOpenReminders={!isSuper ? () => setActive('reminders') : undefined} /><button className="btn sec sm" onClick={onSignOut}>Sign out</button></div>
       </div>
-      <div className="view" key={active}>{views[active]}</div>
+      <div className="view" key={active}>
+        {anns.map((a: any) => <div key={a.id} className="card" style={{ marginBottom: 16, border: 0, background: a.level === 'critical' ? 'var(--crit-bg)' : a.level === 'warning' ? 'var(--warn-bg)' : 'var(--brand-soft)' }}><div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><div><b>{a.title}</b>{a.body && <div style={{ fontSize: 13.5, marginTop: 3 }}>{a.body}</div>}</div><a onClick={() => setDismissed([...dismissed, a.id])} style={{ cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--soft)' }}>×</a></div></div>)}
+        {views[active]}
+      </div>
     </main>
     {node}
   </div>;
@@ -1441,5 +1450,102 @@ function AdminCatalogue({ toast }: any) {
         </tr>)}</tbody></table>
     </Card>)}
     {!shown.length && <div className="empty">No document types{!showArchived ? ' (archived hidden)' : ''}.</div>}
+  </>;
+}
+
+/* ---------------- Configuration (feature flags, announcements, settings) ---------------- */
+const ROLLOUTS = [{ v: 'off', l: 'Off' }, { v: 'internal', l: 'Internal testers' }, { v: 'pilot', l: 'Pilot group' }, { v: 'everyone', l: 'Everyone' }];
+const rolloutPill = (r: string) => (r === 'everyone' ? 'p-good' : r === 'off' ? 'p-neutral' : 'p-info');
+function AdminConfig({ toast }: any) {
+  const { data, reload } = useData(() => api.adminConfig());
+  const [nf, setNf] = useState<any>({ key: '', description: '', rollout: 'off' });
+  const [na, setNa] = useState<any>({ title: '', body: '', level: 'info', audience: 'all' });
+  const [addingF, setAddingF] = useState(false);
+  const [addingA, setAddingA] = useState(false);
+  const [pol, setPol] = useState<any>(null);
+  const [mob, setMob] = useState<any>(null);
+  const [sup, setSup] = useState<any>(null);
+  const flags = data?.flags ?? [];
+  const anns = data?.announcements ?? [];
+  const env = data?.environment ?? '';
+  const settings = data?.settings ?? {};
+  // seed setting editors once data arrives
+  useEffect(() => { if (data) { setPol(settings.policies ?? { termsUrl: '', termsVersion: '', privacyUrl: '', privacyVersion: '', cookieUrl: '' }); setMob(settings.mobile ?? { minIosVersion: '', minAndroidVersion: '', forceUpgrade: false }); setSup(settings.support ?? { email: '', hours: '' }); } }, [data]);
+
+  async function setFlag(f: any, patch: any) { try { await api.adminSetFlag({ key: f.key, description: f.description, rollout: f.rollout, enabled: f.enabled, ...patch }); await reload(); } catch (e) { toast((e as any).message); } }
+  async function addFlag() { if (!nf.key.trim()) { toast('A flag key is required'); return; } try { await api.adminSetFlag({ key: nf.key, description: nf.description, rollout: nf.rollout, enabled: nf.rollout !== 'off' }); toast('Flag saved'); setNf({ key: '', description: '', rollout: 'off' }); setAddingF(false); await reload(); } catch (e) { toast((e as any).message); } }
+  async function delFlag(key: string) { try { await api.adminDeleteFlag(key); await reload(); } catch (e) { toast((e as any).message); } }
+  async function addAnn() { if (!na.title.trim()) { toast('A title is required'); return; } try { await api.adminCreateAnnouncement(na); toast('Announcement published'); setNa({ title: '', body: '', level: 'info', audience: 'all' }); setAddingA(false); await reload(); } catch (e) { toast((e as any).message); } }
+  async function toggleAnn(a: any) { try { await api.adminUpdateAnnouncement(a.id, { active: !a.active }); await reload(); } catch (e) { toast((e as any).message); } }
+  async function delAnn(id: string) { try { await api.adminDeleteAnnouncement(id); await reload(); } catch (e) { toast((e as any).message); } }
+  async function saveSetting(key: string, value: any) { try { await api.adminSetSetting(key, value); toast('Settings saved'); await reload(); } catch (e) { toast((e as any).message); } }
+
+  return <>
+    <div className="card" style={{ marginBottom: 18, background: env === 'production' ? 'var(--good-bg)' : 'var(--warn-bg)', border: 0 }}>
+      <div className="card-b flex" style={{ justifyContent: 'space-between' }}>
+        <div><b>Environment</b> <span className={`pill ${env === 'production' ? 'p-good' : env === 'staging' ? 'p-warn' : 'p-neutral'}`} style={{ marginLeft: 6, textTransform: 'capitalize' }}>{env || 'unknown'}</span></div>
+        <div className="muted" style={{ fontSize: 12.5 }}>{env === 'production' ? 'Live environment — changes affect real customers.' : 'Non-production — safe for testing.'}</div>
+      </div>
+    </div>
+
+    <Card title="Feature flags" right={<a onClick={() => setAddingF(!addingF)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{addingF ? 'Cancel' : '+ New flag'}</a>}>
+      {addingF && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
+        <div className="grid2">
+          <label>Flag key<input value={nf.key} onChange={(e) => setNf({ ...nf, key: e.target.value })} placeholder="new_dashboard" /></label>
+          <label>Rollout<select value={nf.rollout} onChange={(e) => setNf({ ...nf, rollout: e.target.value })}>{ROLLOUTS.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}</select></label>
+        </div>
+        <label>Description<input value={nf.description} onChange={(e) => setNf({ ...nf, description: e.target.value })} placeholder="What this flag controls" /></label>
+        <button className="btn" style={{ marginTop: 10 }} onClick={addFlag}>Save flag</button>
+      </div>}
+      <table><thead><tr><th>Flag</th><th>Rollout</th><th>Enabled</th><th></th></tr></thead>
+        <tbody>{flags.map((f: any) => <tr key={f.key}>
+          <td><b style={{ fontFamily: 'monospace', fontSize: 13 }}>{f.key}</b><div className="muted" style={{ fontSize: 12 }}>{f.description ?? ''}</div></td>
+          <td><select value={f.rollout} onChange={(e) => setFlag(f, { rollout: e.target.value })} style={{ marginTop: 0, maxWidth: 160 }}>{ROLLOUTS.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}</select></td>
+          <td><button className={`pill ${f.enabled ? 'p-good' : 'p-neutral'}`} style={{ cursor: 'pointer' }} onClick={() => setFlag(f, { enabled: !f.enabled })}>{f.enabled ? 'On' : 'Off'}</button></td>
+          <td><button className="btn sm sec" onClick={() => delFlag(f.key)}>Delete</button></td>
+        </tr>)}</tbody></table>
+      {!flags.length && <div className="empty">No feature flags yet. Add one to roll functionality out gradually.</div>}
+    </Card>
+
+    <Card title="Announcements" right={<a onClick={() => setAddingA(!addingA)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{addingA ? 'Cancel' : '+ New announcement'}</a>}>
+      {addingA && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
+        <label>Title<input value={na.title} onChange={(e) => setNa({ ...na, title: e.target.value })} placeholder="Scheduled maintenance on Sunday" /></label>
+        <label style={{ display: 'block', marginTop: 8 }}>Message<textarea value={na.body} onChange={(e) => setNa({ ...na, body: e.target.value })} rows={2} style={taStyle} /></label>
+        <div className="grid2" style={{ marginTop: 8 }}>
+          <label>Level<select value={na.level} onChange={(e) => setNa({ ...na, level: e.target.value })}><option value="info">Info</option><option value="warning">Warning</option><option value="critical">Critical</option></select></label>
+          <label>Audience<select value={na.audience} onChange={(e) => setNa({ ...na, audience: e.target.value })}><option value="all">Everyone</option><option value="customers">Customers</option><option value="admins">Admins</option></select></label>
+        </div>
+        <button className="btn" style={{ marginTop: 10 }} onClick={addAnn}>Publish</button>
+      </div>}
+      {anns.map((a: any) => <div className="row" key={a.id}><div className="ic" style={{ background: a.level === 'critical' ? 'var(--crit-bg)' : a.level === 'warning' ? 'var(--warn-bg)' : 'var(--brand-soft)' }}>{a.level === 'critical' ? '🔴' : a.level === 'warning' ? '🟠' : 'ℹ️'}</div>
+        <div className="m"><div className="t">{a.title}</div><div className="s">{a.audience} · {a.body ? a.body.slice(0, 60) : ''}</div></div>
+        <div className="flex" style={{ gap: 6 }}><button className={`pill ${a.active ? 'p-good' : 'p-neutral'}`} style={{ cursor: 'pointer' }} onClick={() => toggleAnn(a)}>{a.active ? 'Live' : 'Off'}</button><button className="btn sm sec" onClick={() => delAnn(a.id)}>Delete</button></div></div>)}
+      {!anns.length && <div className="empty">No announcements. Publish one to show a banner to users.</div>}
+    </Card>
+
+    <div className="section">Platform settings</div>
+    <div className="grid2">
+      <Card title="Policies & consent">
+        {pol && <>
+          <label>Terms of Service URL<input value={pol.termsUrl} onChange={(e) => setPol({ ...pol, termsUrl: e.target.value })} placeholder="https://vaulmo.com/terms" /></label>
+          <div className="grid2"><label>Terms version<input value={pol.termsVersion} onChange={(e) => setPol({ ...pol, termsVersion: e.target.value })} placeholder="2026-01" /></label><label>Privacy version<input value={pol.privacyVersion} onChange={(e) => setPol({ ...pol, privacyVersion: e.target.value })} placeholder="2026-01" /></label></div>
+          <label style={{ display: 'block', marginTop: 8 }}>Privacy Policy URL<input value={pol.privacyUrl} onChange={(e) => setPol({ ...pol, privacyUrl: e.target.value })} placeholder="https://vaulmo.com/privacy" /></label>
+          <button className="btn" style={{ marginTop: 10 }} onClick={() => saveSetting('policies', pol)}>Save policies</button>
+        </>}
+      </Card>
+      <Card title="Mobile app">
+        {mob && <>
+          <div className="grid2"><label>Min iOS version<input value={mob.minIosVersion} onChange={(e) => setMob({ ...mob, minIosVersion: e.target.value })} placeholder="1.2.0" /></label><label>Min Android version<input value={mob.minAndroidVersion} onChange={(e) => setMob({ ...mob, minAndroidVersion: e.target.value })} placeholder="1.2.0" /></label></div>
+          <div className="flex" style={{ marginTop: 10, alignItems: 'center', gap: 8 }}><input type="checkbox" checked={!!mob.forceUpgrade} onChange={(e) => setMob({ ...mob, forceUpgrade: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /><span style={{ fontSize: 14 }}>Force upgrade below minimum version</span></div>
+          <button className="btn" style={{ marginTop: 10 }} onClick={() => saveSetting('mobile', mob)}>Save mobile</button>
+        </>}
+      </Card>
+    </div>
+    <Card title="Support contact">
+      {sup && <>
+        <div className="grid2"><label>Support email<input value={sup.email} onChange={(e) => setSup({ ...sup, email: e.target.value })} placeholder="support@vaulmo.com" /></label><label>Support hours<input value={sup.hours} onChange={(e) => setSup({ ...sup, hours: e.target.value })} placeholder="Mon–Fri, 9–5 GMT" /></label></div>
+        <button className="btn" style={{ marginTop: 10 }} onClick={() => saveSetting('support', sup)}>Save support</button>
+      </>}
+    </Card>
   </>;
 }
