@@ -462,3 +462,45 @@ export const supportMessages = pgTable(
   },
   (t) => ({ ticketIdx: index('support_messages_ticket_idx').on(t.ticketId) }),
 );
+
+// ---- CRM: lifecycle + notes per customer (tenant) ----
+export const crmProfiles = pgTable('crm_profiles', {
+  tenantId: uuid('tenant_id').primaryKey().references(() => tenants.id, { onDelete: 'cascade' }),
+  stage: text('stage').notNull().default('active'), // lead | onboarding | active | at_risk | churned
+  tags: text('tags').array().notNull().default([]),
+  ownerName: text('owner_name'), // internal account owner / CSM
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const crmNotes = pgTable(
+  'crm_notes',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+    kind: text('kind').notNull().default('note'), // note | call | email | meeting
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ tenantIdx: index('crm_notes_tenant_idx').on(t.tenantId) }),
+);
+
+// ---- CMS: knowledge-base articles ----
+export const cmsArticles = pgTable(
+  'cms_articles',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    slug: text('slug').notNull().unique(),
+    title: text('title').notNull(),
+    category: text('category'),
+    excerpt: text('excerpt'),
+    body: text('body').notNull().default(''),
+    status: text('status').notNull().default('draft'), // draft | published
+    authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+    views: integer('views').notNull().default(0),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ statusIdx: index('cms_articles_status_idx').on(t.status) }),
+);

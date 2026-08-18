@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { tenants, users, auditLogs, fileObjects, userRoles, roles, subscriptions, plans } from '../../db/schema';
+import { tenants, users, auditLogs, fileObjects, userRoles, roles, subscriptions, plans, documents, reminders, familyMembers, nextOfKin, supportTickets, crmProfiles, crmNotes, cmsArticles } from '../../db/schema';
+import { AppError } from '../../middleware/error';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
@@ -224,4 +225,136 @@ adminRouter.post('/subscriptions/:tenantId', requirePermission(PERMISSIONS.PLATF
   const sub = await adminSetSubscription(req.params.tenantId, body);
   await audit({ action: 'admin.subscription.set', actorId: req.auth!.sub, targetType: 'tenant', targetId: req.params.tenantId, metadata: body, req });
   res.json({ subscription: sub });
+});
+
+// ================= Troubleshooting: account inspector =================
+// A read-only, support-safe snapshot of a customer account for troubleshooting.
+// Document CONTENTS are never returned — only titles, types and status. Every
+// inspection is written to the audit log. (Full live impersonation is intentionally
+// not enabled; this read-only inspector is the sanctioned troubleshooting path.)
+adminRouter.get('/customers/:tenantId/inspect', requirePermission(PERMISSIONS.TENANT_READ_ALL), async (req, res) => {
+  const tenantId = req.params.tenantId;
+  const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+  if (!tenant) throw new AppError(404, 'not_found', 'Customer not found');
+
+  const [members, docs, rems, fam, nok, sub, tickets, recent, roleRows] = await Promise.all([
+    db.select({ id: users.id, email: users.email, fullName: users.fullName, status: users.status, mfaEnabled: users.mfaEnabled, lastLoginAt: users.lastLoginAt, createdAt: users.createdAt }).from(users).where(eq(users.tenantId, tenantId)),
+    db.select({ id: documents.id, title: documents.title, typeKey: documents.typeKey, status: documents.status, createdAt: documents.createdAt }).from(documents).where(eq(documents.tenantId, tenantId)).orderBy(desc(documents.createdAt)).limit(100),
+    db.select({ id: reminders.id, title: reminders.title, kind: reminders.kind, dueDate: reminders.dueDate, status: reminders.status }).from(reminders).where(eq(reminders.tenantId, tenantId)).orderBy(desc(reminders.createdAt)).limit(50),
+    db.select({ id: familyMembers.id, name: familyMembers.name, relationship: familyMembers.relationship, isDependant: familyMembers.isDependant }).from(familyMembers).where(eq(familyMembers.tenantId, tenantId)),
+    db.select({ id: nextOfKin.id, name: nextOfKin.name, email: nextOfKin.email, status: nextOfKin.status }).from(nextOfKin).where(eq(nextOfKin.tenantId, tenantId)),
+    db.select().from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1),
+    db.select({ id: supportTickets.id, subject: supportTickets.subject, status: supportTickets.status, updatedAt: supportTickets.updatedAt }).from(supportTickets).where(eq(supportTickets.tenantId, tenantId)).orderBy(desc(supportTickets.updatedAt)).limit(20),
+    db.select().from(auditLogs).where(eq(auditLogs.tenantId, tenantId)).orderBy(desc(auditLogs.at)).limit(25),
+    db.select({ userId: userRoles.userId, key: roles.key }).from(userRoles).innerJoin(roles, eq(userRoles.roleId, roles.id)),
+  ]);
+  const rolesByUser = new Map<string, string[]>();
+  for (const r of roleRows) rolesByUser.set(r.userId, [...(rolesByUser.get(r.userId) ?? []), r.key]);
+
+  await audit({ action: 'admin.account.inspected', actorId: req.auth!.sub, targetType: 'tenant', targetId: tenantId, req });
+  res.json({
+    tenant,
+    members: members.map((m) => ({ ...m, roles: rolesByUser.get(m.id) ?? [] })),
+    counts: { documents: docs.length, reminders: rems.length, family: fam.length, nok: nok.length, tickets: tickets.length },
+    documents: docs, // titles/types/status only — no contents
+    reminders: rems, family: fam, nextOfKin: nok,
+    subscription: sub[0] ?? null,
+    tickets, recentActivity: recent,
+  });
+});
+
+// ================= CRM: lifecycle, tags & notes =================
+async function crmProfileFor(tenantId: string) {
+  const [p] = await db.select().from(crmProfiles).where(eq(crmProfiles.tenantId, tenantId)).limit(1);
+  if (p) return p;
+  const [created] = await db.insert(crmProfiles).values({ tenantId }).onConflictDoNothing().returning();
+  return created ?? (await db.select().from(crmProfiles).where(eq(crmProfiles.tenantId, tenantId)).limit(1))[0];
+}
+
+// Pipeline overview across all customers.
+adminRouter.get('/crm', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const [tRows, profiles, subRows] = await Promise.all([
+    db.select({ id: tenants.id, name: tenants.name, plan: tenants.plan, status: tenants.status, createdAt: tenants.createdAt }).from(tenants).orderBy(desc(tenants.createdAt)),
+    db.select().from(crmProfiles),
+    db.select().from(subscriptions),
+  ]);
+  const profByTenant = new Map(profiles.map((p) => [p.tenantId, p]));
+  const subByTenant = new Map(subRows.map((s) => [s.tenantId, s]));
+  const rows = tRows.map((t) => {
+    const p = profByTenant.get(t.id);
+    const s = subByTenant.get(t.id);
+    return { id: t.id, name: t.name, plan: t.plan, tenantStatus: t.status, createdAt: t.createdAt, stage: p?.stage ?? 'active', tags: p?.tags ?? [], ownerName: p?.ownerName ?? null, subStatus: s?.status ?? 'none' };
+  });
+  const stages = ['lead', 'onboarding', 'active', 'at_risk', 'churned'];
+  const pipeline = Object.fromEntries(stages.map((st) => [st, rows.filter((r) => r.stage === st).length]));
+  res.json({ customers: rows, pipeline });
+});
+
+adminRouter.get('/crm/:tenantId', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const profile = await crmProfileFor(req.params.tenantId);
+  const notes = await db.select().from(crmNotes).where(eq(crmNotes.tenantId, req.params.tenantId)).orderBy(desc(crmNotes.createdAt));
+  const authorIds = [...new Set(notes.map((n) => n.authorId).filter(Boolean))] as string[];
+  const authors = authorIds.length ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, authorIds)) : [];
+  const aName = new Map(authors.map((a) => [a.id, a.fullName]));
+  res.json({ profile, notes: notes.map((n) => ({ ...n, authorName: n.authorId ? aName.get(n.authorId) ?? 'Staff' : 'Staff' })) });
+});
+
+const crmProfileSchema = z.object({ stage: z.enum(['lead', 'onboarding', 'active', 'at_risk', 'churned']).optional(), tags: z.array(z.string()).optional(), ownerName: z.string().max(120).nullable().optional() });
+adminRouter.put('/crm/:tenantId', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = crmProfileSchema.parse(req.body);
+  await crmProfileFor(req.params.tenantId);
+  const [p] = await db.update(crmProfiles).set({ ...b, updatedAt: new Date() }).where(eq(crmProfiles.tenantId, req.params.tenantId)).returning();
+  await audit({ action: 'admin.crm.updated', actorId: req.auth!.sub, targetType: 'tenant', targetId: req.params.tenantId, metadata: b, req });
+  res.json({ profile: p });
+});
+
+const crmNoteSchema = z.object({ body: z.string().min(1), kind: z.enum(['note', 'call', 'email', 'meeting']).optional() });
+adminRouter.post('/crm/:tenantId/notes', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = crmNoteSchema.parse(req.body);
+  const [n] = await db.insert(crmNotes).values({ tenantId: req.params.tenantId, authorId: req.auth!.sub, kind: b.kind ?? 'note', body: b.body }).returning();
+  res.status(201).json({ note: n });
+});
+
+// ================= CMS: knowledge-base admin =================
+const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'article';
+adminRouter.get('/cms/articles', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const rows = await db.select().from(cmsArticles).orderBy(desc(cmsArticles.updatedAt));
+  res.json({ articles: rows });
+});
+adminRouter.get('/cms/articles/:id', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const [a] = await db.select().from(cmsArticles).where(eq(cmsArticles.id, req.params.id)).limit(1);
+  if (!a) throw new AppError(404, 'not_found', 'Article not found');
+  res.json({ article: a });
+});
+const articleSchema = z.object({ title: z.string().min(1).max(200), slug: z.string().max(80).optional(), category: z.string().max(80).optional(), excerpt: z.string().max(400).optional(), body: z.string().optional(), status: z.enum(['draft', 'published']).optional() });
+adminRouter.post('/cms/articles', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = articleSchema.parse(req.body);
+  const slug = slugify(b.slug || b.title);
+  const publishedAt = b.status === 'published' ? new Date() : null;
+  const [a] = await db.insert(cmsArticles).values({ title: b.title, slug, category: b.category, excerpt: b.excerpt, body: b.body ?? '', status: b.status ?? 'draft', authorId: req.auth!.sub, publishedAt }).returning();
+  await audit({ action: 'admin.cms.created', actorId: req.auth!.sub, targetType: 'article', targetId: a.id, req });
+  res.status(201).json({ article: a });
+});
+adminRouter.put('/cms/articles/:id', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  const b = articleSchema.partial().parse(req.body);
+  const [existing] = await db.select().from(cmsArticles).where(eq(cmsArticles.id, req.params.id)).limit(1);
+  if (!existing) throw new AppError(404, 'not_found', 'Article not found');
+  const nowPublished = b.status === 'published' && existing.status !== 'published';
+  const [a] = await db.update(cmsArticles).set({
+    ...(b.title !== undefined ? { title: b.title } : {}),
+    ...(b.slug !== undefined ? { slug: slugify(b.slug) } : {}),
+    ...(b.category !== undefined ? { category: b.category } : {}),
+    ...(b.excerpt !== undefined ? { excerpt: b.excerpt } : {}),
+    ...(b.body !== undefined ? { body: b.body } : {}),
+    ...(b.status !== undefined ? { status: b.status } : {}),
+    ...(nowPublished ? { publishedAt: new Date() } : {}),
+    updatedAt: new Date(),
+  }).where(eq(cmsArticles.id, req.params.id)).returning();
+  await audit({ action: 'admin.cms.updated', actorId: req.auth!.sub, targetType: 'article', targetId: a.id, metadata: { status: a.status }, req });
+  res.json({ article: a });
+});
+adminRouter.delete('/cms/articles/:id', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
+  await db.delete(cmsArticles).where(eq(cmsArticles.id, req.params.id));
+  await audit({ action: 'admin.cms.deleted', actorId: req.auth!.sub, targetType: 'article', targetId: req.params.id, req });
+  res.json({ ok: true });
 });

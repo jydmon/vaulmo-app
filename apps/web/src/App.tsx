@@ -20,6 +20,9 @@ const ICONS: Record<string, string> = {
   support: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z',
   emergency: 'M12 3l7 3v5c0 4.4-2.9 8.3-7 9.5-4.1-1.2-7-5.1-7-9.5V6l7-3zM12 9v4M12 16h.01',
   reports: 'M3 3v18h18M8 17V9M13 17V5M18 17v-4',
+  crm: 'M3 4h18l-7 8v6l-4 2v-8z',
+  cms: 'M4 5a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2zM14 3v5h5M8 13h8M8 17h5',
+  help: 'M12 3a9 9 0 100 18 9 9 0 000-18zM9.6 9a2.5 2.5 0 014.6 1.4c0 1.7-2.2 2-2.2 3.6M12 17h.01',
 };
 const Icon = ({ k, size = 20 }: { k: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[k] ?? ICONS.home} /></svg>;
 
@@ -86,9 +89,9 @@ const TENANT_NAV = [
   { id: 'assistant', label: 'Ask Vaulmo', ic: 'assistant' }, { id: 'reminders', label: 'Reminders', ic: 'reminders' },
   { grp: 'Life' }, { id: 'trips', label: 'Trips', ic: 'trips' }, { id: 'purchases', label: 'Purchases', ic: 'purchases' },
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
-  { grp: 'Account' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'settings', label: 'Settings', ic: 'settings' },
+  { grp: 'Account' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'audit', label: 'Audit', ic: 'audit' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { grp: 'Security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'audit', label: 'Audit', ic: 'audit' }];
 
 function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -104,10 +107,10 @@ function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], help: ['Help Centre', 'Guides & answers'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
-  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, help: <HelpCenter />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -885,5 +888,211 @@ function AdminReports() {
         <tbody>{(data.usage?.topTenants ?? []).map((t: any, i: number) => <tr key={i}><td><b>{t.k}</b></td><td>{t.documents}</td><td>{t.members}</td></tr>)}</tbody></table>
       {!(data.usage?.topTenants ?? []).length && <div className="empty">No usage data yet.</div>}
     </Card>
+  </>;
+}
+
+/* ---------------- CRM + troubleshooting ---------------- */
+const CRM_STAGES = ['lead', 'onboarding', 'active', 'at_risk', 'churned'];
+const crmStagePill = (s: string) => ({ lead: 'p-info', onboarding: 'p-warn', active: 'p-good', at_risk: 'p-crit', churned: 'p-neutral' } as any)[s] ?? 'p-neutral';
+const stageLabel = (s: string) => s.replace('_', ' ');
+
+function AccountInspector({ snap }: { snap: any }) {
+  const c = snap.counts ?? {};
+  return <>
+    <div className="card" style={{ background: 'var(--warn-bg)', border: 0, marginBottom: 14 }}><div className="card-b" style={{ fontSize: 13 }}>
+      <b>Read-only support view.</b> Document contents are never shown here — only titles, types and status. This inspection has been recorded in the audit log.
+    </div></div>
+    <div className="tiles">
+      <Tile ic="📄" bg="var(--brand-soft)" lab="Documents" val={c.documents ?? 0} />
+      <Tile ic="⏰" bg="var(--aqua-bg)" lab="Reminders" val={c.reminders ?? 0} />
+      <Tile ic="👪" bg="var(--good-bg)" lab="Family" val={c.family ?? 0} />
+      <Tile ic="💬" bg="var(--warn-bg)" lab="Tickets" val={c.tickets ?? 0} />
+    </div>
+    <Card title="Members">
+      {(snap.members ?? []).map((m: any) => <div className="row" key={m.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{(m.roles ?? []).includes('tenant_owner') ? '👑' : '👤'}</div>
+        <div className="m"><div className="t">{m.fullName} <span className="muted" style={{ fontSize: 12 }}>· {m.email}</span></div><div className="s">{(m.roles ?? []).join(', ') || 'member'} · {m.mfaEnabled ? 'MFA on' : 'MFA off'} · {m.lastLoginAt ? 'last in ' + fmt(m.lastLoginAt) : 'never signed in'}</div></div>
+        <span className={`pill ${m.status === 'ACTIVE' ? 'p-good' : 'p-neutral'}`}>{m.status}</span></div>)}
+    </Card>
+    <div className="grid2">
+      <Card title="Documents (titles only)">
+        <table><thead><tr><th>Title</th><th>Type</th><th>Status</th></tr></thead>
+          <tbody>{(snap.documents ?? []).slice(0, 30).map((d: any) => <tr key={d.id}><td>{d.title}</td><td style={{ textTransform: 'capitalize' }}>{(d.typeKey ?? '—').replace(/_/g, ' ')}</td><td>{d.status}</td></tr>)}</tbody></table>
+        {!(snap.documents ?? []).length && <div className="empty">No documents.</div>}
+      </Card>
+      <Card title="Reminders">
+        <table><thead><tr><th>Title</th><th>Due</th><th>Status</th></tr></thead>
+          <tbody>{(snap.reminders ?? []).slice(0, 30).map((r: any) => <tr key={r.id}><td>{r.title}</td><td>{r.dueDate ? fmt(r.dueDate) : '—'}</td><td>{r.status}</td></tr>)}</tbody></table>
+        {!(snap.reminders ?? []).length && <div className="empty">No reminders.</div>}
+      </Card>
+    </div>
+    <div className="grid2">
+      <Card title="Family & next of kin">
+        {(snap.family ?? []).map((f: any) => <div className="row" key={f.id}><div className="m"><div className="t">{f.name}</div><div className="s">{f.relationship ?? 'family'}{f.isDependant ? ' · dependant' : ''}</div></div></div>)}
+        {(snap.nextOfKin ?? []).map((n: any) => <div className="row" key={n.id}><div className="m"><div className="t">{n.name} <span className="muted" style={{ fontSize: 12 }}>· NoK</span></div><div className="s">{n.email}</div></div><span className={`pill ${n.status === 'confirmed' ? 'p-good' : 'p-neutral'}`}>{n.status}</span></div>)}
+        {!(snap.family ?? []).length && !(snap.nextOfKin ?? []).length && <div className="empty">No family or next of kin.</div>}
+      </Card>
+      <Card title="Recent activity">
+        {(snap.recentActivity ?? []).slice(0, 12).map((l: any) => <div className="row" key={l.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{l.outcome === 'failure' ? '⚠️' : '•'}</div><div className="m"><div className="t">{l.action}</div><div className="s">{fmt(l.at)}</div></div></div>)}
+        {!(snap.recentActivity ?? []).length && <div className="empty">No recent activity.</div>}
+      </Card>
+    </div>
+  </>;
+}
+
+function AdminCRM({ toast }: any) {
+  const { data, reload } = useData(() => api.adminCrm());
+  const [sel, setSel] = useState<any>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [inspect, setInspect] = useState<any>(null);
+  const [tab, setTab] = useState<'crm' | 'inspect'>('crm');
+  const [note, setNote] = useState('');
+  const [noteKind, setNoteKind] = useState('note');
+  const [tagsInput, setTagsInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const customers = data?.customers ?? [];
+  const pipeline = data?.pipeline ?? {};
+
+  async function openCustomer(c: any) { setSel(c); setTab('crm'); setInspect(null); const d = await api.adminCrmProfile(c.id); setDetail(d); setTagsInput((d.profile?.tags ?? []).join(', ')); }
+  async function setStage(stage: string) { await api.adminCrmUpdate(sel.id, { stage }); toast('Stage updated'); const d = await api.adminCrmProfile(sel.id); setDetail(d); await reload(); }
+  async function saveTags() { const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean); await api.adminCrmUpdate(sel.id, { tags }); toast('Tags saved'); const d = await api.adminCrmProfile(sel.id); setDetail(d); setTagsInput((d.profile?.tags ?? []).join(', ')); }
+  async function addNote() { if (!note.trim()) return; await api.adminCrmNote(sel.id, { body: note, kind: noteKind }); setNote(''); setDetail(await api.adminCrmProfile(sel.id)); toast('Logged'); }
+  async function openInspect() { setBusy(true); try { setInspect(await api.adminInspect(sel.id)); setTab('inspect'); } catch (e) { toast((e as any).message); } finally { setBusy(false); } }
+
+  if (sel && detail) return <>
+    <a onClick={() => { setSel(null); setDetail(null); setInspect(null); }} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All customers</a>
+    <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 14px' }}>
+      <div><h2 style={{ margin: 0 }}>{sel.name}</h2><div className="muted" style={{ fontSize: 13 }}>{sel.plan} · joined {fmt(sel.createdAt)}</div></div>
+      <div className="flex" style={{ gap: 6 }}>
+        <button className={`btn sm ${tab === 'crm' ? '' : 'sec'}`} onClick={() => setTab('crm')}>CRM</button>
+        <button className={`btn sm ${tab === 'inspect' ? '' : 'sec'}`} onClick={() => (inspect ? setTab('inspect') : openInspect())}>{busy ? 'Loading…' : 'Inspect account'}</button>
+      </div>
+    </div>
+    {tab === 'inspect' && inspect ? <AccountInspector snap={inspect} /> : <>
+      <div className="grid2">
+        <Card title="Lifecycle stage">
+          <div className="flex" style={{ gap: 6, flexWrap: 'wrap' }}>{CRM_STAGES.map((s) => <button key={s} className={`btn sm ${detail.profile?.stage === s ? '' : 'sec'}`} style={{ textTransform: 'capitalize' }} onClick={() => setStage(s)}>{stageLabel(s)}</button>)}</div>
+        </Card>
+        <Card title="Tags & account owner">
+          <label>Tags (comma-separated)<input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="vip, uk, referral" onBlur={saveTags} /></label>
+          <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>{(detail.profile?.tags ?? []).map((t: string) => <span key={t} className="pill p-neutral">{t}</span>)}</div>
+        </Card>
+      </div>
+      <Card title="Notes & contact log" right={<span className="muted" style={{ fontSize: 12 }}>{(detail.notes ?? []).length} entries</span>}>
+        <div className="flex" style={{ gap: 8, marginBottom: 12 }}>
+          <select value={noteKind} onChange={(e) => setNoteKind(e.target.value)} style={{ marginTop: 0, maxWidth: 120 }}><option value="note">Note</option><option value="call">Call</option><option value="email">Email</option><option value="meeting">Meeting</option></select>
+          <input placeholder="Add a note or log a contact…" value={note} onChange={(e) => setNote(e.target.value)} style={{ marginTop: 0 }} onKeyDown={(e) => { if (e.key === 'Enter') addNote(); }} />
+          <button className="btn" onClick={addNote}>Add</button>
+        </div>
+        {(detail.notes ?? []).map((n: any) => <div className="row" key={n.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{n.kind === 'call' ? '📞' : n.kind === 'email' ? '✉️' : n.kind === 'meeting' ? '🤝' : '📝'}</div><div className="m"><div className="t" style={{ whiteSpace: 'pre-wrap' }}>{n.body}</div><div className="s">{n.authorName} · {fmt(n.createdAt)}</div></div></div>)}
+        {!(detail.notes ?? []).length && <div className="empty">No notes yet. Log your first interaction above.</div>}
+      </Card>
+    </>}
+  </>;
+
+  return <>
+    <div className="tiles">
+      {CRM_STAGES.map((s) => <Tile key={s} ic={s === 'at_risk' ? '⚠️' : s === 'churned' ? '💤' : s === 'lead' ? '✨' : s === 'onboarding' ? '🚀' : '✅'} bg="var(--surface-2)" lab={stageLabel(s)} val={pipeline[s] ?? 0} />)}
+    </div>
+    <Card title="Customers">
+      <table><thead><tr><th>Customer</th><th>Plan</th><th>Stage</th><th>Tags</th><th>Owner</th></tr></thead>
+        <tbody>{customers.map((c: any) => <tr key={c.id} onClick={() => openCustomer(c)} style={{ cursor: 'pointer' }}>
+          <td><b>{c.name}</b><div className="muted" style={{ fontSize: 12 }}>joined {fmt(c.createdAt)}</div></td>
+          <td style={{ textTransform: 'capitalize' }}>{c.plan}</td>
+          <td><span className={`pill ${crmStagePill(c.stage)}`} style={{ textTransform: 'capitalize' }}>{stageLabel(c.stage)}</span></td>
+          <td>{(c.tags ?? []).slice(0, 3).map((t: string) => <span key={t} className="pill p-neutral" style={{ marginRight: 4 }}>{t}</span>)}</td>
+          <td>{c.ownerName ?? '—'}</td>
+        </tr>)}</tbody></table>
+      {!customers.length && <div className="empty">No customers yet.</div>}
+    </Card>
+  </>;
+}
+
+/* ---------------- CMS / knowledge base ---------------- */
+function AdminCMS({ toast }: any) {
+  const { data, reload } = useData(() => api.adminArticles());
+  const [edit, setEdit] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const articles = data?.articles ?? [];
+
+  function startNew() { setConfirmDel(false); setEdit({ title: '', slug: '', category: '', excerpt: '', body: '', status: 'draft', isNew: true }); }
+  function openEdit(a: any) { setConfirmDel(false); setEdit({ ...a, isNew: false }); }
+  async function save() {
+    if (!edit.title.trim()) { toast('Title is required'); return; }
+    setBusy(true);
+    try {
+      const payload = { title: edit.title, slug: edit.slug || undefined, category: edit.category || undefined, excerpt: edit.excerpt || undefined, body: edit.body || '', status: edit.status };
+      if (edit.isNew) await api.adminCreateArticle(payload); else await api.adminUpdateArticle(edit.id, payload);
+      toast('Saved'); setEdit(null); await reload();
+    } catch (e) { toast((e as any).message); } finally { setBusy(false); }
+  }
+  async function togglePublish(a: any) { await api.adminUpdateArticle(a.id, { status: a.status === 'published' ? 'draft' : 'published' }); toast(a.status === 'published' ? 'Unpublished' : 'Published'); await reload(); }
+  async function del() { if (!confirmDel) { setConfirmDel(true); return; } await api.adminDeleteArticle(edit.id); toast('Deleted'); setEdit(null); await reload(); }
+
+  if (edit) return <>
+    <a onClick={() => setEdit(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All articles</a>
+    <div style={{ height: 10 }} />
+    <Card title={edit.isNew ? 'New article' : `Edit · ${edit.title}`} right={<span className={`pill ${edit.status === 'published' ? 'p-good' : 'p-neutral'}`}>{edit.status}</span>}>
+      <div className="grid2">
+        <label>Title<input value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} placeholder="How to add a document" /></label>
+        <label>Category<input value={edit.category ?? ''} onChange={(e) => setEdit({ ...edit, category: e.target.value })} placeholder="Getting started" /></label>
+      </div>
+      <label>Short summary<input value={edit.excerpt ?? ''} onChange={(e) => setEdit({ ...edit, excerpt: e.target.value })} placeholder="One line shown in the help centre list" /></label>
+      <label style={{ display: 'block', marginTop: 8 }}>Body<textarea value={edit.body ?? ''} onChange={(e) => setEdit({ ...edit, body: e.target.value })} rows={12} placeholder="Write the article. Plain text and line breaks are preserved." style={taStyle} /></label>
+      <div className="flex" style={{ marginTop: 14, gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div className="flex" style={{ gap: 8 }}>
+          <button className="btn" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
+          <select value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })} style={{ marginTop: 0, maxWidth: 150 }}><option value="draft">Draft</option><option value="published">Published</option></select>
+        </div>
+        {!edit.isNew && <button className={`btn sm ${confirmDel ? '' : 'sec'}`} onClick={del}>{confirmDel ? 'Click to confirm delete' : 'Delete'}</button>}
+      </div>
+    </Card>
+  </>;
+
+  const published = articles.filter((a: any) => a.status === 'published').length;
+  return <>
+    <div className="tiles">
+      <Tile ic="📚" bg="var(--brand-soft)" lab="Articles" val={articles.length} />
+      <Tile ic="✅" bg="var(--good-bg)" lab="Published" val={published} />
+      <Tile ic="📝" bg="var(--warn-bg)" lab="Drafts" val={articles.length - published} />
+      <Tile ic="👁️" bg="var(--aqua-bg)" lab="Total views" val={articles.reduce((s: number, a: any) => s + (a.views ?? 0), 0)} />
+    </div>
+    <Card title="Articles" right={<a onClick={startNew} style={{ cursor: 'pointer', color: 'var(--brand)' }}>+ New article</a>}>
+      <table><thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Views</th><th>Updated</th><th></th></tr></thead>
+        <tbody>{articles.map((a: any) => <tr key={a.id}>
+          <td onClick={() => openEdit(a)} style={{ cursor: 'pointer' }}><b>{a.title}</b><div className="muted" style={{ fontSize: 12 }}>/{a.slug}</div></td>
+          <td>{a.category ?? '—'}</td>
+          <td><span className={`pill ${a.status === 'published' ? 'p-good' : 'p-neutral'}`}>{a.status}</span></td>
+          <td>{a.views ?? 0}</td>
+          <td>{fmt(a.updatedAt)}</td>
+          <td><button className="btn sm sec" onClick={() => togglePublish(a)}>{a.status === 'published' ? 'Unpublish' : 'Publish'}</button></td>
+        </tr>)}</tbody></table>
+      {!articles.length && <div className="empty">No articles yet. Write your first help article.</div>}
+    </Card>
+  </>;
+}
+
+function HelpCenter() {
+  const { data } = useData(() => api.helpArticles());
+  const [sel, setSel] = useState<any>(null);
+  const articles = data?.articles ?? [];
+  async function open(slug: string) { setSel(await api.helpArticle(slug)); }
+  const byCat = new Map<string, any[]>();
+  for (const a of articles) { const c = a.category || 'General'; byCat.set(c, [...(byCat.get(c) ?? []), a]); }
+
+  if (sel) return <>
+    <a onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← Back to Help Centre</a>
+    <div style={{ height: 10 }} />
+    <Card title={sel.article.title}>
+      {sel.article.category && <div className="muted" style={{ fontSize: 12.5, marginTop: -4, marginBottom: 10 }}>{sel.article.category}</div>}
+      <div style={{ fontSize: 14.5, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{sel.article.body}</div>
+    </Card>
+  </>;
+
+  return <>
+    {[...byCat.entries()].map(([cat, list]) => <Card key={cat} title={cat}>
+      {list.map((a: any) => <div className="row" key={a.id} onClick={() => open(a.slug)} style={{ cursor: 'pointer' }}><div className="ic" style={{ background: 'var(--surface-2)' }}>📄</div><div className="m"><div className="t">{a.title}</div><div className="s">{a.excerpt ?? ''}</div></div><span className="muted" style={{ fontSize: 18 }}>›</span></div>)}
+    </Card>)}
+    {!articles.length && <Card title="Help Centre"><div className="empty">No articles published yet. Check back soon.</div></Card>}
   </>;
 }

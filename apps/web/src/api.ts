@@ -43,6 +43,8 @@ export async function uploadText(url: string, text: string): Promise<void> {
 
 const G = <T,>(p: string) => request<T>('GET', p);
 const P = <T,>(p: string, b?: unknown) => request<T>('POST', p, b ?? {});
+const PUT = <T,>(p: string, b?: unknown) => request<T>('PUT', p, b ?? {});
+const DEL = <T,>(p: string) => request<T>('DELETE', p);
 
 export const api = {
   // auth
@@ -134,4 +136,20 @@ export const api = {
   emergencyOwnerDecision: (id: string, b: { decision: 'approve' | 'decline'; note?: string }) => P<any>(`/emergency/requests/${id}/owner-decision`, b),
   emergencySecurityReview: (id: string, b: any) => P<any>(`/emergency/requests/${id}/security-review`, b),
   emergencyRevoke: (id: string) => P<any>(`/emergency/requests/${id}/revoke`),
+  // troubleshooting — account inspector
+  adminInspect: (tenantId: string) => G<any>(`/admin/customers/${tenantId}/inspect`),
+  // CRM
+  adminCrm: () => G<any>('/admin/crm'),
+  adminCrmProfile: (tenantId: string) => G<any>(`/admin/crm/${tenantId}`),
+  adminCrmUpdate: (tenantId: string, b: any) => PUT<any>(`/admin/crm/${tenantId}`, b),
+  adminCrmNote: (tenantId: string, b: any) => P<any>(`/admin/crm/${tenantId}/notes`, b),
+  // CMS (admin)
+  adminArticles: () => G<any>('/admin/cms/articles'),
+  adminArticle: (id: string) => G<any>(`/admin/cms/articles/${id}`),
+  adminCreateArticle: (b: any) => P<any>('/admin/cms/articles', b),
+  adminUpdateArticle: (id: string, b: any) => PUT<any>(`/admin/cms/articles/${id}`, b),
+  adminDeleteArticle: (id: string) => DEL<any>(`/admin/cms/articles/${id}`),
+  // CMS (customer help centre)
+  helpArticles: () => G<any>('/cms/articles'),
+  helpArticle: (slug: string) => G<any>(`/cms/articles/${slug}`),
 };
