@@ -18,6 +18,7 @@ const ICONS: Record<string, string> = {
   billing: 'M3 7h18v11H3zM3 10h18M7 15h4', settings: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12l2-1.5-2-3.4-2.3 1a7 7 0 00-2.3-1.3L14 4h-4l-.3 2.8a7 7 0 00-2.3 1.3l-2.3-1-2 3.4L3 12l-2 1.5 2 3.4 2.3-1a7 7 0 002.3 1.3L10 20h4l.3-2.8a7 7 0 002.3-1.3l2.3 1 2-3.4z',
   overview: 'M4 13h7V4H4zM13 20h7v-9h-7zM4 20h7v-4H4zM13 4v5h7V4z', tenants: 'M4 20V8l6-4 6 4v12M4 20h12M14 11h3v9', users: 'M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 2.7-5 6-5M17 11a3 3 0 000-6M21 20c0-2.4-1.6-4-4-4.4', audit: 'M7 4h10v16H7zM10 8h4M10 12h4M10 16h2',
   support: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z',
+  emergency: 'M12 3l7 3v5c0 4.4-2.9 8.3-7 9.5-4.1-1.2-7-5.1-7-9.5V6l7-3zM12 9v4M12 16h.01',
 };
 const Icon = ({ k, size = 20 }: { k: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[k] ?? ICONS.home} /></svg>;
 
@@ -84,9 +85,9 @@ const TENANT_NAV = [
   { id: 'assistant', label: 'Ask Vaulmo', ic: 'assistant' }, { id: 'reminders', label: 'Reminders', ic: 'reminders' },
   { grp: 'Life' }, { id: 'trips', label: 'Trips', ic: 'trips' }, { id: 'purchases', label: 'Purchases', ic: 'purchases' },
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
-  { grp: 'Account' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'settings', label: 'Settings', ic: 'settings' },
+  { grp: 'Account' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'audit', label: 'Audit', ic: 'audit' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'audit', label: 'Audit', ic: 'audit' }];
 
 function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -102,10 +103,10 @@ function Shell({ me, onSignOut }: { me: any; onSignOut: () => void }) {
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
-  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -614,6 +615,174 @@ function AdminSupport({ toast }: any) {
           <td>{fmt(t.updatedAt)}</td>
         </tr>)}</tbody></table>
       {!tickets.length && <div className="empty">No tickets{status !== 'all' ? ` with status "${status}"` : ' yet'}.</div>}
+    </Card>
+  </>;
+}
+
+/* ---------------- Emergency Access (Phase 8) ---------------- */
+const EM_META: Record<string, { pill: string; label: string }> = {
+  pending: { pill: 'p-warn', label: 'Awaiting owner' },
+  owner_approved: { pill: 'p-info', label: 'Awaiting security review' },
+  owner_declined: { pill: 'p-neutral', label: 'Owner declined' },
+  security_declined: { pill: 'p-crit', label: 'Declined in review' },
+  active: { pill: 'p-good', label: 'Access active' },
+  revoked: { pill: 'p-crit', label: 'Revoked' },
+};
+const emMeta = (s: string) => EM_META[s] ?? { pill: 'p-neutral', label: s };
+const DD_CHECKS: [string, string][] = [
+  ['identityVerified', 'Requester identity verified (government photo ID)'],
+  ['relationshipConfirmed', 'Relationship to the account holder confirmed'],
+  ['legalBasisConfirmed', 'Legal basis on file (death certificate, power of attorney or court order)'],
+  ['ownerUnreachable', 'Account holder confirmed deceased or incapacitated'],
+  ['noObjection', 'No outstanding objection from other family members'],
+];
+const SCOPE_CATS = ['will', 'insurance', 'property', 'financial', 'identity', 'medical'];
+
+function EmergencyBanner() {
+  const { data } = useData(() => api.emergencyFeature());
+  const enabled = data?.enabled;
+  if (data === null || data === undefined) return null;
+  return <div className="card" style={{ marginBottom: 18, background: enabled ? 'var(--good-bg)' : 'var(--warn-bg)', border: 0 }}>
+    <div className="card-b" style={{ fontSize: 13 }}>
+      <b>{enabled ? 'Emergency Access is live' : 'Emergency Access — coming soon'}</b>
+      <div className="muted" style={{ marginTop: 6 }}>{enabled
+        ? 'Confirmed next-of-kin can request temporary, restricted access. Every request runs through owner approval, a 7-day waiting period and a super-admin security review before any access is granted.'
+        : 'This feature is switched off until the legal process, identity checks and operating procedures are finalised. Existing requests are shown here, but new requests are blocked. To enable it, set EMERGENCY_ACCESS_ENABLED=true on the server.'}</div>
+    </div>
+  </div>;
+}
+
+function EmergencyTenant({ toast }: any) {
+  const { data, reload } = useData(() => api.emergencyRequests());
+  const [busy, setBusy] = useState('');
+  const [note, setNote] = useState<Record<string, string>>({});
+  const reqs = data?.requests ?? [];
+  async function decide(id: string, decision: 'approve' | 'decline') {
+    setBusy(id);
+    try { await api.emergencyOwnerDecision(id, { decision, note: note[id] }); toast(decision === 'approve' ? 'Approved — sent for security review' : 'Request declined'); await reload(); }
+    catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
+  async function revoke(id: string) {
+    setBusy(id);
+    try { await api.emergencyRevoke(id); toast('Access revoked'); await reload(); }
+    catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
+  return <>
+    <EmergencyBanner />
+    <Card title="Requests for your vault">
+      {reqs.map((r: any) => { const m = emMeta(r.status); return <div key={r.id} style={{ borderBottom: '1px solid var(--line)', padding: '14px 0' }}>
+        <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div><b>{r.requesterName}</b> <span className="muted" style={{ fontSize: 12.5 }}>· {r.requesterEmail}</span>
+            <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>{r.reason || 'No reason given'}</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>Requested {fmt(r.requestedAt)}{r.accessExpiresAt ? ` · access until ${fmt(r.accessExpiresAt)}` : ''}</div>
+          </div>
+          <span className={`pill ${m.pill}`}>{m.label}</span>
+        </div>
+        {r.status === 'pending' && <div style={{ marginTop: 10 }}>
+          <input placeholder="Add a note (optional)" value={note[r.id] ?? ''} onChange={(e) => setNote({ ...note, [r.id]: e.target.value })} style={{ marginTop: 0 }} />
+          <div className="flex" style={{ marginTop: 8, gap: 8 }}>
+            <button className="btn sm" disabled={busy === r.id} onClick={() => decide(r.id, 'approve')}>Approve</button>
+            <button className="btn sm sec" disabled={busy === r.id} onClick={() => decide(r.id, 'decline')}>Decline</button>
+          </div>
+          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Approving does not grant access immediately — it starts a 7-day waiting period and a security review by Vaulmo before any access is given.</p>
+        </div>}
+        {r.status === 'active' && <div className="flex" style={{ marginTop: 10 }}><button className="btn sm sec" disabled={busy === r.id} onClick={() => revoke(r.id)}>Revoke access now</button></div>}
+      </div>; })}
+      {!reqs.length && <div className="empty">No emergency access requests. If a next-of-kin ever needs access, their request will appear here for your approval.</div>}
+    </Card>
+  </>;
+}
+
+function AdminEmergency({ toast }: any) {
+  const { data, reload } = useData(() => api.emergencyRequests());
+  const [sel, setSel] = useState<any>(null);
+  const [dd, setDd] = useState<Record<string, boolean>>({});
+  const [cats, setCats] = useState<string[]>([]);
+  const [days, setDays] = useState(7);
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const reqs = data?.requests ?? [];
+  const count = (s: string) => reqs.filter((r: any) => r.status === s).length;
+
+  function pick(r: any) {
+    setSel(r); setNotes(r.securityNotes ?? ''); setDays(7);
+    setDd((r.dueDiligence as any) ?? {}); setCats(((r.accessScope as any)?.categories) ?? []);
+  }
+  const pendingElapsed = (r: any) => new Date() >= new Date(r.pendingUntil);
+  const allChecked = DD_CHECKS.every(([k]) => dd[k]);
+
+  async function review(decision: 'approve' | 'decline') {
+    if (!sel) return;
+    if (decision === 'approve' && !allChecked) { toast('Complete every due-diligence check before granting access'); return; }
+    setBusy(true);
+    try {
+      await api.emergencySecurityReview(sel.id, { decision, notes, dueDiligence: dd, accessScope: cats.length ? { categories: cats } : {}, accessDays: days });
+      toast(decision === 'approve' ? 'Access granted (restricted & temporary)' : 'Request declined');
+      setSel(null); await reload();
+    } catch (e) { toast((e as any).message); } finally { setBusy(false); }
+  }
+  async function revoke(id: string) { setBusy(true); try { await api.emergencyRevoke(id); toast('Access revoked'); setSel(null); await reload(); } catch (e) { toast((e as any).message); } finally { setBusy(false); } }
+
+  if (sel) { const m = emMeta(sel.status); const canReview = sel.status === 'owner_approved'; const elapsed = pendingElapsed(sel); return <>
+    <a onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All requests</a>
+    <div style={{ height: 10 }} />
+    <Card title={`Request from ${sel.requesterName}`} right={<span className={`pill ${m.pill}`}>{m.label}</span>}>
+      <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>{sel.requesterEmail} · reason: {sel.reason || '—'}</div>
+      <table><tbody>
+        <tr><td className="muted">Requested</td><td>{fmt(sel.requestedAt)}</td></tr>
+        <tr><td className="muted">Owner decision</td><td>{sel.ownerDecision ? `${sel.ownerDecision} · ${fmt(sel.ownerDecidedAt)}` : 'not yet'}</td></tr>
+        <tr><td className="muted">Waiting period</td><td>{elapsed ? <span className="pill p-good">elapsed</span> : <>ends {fmt(sel.pendingUntil)} <span className="pill p-warn" style={{ marginLeft: 6 }}>waiting</span></>}</td></tr>
+        {sel.accessExpiresAt && <tr><td className="muted">Access window</td><td>{fmt(sel.accessGrantedAt)} → {fmt(sel.accessExpiresAt)}</td></tr>}
+        {sel.securityReviewedAt && <tr><td className="muted">Reviewed</td><td>{fmt(sel.securityReviewedAt)}</td></tr>}
+      </tbody></table>
+    </Card>
+
+    {canReview && <Card title="Security review & due diligence">
+      {!elapsed && <div className="card" style={{ background: 'var(--warn-bg)', border: 0, marginBottom: 14 }}><div className="card-b" style={{ fontSize: 13 }}>The mandatory 7-day waiting period has not elapsed. Access cannot be granted until {fmt(sel.pendingUntil)}.</div></div>}
+      <div style={{ display: 'grid', gap: 8 }}>{DD_CHECKS.map(([k, label]) => <label key={k} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 14 }}>
+        <input type="checkbox" checked={!!dd[k]} onChange={(e) => setDd({ ...dd, [k]: e.target.checked })} style={{ width: 'auto', marginTop: 3 }} />{label}
+      </label>)}</div>
+      <div className="section" style={{ marginTop: 16 }}>Access scope</div>
+      <div className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>Choose which document categories are exposed. Leave all unticked to expose every category. Only titles and types are ever shown — never document contents.</div>
+      <div className="flex" style={{ gap: 16, flexWrap: 'wrap' }}>{SCOPE_CATS.map((c) => <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, textTransform: 'capitalize' }}>
+        <input type="checkbox" checked={cats.includes(c)} onChange={(e) => setCats(e.target.checked ? [...cats, c] : cats.filter((x) => x !== c))} style={{ width: 'auto', marginTop: 0 }} />{c}
+      </span>)}</div>
+      <div className="grid2" style={{ marginTop: 14 }}>
+        <label>Access duration (days)<input type="number" min={1} max={30} value={days} onChange={(e) => setDays(Number(e.target.value))} /></label>
+      </div>
+      <label style={{ marginTop: 8, display: 'block' }}>Review notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Record the checks performed and evidence sighted…" style={taStyle} /></label>
+      <div className="flex" style={{ marginTop: 14, gap: 8 }}>
+        <button className="btn" disabled={busy || !elapsed || !allChecked} onClick={() => review('approve')}>{busy ? 'Working…' : 'Grant restricted access'}</button>
+        <button className="btn sec" disabled={busy} onClick={() => review('decline')}>Decline</button>
+      </div>
+      {!allChecked && elapsed && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>All due-diligence checks must be ticked before access can be granted.</p>}
+    </Card>}
+
+    {sel.status === 'active' && <Card title="Active access">
+      <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>Granted {fmt(sel.accessGrantedAt)}, expires {fmt(sel.accessExpiresAt)}. Scope: {((sel.accessScope as any)?.categories ?? []).join(', ') || 'all categories'}.</div>
+      <button className="btn sec" disabled={busy} onClick={() => revoke(sel.id)}>Revoke access now</button>
+    </Card>}
+
+    {sel.securityNotes && !canReview && <Card title="Review record"><div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{sel.securityNotes}</div></Card>}
+  </>; }
+
+  return <>
+    <EmergencyBanner />
+    <div className="tiles">
+      <Tile ic="🛡️" bg="var(--aqua-bg)" lab="Awaiting review" val={count('owner_approved')} />
+      <Tile ic="🟢" bg="var(--good-bg)" lab="Active" val={count('active')} />
+      <Tile ic="🕓" bg="var(--warn-bg)" lab="Awaiting owner" val={count('pending')} />
+      <Tile ic="🚫" bg="var(--surface-2)" lab="Declined / revoked" val={count('security_declined') + count('owner_declined') + count('revoked')} />
+    </div>
+    <Card title="Emergency access requests">
+      <table><thead><tr><th>Requester</th><th>Reason</th><th>Requested</th><th>Status</th></tr></thead>
+        <tbody>{reqs.map((r: any) => { const m = emMeta(r.status); return <tr key={r.id} onClick={() => pick(r)} style={{ cursor: 'pointer' }}>
+          <td><b>{r.requesterName}</b><div className="muted" style={{ fontSize: 12 }}>{r.requesterEmail}</div></td>
+          <td style={{ maxWidth: 240 }}>{r.reason || '—'}</td>
+          <td>{fmt(r.requestedAt)}</td>
+          <td><span className={`pill ${m.pill}`}>{m.label}</span></td>
+        </tr>; })}</tbody></table>
+      {!reqs.length && <div className="empty">No emergency access requests on the platform.</div>}
     </Card>
   </>;
 }

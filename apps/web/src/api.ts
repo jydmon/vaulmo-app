@@ -127,4 +127,10 @@ export const api = {
   adminSupportTicket: (id: string) => G<any>(`/admin/support/tickets/${id}`),
   adminSupportReply: (id: string, body: string) => P<any>(`/admin/support/tickets/${id}/messages`, { body }),
   adminSupportStatus: (id: string, status: string) => P<any>(`/admin/support/tickets/${id}/status`, { status }),
+  // emergency access (Phase 8) — owner + super admin console
+  emergencyFeature: () => G<any>('/emergency/status'),
+  emergencyRequests: () => G<any>('/emergency/requests'),
+  emergencyOwnerDecision: (id: string, b: { decision: 'approve' | 'decline'; note?: string }) => P<any>(`/emergency/requests/${id}/owner-decision`, b),
+  emergencySecurityReview: (id: string, b: any) => P<any>(`/emergency/requests/${id}/security-review`, b),
+  emergencyRevoke: (id: string) => P<any>(`/emergency/requests/${id}/revoke`),
 };
