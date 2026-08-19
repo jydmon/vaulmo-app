@@ -2,14 +2,14 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { documents, reminders, fileObjects, tenants } from '../../db/schema';
+import { documents, reminders, fileObjects, tenants, documentDecisions } from '../../db/schema';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
 import { storage, sha256 } from '../../lib/storage';
-import { catalogueForCountry, recommendedForCountry, publicSchema, byKey } from '../../lib/catalogue';
+import { catalogueForCountry, recommendedForCountry, recommendedFor, ONBOARDING_QUESTIONS, publicSchema, byKey } from '../../lib/catalogue';
 import { ocrExtractText } from '../../lib/ocr';
 import { classify } from '../../lib/classify';
 import { extract, requiredFieldsPresent } from '../../lib/extract';
@@ -43,32 +43,79 @@ vaultRouter.get('/catalogue', async (req, res) => {
 });
 
 // ---- Checklist + outstanding tracking + Vaulmo completion score ----
+// Tailored by the onboarding answers, and respects per-document decisions: types
+// marked "not applicable" / "do not store" are excluded from the score & outstanding,
+// so the user is never pressured to store documents they don't want.
 vaultRouter.get('/checklist', async (req, res) => {
   const tenantId = tid(req);
-  const country = await tenantCountry(tenantId);
-  const recommended = recommendedForCountry(country);
+  const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+  const country = tenant?.country ?? 'GB';
+  const onboarding = (tenant?.onboarding as any) ?? null;
+  const recommended = recommendedFor(country, onboarding);
   const docs = await db.select().from(documents).where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)));
+  const decisions = await db.select().from(documentDecisions).where(eq(documentDecisions.tenantId, tenantId));
+  const decMap = new Map(decisions.map((d) => [d.typeKey, d.decision]));
 
   const items = recommended.map((rt) => {
     const match = docs.find((d) => (d.typeKey ?? d.classifiedTypeKey) === rt.key);
+    const decision = decMap.get(rt.key) ?? null;
     const state = !match ? 'missing' : match.status === 'CONFIRMED' ? 'confirmed' : 'present';
-    return { key: rt.key, name: rt.name, category: rt.category, state, documentId: match?.id ?? null };
+    return { key: rt.key, name: rt.name, category: rt.category, state, decision, documentId: match?.id ?? null };
   });
 
-  const total = recommended.length;
-  const confirmed = items.filter((i) => i.state === 'confirmed').length;
-  const present = items.filter((i) => i.state === 'present').length;
-  // Confirmed docs count fully; present-but-unconfirmed count half.
+  const excluded = (d: string | null) => d === 'not_applicable' || d === 'do_not_store';
+  const counted = items.filter((i) => !excluded(i.decision));
+  const total = counted.length;
+  const confirmed = counted.filter((i) => i.state === 'confirmed').length;
+  const present = counted.filter((i) => i.state === 'present').length;
   const score = total === 0 ? 0 : Math.round((100 * (confirmed + 0.5 * present)) / total);
 
   res.json({
     completionScore: score,
-    total,
-    confirmed,
-    present,
-    outstanding: items.filter((i) => i.state === 'missing'),
+    total, confirmed, present,
+    onboardingCompleted: !!onboarding?.completed,
+    outstanding: items.filter((i) => i.state === 'missing' && !excluded(i.decision)),
     items,
   });
+});
+
+// ---- Personalised onboarding (ACC-09) ----
+vaultRouter.get('/onboarding', async (req, res) => {
+  const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tid(req))).limit(1);
+  const onboarding = (tenant?.onboarding as any) ?? { completed: false, answers: {} };
+  res.json({ questions: ONBOARDING_QUESTIONS, completed: !!onboarding.completed, answers: onboarding.answers ?? {} });
+});
+const onboardingSchema = z.object({ answers: z.record(z.any()) });
+vaultRouter.post('/onboarding', async (req, res) => {
+  const tenantId = tid(req);
+  const body = onboardingSchema.parse(req.body);
+  const onboarding = { completed: true, answers: body.answers, completedAt: new Date().toISOString() };
+  await db.update(tenants).set({ onboarding: onboarding as any, updatedAt: new Date() }).where(eq(tenants.id, tenantId));
+  await audit({ action: 'onboarding.completed', actorId: req.auth!.sub, tenantId, req });
+  res.json({ ok: true, onboarding });
+});
+
+// ---- Per-document decision (ACC-11) + remind-me (ACC-13) ----
+const DECISIONS = ['store_now', 'upload_later', 'remind_me', 'not_applicable', 'do_not_store'] as const;
+const decisionSchema = z.object({ typeKey: z.string().min(1), decision: z.enum(DECISIONS) });
+vaultRouter.post('/checklist/decision', requirePermission(PERMISSIONS.FILE_WRITE), async (req, res) => {
+  const tenantId = tid(req);
+  const body = decisionSchema.parse(req.body);
+  const def = byKey(body.typeKey);
+  if (!def) throw new AppError(404, 'unknown_type', 'Unknown document type');
+  await db.insert(documentDecisions)
+    .values({ tenantId, typeKey: body.typeKey, decision: body.decision })
+    .onConflictDoUpdate({ target: [documentDecisions.tenantId, documentDecisions.typeKey], set: { decision: body.decision, updatedAt: new Date() } });
+
+  // Any decision change clears a prior "obtain" reminder; "Remind me" re-creates one (ACC-13).
+  await db.delete(reminders).where(and(eq(reminders.tenantId, tenantId), eq(reminders.kind, 'obtain'), eq(reminders.title, `Obtain ${def.name}`)));
+  let reminder: any = null;
+  if (body.decision === 'remind_me') {
+    const due = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    [reminder] = await db.insert(reminders).values({ tenantId, documentId: null, kind: 'obtain', title: `Obtain ${def.name}`, dueDate: due, status: 'ACTIVE', source: 'user', activatedAt: new Date() }).returning();
+  }
+  await audit({ action: 'document.decision', actorId: req.auth!.sub, tenantId, metadata: { typeKey: body.typeKey, decision: body.decision }, req });
+  res.json({ typeKey: body.typeKey, decision: body.decision, reminderId: reminder?.id ?? null });
 });
 
 // ---- Create a document (Phase 2 upload / Phase 3 scan entrypoint) ----

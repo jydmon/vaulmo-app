@@ -46,13 +46,13 @@ _Goal served: mainly "know what I am missing" (onboarding) and the secure founda
 | ACC-04 | Secure login across web, iOS, Android on one account | ✅ | Shared API + JWT access/refresh |
 | ACC-05 | Multi-factor authentication (MFA) | 🟡 | Enroll/confirm/disable done; mandatory for admins. Step-up MFA for individual sensitive user actions not yet enforced |
 | ACC-06 | Biometric login (Face ID / Touch ID / Android) | ⛔ | Secure token storage exists; biometric gate not wired in the mobile app |
-| ACC-07 | Profile management (name, country, contact, image, timezone, notification prefs) | 🟡 | `GET/PUT /users/me` covers name/contact; profile image, timezone and full contact fields not all present |
+| ACC-07 | Profile management (name, country, contact, image, timezone, notification prefs) | ✅ | `GET/PUT /users/me` now covers name, phone, timezone and household country (notification prefs live in Settings). Profile image still to come |
 | ACC-08 | Device / session list + revoke individual or all | ✅ | `GET /auth/sessions`, `sessions/:id/revoke`, `sessions/revoke-others` |
-| ACC-09 | Personalised onboarding questionnaire (household, property, vehicles, family) | ⛔ | Catalogue is country-based today; no interactive onboarding questionnaire |
-| ACC-10 | Personalised document checklist | ✅ | `GET /vault/checklist` (country-recommended set) |
-| ACC-11 | Per-document decision (Store Now / Upload Later / Remind Me / Not Applicable / Do Not Store) | ⛔ | Checklist shows state; explicit per-document decision is not persisted |
-| ACC-12 | Outstanding documents view | ✅ | `checklist.outstanding` |
-| ACC-13 | Reminders to obtain/upload outstanding documents | 🟡 | Reminders engine exists; "remind me to obtain X" as a first-class action is partial |
+| ACC-09 | Personalised onboarding questionnaire (household, property, vehicles, family) | ✅ | `GET/POST /vault/onboarding` — questionnaire (home/vehicle/children/travel) tailors the recommended set; relevance-gated types (MOT, tenancy, birth certificate) appear only when they apply |
+| ACC-10 | Personalised document checklist | ✅ | `GET /vault/checklist` now tailored by onboarding answers, not just country |
+| ACC-11 | Per-document decision (Store Now / Upload Later / Remind Me / Not Applicable / Do Not Store) | ✅ | `POST /vault/checklist/decision` persists a decision per type; N/A and Do-Not-Store are excluded from the score and outstanding list |
+| ACC-12 | Outstanding documents view | ✅ | `checklist.outstanding` (excludes items the user marked not-applicable) |
+| ACC-13 | Reminders to obtain/upload outstanding documents | ✅ | "Remind me" creates an ACTIVE *Obtain X* reminder (+14 days); changing the decision clears it |
 | ACC-14 | Completion score without pressure | ✅ | `checklist.completionScore` (confirmed = full, present = half) |
 
 ## 2. Digital Vault
@@ -215,11 +215,11 @@ _The commercial and trust foundation that spans everything._
 
 **Remaining fully missing (⛔) — the forward backlog:**
 
-- **ACC-02** social sign-in (Google/Apple/Microsoft)
-- **ACC-09** personalised onboarding questionnaire
-- **ACC-11** per-document decision (Store Now / Upload Later / Remind Me / N/A / Do Not Store)
+- **ACC-02** social sign-in (Google/Apple/Microsoft) — needs OAuth provider credentials
+- **ACC-06** biometric login — needs mobile-app wiring
 - **VLT-05** multi-page scan combine
 - **INT-06** pause synchronisation
+- **REM-08/09** real email/push delivery — needs provider credentials
 
 ## Build plan — Vault + AI + OCR (this increment: ✅ done & tested)
 
@@ -247,4 +247,16 @@ The second focus, making "know what I need to do next" real. Migrated (`0019_rem
 
 _Email/push (REM-08/09) delivery still needs real provider credentials (SES/SMTP, FCM/APNs) — the full pipeline, preferences and quiet-hours handling are in place behind the adapter._
 
-**Subsequent phases** follow the remaining focus areas: Account & Onboarding, then Family/Emergency/Integrations.
+## Build plan — Account & Onboarding (this increment: ✅ done & tested)
+
+The third focus, making the vault feel personal from the first minute. Migrated (`0020_onboarding_decisions.sql`) and verified (full API suite green plus a dedicated 21-check onboarding/decisions/profile smoke test):
+
+1. ✅ **ACC-09 Personalised onboarding** — `GET/POST /vault/onboarding` presents a short questionnaire (own/rent, vehicles, children, travel). Answers are stored on the household and drive recommendations. A **Personalise** page and a welcome prompt on Home and the Vault guide the user in.
+2. ✅ **ACC-10/12 Tailored checklist** — `GET /vault/checklist` now recommends by circumstance, not just country: relevance-gated types (MOT, tenancy/mortgage, birth certificate) appear only when they apply, so the list never nags about documents the user can't have.
+3. ✅ **ACC-11 Per-document decisions** — `POST /vault/checklist/decision` records Store Now / Upload Later / Remind Me / Not Applicable / Do Not Store per type. "Not applicable" and "Do not store" drop out of the completion score and the outstanding list, keeping the score pressure-free (ACC-14).
+4. ✅ **ACC-13 "Remind me to obtain"** — choosing *Remind me* creates an ACTIVE *Obtain X* reminder due in two weeks; changing the decision later clears it automatically.
+5. ✅ **ACC-07 Profile** — `PUT /users/me` now saves phone and timezone on the user and the country on the household; the web Profile page exposes all three with inline help.
+
+Web UI wired: a **Personalise** questionnaire page, per-document decision controls on the Vault checklist ("Recommended documents" card), onboarding prompts on Home and Vault, and an expanded Profile editor. The logout-on-refresh defect is fixed in the same build (tokens persisted to `localStorage`, session restored on load).
+
+**Subsequent phases** follow the remaining focus areas: Family/Emergency, then Integrations.

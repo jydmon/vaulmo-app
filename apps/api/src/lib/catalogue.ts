@@ -23,6 +23,9 @@ export interface DocumentTypeDef {
   keywords: string[]; // classification signals
   fields: CatalogueField[];
   sort: number;
+  // Onboarding relevance: only recommend this type when the household has this
+  // circumstance (e.g. 'vehicle'). Undefined = always relevant.
+  relevantWhen?: 'vehicle' | 'renting' | 'owns_home' | 'children';
 }
 
 export const CATALOGUE: DocumentTypeDef[] = [
@@ -97,6 +100,7 @@ export const CATALOGUE: DocumentTypeDef[] = [
   },
   {
     key: 'vehicle_mot',
+    relevantWhen: 'vehicle',
     name: 'MOT Certificate',
     category: 'Vehicle',
     countries: ['GB'],
@@ -136,6 +140,7 @@ export const CATALOGUE: DocumentTypeDef[] = [
   },
   {
     key: 'birth_certificate',
+    relevantWhen: 'children',
     name: 'Birth Certificate',
     category: 'Identity',
     countries: ['GLOBAL'],
@@ -149,6 +154,7 @@ export const CATALOGUE: DocumentTypeDef[] = [
   },
   {
     key: 'tenancy_agreement',
+    relevantWhen: 'renting',
     name: 'Tenancy / Mortgage',
     category: 'Property',
     countries: ['GLOBAL'],
@@ -176,6 +182,40 @@ export function catalogueForCountry(country: string): DocumentTypeDef[] {
 // Recommended set drives the checklist + completion score.
 export function recommendedForCountry(country: string): DocumentTypeDef[] {
   return catalogueForCountry(country).filter((t) => t.recommended);
+}
+
+// ---- Personalised onboarding (ACC-09) ----
+// A short questionnaire whose answers tailor which documents are recommended.
+export interface OnboardingQuestion {
+  key: string;
+  label: string;
+  help?: string;
+  type: 'choice' | 'boolean';
+  options?: { value: string; label: string }[];
+}
+export const ONBOARDING_QUESTIONS: OnboardingQuestion[] = [
+  { key: 'home', label: 'Do you own or rent your home?', help: 'Helps us suggest the right property documents.', type: 'choice', options: [{ value: 'own', label: 'I own it' }, { value: 'rent', label: 'I rent' }, { value: 'other', label: 'Neither' }] },
+  { key: 'vehicle', label: 'Do you have any vehicles (car, motorbike, van)?', help: 'So we can track MOT, tax and insurance dates.', type: 'boolean' },
+  { key: 'children', label: 'Do you have children or dependants?', help: 'For birth certificates and dependants’ documents.', type: 'boolean' },
+  { key: 'travel', label: 'Do you travel abroad?', help: 'For passports and travel documents.', type: 'boolean' },
+];
+
+export interface Circumstances { owns_home: boolean; renting: boolean; vehicle: boolean; children: boolean }
+export function circumstancesFromAnswers(answers: Record<string, any> = {}): Circumstances {
+  return {
+    owns_home: answers.home === 'own',
+    renting: answers.home === 'rent',
+    vehicle: !!answers.vehicle,
+    children: !!answers.children,
+  };
+}
+
+// Tailored recommendation set. Before onboarding is completed we fall back to the
+// country default; afterwards, relevance-gated types are included only when they apply.
+export function recommendedFor(country: string, onboarding?: { completed?: boolean; answers?: Record<string, any> } | null): DocumentTypeDef[] {
+  if (!onboarding || !onboarding.completed) return recommendedForCountry(country);
+  const circ = circumstancesFromAnswers(onboarding.answers ?? {}) as unknown as Record<string, boolean>;
+  return catalogueForCountry(country).filter((t) => (t.relevantWhen ? !!circ[t.relevantWhen] : t.recommended));
 }
 
 // The DB/API-safe schema (no regex objects).

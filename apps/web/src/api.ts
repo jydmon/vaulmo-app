@@ -1,10 +1,21 @@
 // Vaulmo API client — covers the full surface used by the web app.
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
-export function setTokens(a: string | null, r: string | null) { accessToken = a; refreshToken = r; }
+// Persist the session so a page refresh doesn't log the user out. Tokens are kept
+// in localStorage and restored on load; refresh-token rotation updates them in place.
+const AT_KEY = 'vaulmo_at', RT_KEY = 'vaulmo_rt';
+function readStored(k: string): string | null { try { return localStorage.getItem(k); } catch { return null; } }
+let accessToken: string | null = readStored(AT_KEY);
+let refreshToken: string | null = readStored(RT_KEY);
+export function setTokens(a: string | null, r: string | null) {
+  accessToken = a; refreshToken = r;
+  try {
+    if (a) localStorage.setItem(AT_KEY, a); else localStorage.removeItem(AT_KEY);
+    if (r) localStorage.setItem(RT_KEY, r); else localStorage.removeItem(RT_KEY);
+  } catch { /* storage unavailable — session stays in memory for this tab */ }
+}
 export function getAccessToken() { return accessToken; }
+export function hasSession() { return !!(accessToken || refreshToken); }
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -68,9 +79,12 @@ export const api = {
   login: (b: any) => P<AuthResult>('/auth/login', b),
   loginMfa: (code: string, challengeToken: string) => { accessToken = challengeToken; return request<AuthResult>('POST', '/auth/login/mfa', { code }, false); },
   me: () => G<any>('/users/me'),
-  updateProfile: (fullName: string) => PUT<any>('/users/me', { fullName }),
+  updateProfile: (b: { fullName?: string; phone?: string | null; timezone?: string | null; country?: string }) => PUT<any>('/users/me', b),
   // vault
   checklist: () => G<any>('/vault/checklist'),
+  onboarding: () => G<any>('/vault/onboarding'),
+  saveOnboarding: (answers: Record<string, any>) => P<any>('/vault/onboarding', { answers }),
+  checklistDecision: (typeKey: string, decision: string) => P<any>('/vault/checklist/decision', { typeKey, decision }),
   documents: (includeHistory = false) => G<any>(`/vault/documents${includeHistory ? '?includeHistory=1' : ''}`),
   getDocument: (id: string) => G<any>(`/vault/documents/${id}`),
   createDocument: (b: any) => P<any>('/vault/documents', b),

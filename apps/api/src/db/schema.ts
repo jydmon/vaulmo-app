@@ -30,6 +30,7 @@ export const tenants = pgTable('tenants', {
   status: tenantStatus('status').notNull().default('ACTIVE'),
   plan: text('plan').notNull().default('starter'),
   country: text('country').notNull().default('GB'),
+  onboarding: jsonb('onboarding'), // { completed, answers, completedAt }
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -48,6 +49,8 @@ export const users = pgTable(
     mfaSecret: text('mfa_secret'),
     mfaRecoveryCodes: text('mfa_recovery_codes').array().notNull().default([]),
     isInternalTester: boolean('is_internal_tester').notNull().default(false),
+    phone: text('phone'),
+    timezone: text('timezone'),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     failedLoginCount: integer('failed_login_count').notNull().default(0),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
@@ -191,6 +194,20 @@ export const documents = pgTable(
     tenantIdx: index('documents_tenant_idx').on(t.tenantId),
     statusIdx: index('documents_status_idx').on(t.tenantId, t.status),
   }),
+);
+
+// ---- Account & Onboarding: per-document decisions (ACC-11) ----
+export const documentDecisions = pgTable(
+  'document_decisions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    typeKey: text('type_key').notNull(),
+    decision: text('decision').notNull(), // store_now | upload_later | remind_me | not_applicable | do_not_store
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ tenantTypeIdx: index('document_decisions_tenant_idx').on(t.tenantId) }),
 );
 
 // ---- Phase 3: reminders (draft until metadata is confirmed) ----

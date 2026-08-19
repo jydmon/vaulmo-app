@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from 'react';
-import { api, setTokens, uploadText, downloadDocumentFile, ApiError, type AuthResult } from './api';
+import { api, setTokens, hasSession, uploadText, downloadDocumentFile, ApiError, type AuthResult } from './api';
 
 /* ---------------- helpers ---------------- */
 function useToast() {
@@ -59,6 +59,14 @@ export function App() {
   const [challenge, setChallenge] = useState<string | null>(null);
   const [forceMfa, setForceMfa] = useState<any>(null);
   const [error, setError] = useState('');
+  const [booting, setBooting] = useState(true);
+
+  // Restore an existing session on load (survives page refresh).
+  useEffect(() => {
+    if (hasSession()) {
+      api.me().then((u) => setMe(u)).catch(() => setTokens(null, null)).finally(() => setBooting(false));
+    } else { setBooting(false); }
+  }, []);
 
   async function afterAuth(r: AuthResult) {
     if (r.mfaRequired && r.challengeToken) { setChallenge(r.challengeToken); setView('mfa'); return; }
@@ -66,6 +74,7 @@ export function App() {
     if (r.mfaSetupRequired && r.accessToken && r.refreshToken) { setTokens(r.accessToken, r.refreshToken); setForceMfa(r.user); return; }
     if (r.accessToken && r.refreshToken) { setTokens(r.accessToken, r.refreshToken); setMe(await api.me()); }
   }
+  if (booting) return <div className="auth-wrap"><div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Your life, organised</span></div></div></div>;
   if (forceMfa) return <ForceMfaSetup user={forceMfa} onDone={(u: any) => { setForceMfa(null); setMe(u); }} onCancel={() => { setTokens(null, null); setForceMfa(null); setView('login'); }} />;
   if (me) return <Shell me={me} onSignOut={() => { setTokens(null, null); setMe(null); setView('login'); }} refreshMe={async () => setMe(await api.me())} />;
 
@@ -163,6 +172,7 @@ function ForceMfaSetup({ user, onDone, onCancel }: { user: any; onDone: (u: any)
 /* ---------------- shell ---------------- */
 const TENANT_NAV = [
   { grp: 'Vaulmo' }, { id: 'home', label: 'Home', ic: 'home' }, { id: 'vault', label: 'My Vault', ic: 'vault' },
+  { id: 'personalise', label: 'Personalise', ic: 'settings' },
   { id: 'assistant', label: 'Ask Vaulmo', ic: 'assistant' }, { id: 'reminders', label: 'Reminders', ic: 'reminders' },
   { grp: 'Life' }, { id: 'trips', label: 'Trips', ic: 'trips' }, { id: 'purchases', label: 'Purchases', ic: 'purchases' },
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
@@ -185,7 +195,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
 
   const titles: any = {
     home: isSuper ? ['Platform Overview', 'Every tenant at a glance'] : [`Hi, ${me.fullName.split(' ')[0]}`, "Here's what matters today"],
-    vault: ['My Vault', 'Your important documents'], assistant: ['Ask Vaulmo', 'Answers from your own vault'],
+    vault: ['My Vault', 'Your important documents'], personalise: ['Personalise Vaulmo', 'Tailor your recommended documents'], assistant: ['Ask Vaulmo', 'Answers from your own vault'],
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], family: ['Family & Access', 'People, next of kin, emergency access'],
@@ -195,6 +205,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
   const help: Record<string, string> = {
     home: isSuper ? 'A live overview of every tenant, subscriptions and platform health.' : 'Your personalised summary — what needs attention and what is coming up next.',
     vault: 'Your secure document store. Upload or scan a document, let AI extract the details, then confirm to store it. Each document can be downloaded, replaced or deleted.',
+    personalise: 'Answer a few quick questions about your household so Vaulmo only recommends the documents that actually apply to you.',
     assistant: 'Ask questions in plain English about your documents, trips, purchases and warranties. Answers come only from your own data, with sources.',
     reminders: 'Deadlines and alerts. Add your own reminder, set it to repeat, snooze it, or mark it done when handled.',
     trips: 'Your travel grouped into trips — flights, hotels and tickets together in one place.',
@@ -224,7 +235,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     health: 'Live status of every platform component.',
     audit: 'A complete, append-only log of platform activity.',
   };
-  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -278,18 +289,33 @@ function NotificationBell({ onOpenReminders }: { onOpenReminders?: () => void })
 }
 
 /* ---------------- my profile ---------------- */
+const TIMEZONES = ['Europe/London', 'Europe/Dublin', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Australia/Sydney', 'UTC'];
+const COUNTRIES = [['GB', 'United Kingdom'], ['US', 'United States'], ['IE', 'Ireland'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['ES', 'Spain'], ['IN', 'India'], ['AE', 'United Arab Emirates']];
 function Profile({ me, toast, refreshMe, go }: any) {
   const [name, setName] = useState(me.fullName);
+  const [phone, setPhone] = useState(me.phone ?? '');
+  const [tz, setTz] = useState(me.timezone ?? '');
+  const [country, setCountry] = useState(me.tenant?.country ?? '');
   const [busy, setBusy] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
   const isSuper = me?.roles?.includes('super_admin');
   const initials = (me.fullName || '?').split(' ').map((w: string) => w[0]).join('').slice(0, 2);
-  const dirty = name.trim() && name.trim() !== me.fullName;
-  async function save() { setBusy(true); try { await api.updateProfile(name.trim()); await refreshMe(); toast('Profile updated'); } catch (e) { toast((e as any).message); } finally { setBusy(false); } }
+  const dirty = (name.trim() && name.trim() !== me.fullName) || (phone ?? '') !== (me.phone ?? '') || (tz ?? '') !== (me.timezone ?? '') || (country ?? '') !== (me.tenant?.country ?? '');
+  async function save() {
+    setBusy(true);
+    try {
+      const b: any = {};
+      if (name.trim() && name.trim() !== me.fullName) b.fullName = name.trim();
+      if ((phone ?? '') !== (me.phone ?? '')) b.phone = phone.trim() || null;
+      if ((tz ?? '') !== (me.timezone ?? '')) b.timezone = tz || null;
+      if (!isSuper && country && country !== (me.tenant?.country ?? '')) b.country = country;
+      await api.updateProfile(b); await refreshMe(); toast('Profile updated');
+    } catch (e) { toast((e as any).message); } finally { setBusy(false); }
+  }
   async function verify() { try { const r = await api.requestVerification(); if (r.devToken) { await api.verifyEmail(r.devToken); setVerifyMsg('Email verified ✓'); await refreshMe(); } else setVerifyMsg('Verification email sent — check your inbox.'); } catch (e) { toast((e as any).message); } }
 
   return <>
-    <Card title="Profile">
+    <Card title="Profile" help="Your name and contact details. Your phone and timezone help Vaulmo reach you and schedule reminders at sensible local times.">
       <div className="flex" style={{ gap: 16, alignItems: 'center' }}>
         <div style={{ width: 64, height: 64, borderRadius: 16, background: 'linear-gradient(135deg,#3B82F6,#1E3A8A)', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 22, flex: 'none' }}>{initials.toUpperCase()}</div>
         <div><div style={{ fontSize: 18, fontWeight: 700 }}>{me.fullName}</div><div className="muted" style={{ fontSize: 13.5 }}>{me.email}</div>
@@ -298,6 +324,11 @@ function Profile({ me, toast, refreshMe, go }: any) {
       </div>
       <div style={{ borderTop: '1px solid var(--line)', marginTop: 16, paddingTop: 14 }}>
         <label>Full name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <div className="grid2" style={{ gap: 12 }}>
+          <label>Phone <span className="muted" style={{ fontWeight: 400 }}>(optional)</span><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+44 7700 900123" /></label>
+          <label>Timezone<select value={tz} onChange={(e) => setTz(e.target.value)}><option value="">Not set</option>{TIMEZONES.map((z) => <option key={z} value={z}>{z}</option>)}</select></label>
+        </div>
+        {!isSuper && <label>Country <Help text="Sets which documents Vaulmo recommends for your household (e.g. UK vs US identity documents)." /><select value={country} onChange={(e) => setCountry(e.target.value)}><option value="">Not set</option>{COUNTRIES.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select></label>}
         <button className="btn" style={{ marginTop: 10 }} disabled={!dirty || busy} onClick={save}>{busy ? 'Saving…' : 'Save changes'}</button>
       </div>
     </Card>
@@ -336,6 +367,10 @@ function Home({ me, go }: any) {
   const { data: rem } = useData(() => api.reminders());
   const up = (rem?.live ?? []).slice().sort((a: any, b: any) => (a.dueDate ?? '') < (b.dueDate ?? '') ? -1 : 1);
   return <>
+    {cl && !cl.onboardingCompleted && <div className="card" style={{ marginBottom: 16, background: 'var(--brand-soft)', border: 0 }}><div className="card-b spread" style={{ alignItems: 'center' }}>
+      <div><b>Welcome to Vaulmo 👋</b><div style={{ fontSize: 13.5, marginTop: 2 }}>Take a minute to personalise your document checklist so it fits your household.</div></div>
+      <button className="btn sm" onClick={() => go('personalise')}>Get started →</button>
+    </div></div>}
     <div className="tiles">
       <Tile ic="✅" bg="var(--good-bg)" lab="Vaulmo completion" val={`${cl?.completionScore ?? 0}%`} note={`${cl?.confirmed ?? 0} confirmed`} />
       <Tile ic="🔔" bg="var(--warn-bg)" lab="Live reminders" val={rem?.live?.length ?? 0} note="upcoming dates" />
@@ -358,8 +393,52 @@ function Home({ me, go }: any) {
   </>;
 }
 
+/* ---------------- personalise (onboarding questionnaire) ---------------- */
+function Personalise({ toast, go }: any) {
+  const { data, reload } = useData(() => api.onboarding());
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [busy, setBusy] = useState(false);
+  const [seeded, setSeeded] = useState(false);
+  // Seed the form once from saved answers.
+  useEffect(() => { if (data && !seeded) { setAnswers(data.answers ?? {}); setSeeded(true); } }, [data, seeded]);
+  const questions = data?.questions ?? [];
+  const answered = questions.filter((q: any) => answers[q.key] !== undefined && answers[q.key] !== '').length;
+  async function save() {
+    setBusy(true);
+    try { await api.saveOnboarding(answers); toast('Saved — your document checklist is now tailored to you'); reload(); }
+    catch (e) { toast((e as any).message); } finally { setBusy(false); }
+  }
+  return <div style={{ maxWidth: 680 }}>
+    {data?.completed && <div className="ok" style={{ marginBottom: 16 }}>✅ You've personalised Vaulmo. Update your answers any time — your checklist adjusts automatically.</div>}
+    <Card title="A few quick questions" help="Your answers decide which documents Vaulmo recommends. For example, we'll only ask for an MOT certificate if you have a vehicle.">
+      <p className="muted" style={{ margin: '0 0 6px' }}>This takes under a minute and makes your checklist far more relevant.</p>
+      {questions.map((q: any) => <div key={q.key} style={{ borderTop: '1px solid var(--line)', paddingTop: 14, marginTop: 14 }}>
+        <div style={{ fontWeight: 600, fontSize: 14.5 }}>{q.label}{q.help && <span className="muted" style={{ fontWeight: 400, display: 'block', fontSize: 12.5, marginTop: 2 }}>{q.help}</span>}</div>
+        <div className="flex" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          {q.type === 'boolean'
+            ? [['true', 'Yes'], ['false', 'No']].map(([v, l]) => {
+                const on = answers[q.key] === (v === 'true');
+                return <button key={v} className={`btn sm ${on ? '' : 'sec'}`} onClick={() => setAnswers({ ...answers, [q.key]: v === 'true' })}>{l}</button>;
+              })
+            : (q.options ?? []).map((o: any) => {
+                const on = answers[q.key] === o.value;
+                return <button key={o.value} className={`btn sm ${on ? '' : 'sec'}`} onClick={() => setAnswers({ ...answers, [q.key]: o.value })}>{o.label}</button>;
+              })}
+        </div>
+      </div>)}
+      <div className="flex" style={{ marginTop: 18, alignItems: 'center', gap: 12 }}>
+        <button className="btn" disabled={busy || answered < questions.length} onClick={save}>{busy ? 'Saving…' : data?.completed ? 'Update my answers' : 'Save & tailor my checklist'}</button>
+        <span className="muted" style={{ fontSize: 13 }}>{answered}/{questions.length} answered</span>
+        {go && <a onClick={() => go('vault')} style={{ marginLeft: 'auto' }}>Go to my vault →</a>}
+      </div>
+    </Card>
+  </div>;
+}
+
 const SAMPLE = `UNITED KINGDOM\nPASSPORT\nPassport No: 546872331\nSurname: REID\nNationality: British\nDate of expiry: 22 Mar 2027`;
-function Vault({ toast }: any) {
+const DECISION_OPTS = [['store_now', 'Store now'], ['upload_later', 'Upload later'], ['remind_me', 'Remind me'], ['not_applicable', "Doesn't apply"]];
+const DECISION_LABEL: Record<string, string> = { store_now: 'Storing now', upload_later: 'Upload later', remind_me: 'Reminder set', not_applicable: "Doesn't apply", do_not_store: "Won't store" };
+function Vault({ toast, go }: any) {
   const { data, reload } = useData(() => api.documents());
   const { data: cl, reload: reloadCl } = useData(() => api.checklist());
   const [scan, setScan] = useState(false); const [text, setText] = useState(SAMPLE);
@@ -368,12 +447,22 @@ function Vault({ toast }: any) {
   async function confirm() { setBusy('Storing…'); try { await api.confirmDocument(doc.id, meta); setScan(false); setDoc(null); toast('Stored and reminders set'); reload(); reloadCl(); } finally { setBusy(''); } }
   async function download(d: any) { try { await downloadDocumentFile(d.id, (d.title || 'document') + '.pdf'); } catch { toast('Download failed'); } }
   async function remove(d: any) { if (!window.confirm(`Delete "${d.title}"? It will be removed from your vault.`)) return; try { await api.deleteDocument(d.id); toast('Document deleted'); reload(); reloadCl(); } catch { toast('Delete failed'); } }
+  async function decide(typeKey: string, decision: string) {
+    if (decision === 'store_now') { setScan(true); setDoc(null); setText(SAMPLE); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    try { const r = await api.checklistDecision(typeKey, decision); toast(decision === 'remind_me' ? 'Reminder set for 2 weeks' : 'Saved'); reloadCl(); if (r?.reminderId && decision === 'remind_me') { /* reminder created */ } }
+    catch (e) { toast((e as any).message); }
+  }
   const docs = data?.documents ?? [];
+  const missing = (cl?.items ?? []).filter((i: any) => i.state === 'missing');
   return <>
     <div className="spread" style={{ marginBottom: 16 }}>
       <div className="flex"><b style={{ fontSize: 22 }}>{cl?.completionScore ?? 0}%</b><span className="muted">complete · {docs.length} documents</span></div>
       <button className="btn" onClick={() => { setScan(true); setDoc(null); setText(SAMPLE); }}>+ Add document</button>
     </div>
+    {cl && !cl.onboardingCompleted && <div className="card" style={{ marginBottom: 16, background: 'var(--brand-soft)', border: 0 }}><div className="card-b spread" style={{ alignItems: 'center' }}>
+      <div><b>Make this checklist yours</b><div style={{ fontSize: 13.5, marginTop: 2 }}>Answer a few quick questions so we only recommend documents that apply to you.</div></div>
+      {go && <button className="btn sm" onClick={() => go('personalise')}>Personalise →</button>}
+    </div></div>}
     {scan && <div className="card" style={{ marginBottom: 18 }}><div className="card-b">
       {!doc ? <>
         <label>Paste a synthetic document, then scan<textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 13 }} /></label>
@@ -384,6 +473,15 @@ function Vault({ toast }: any) {
         <div className="flex"><button className="btn" onClick={confirm} disabled={!!busy}>{busy || 'Confirm & store'}</button><button className="btn sec" onClick={() => setDoc(null)}>Back</button></div>
       </>}
     </div></div>}
+    <Card title="Recommended documents" help="Documents we suggest for your household. For anything you don't have yet, tell us what you'd like to do — store it now, upload later, be reminded, or mark it as not applicable so it stops counting against you.">
+      {missing.length ? missing.map((it: any) => <div className="row" key={it.key}>
+        <div className="ic" style={{ background: 'var(--surface-2)' }}>{CATICON[it.category] ?? '📄'}</div>
+        <div className="m"><div className="t">{it.name}</div><div className="s">{it.category}{it.decision ? ` · ${DECISION_LABEL[it.decision] ?? it.decision}` : ' · not stored yet'}</div></div>
+        <div className="flex" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {DECISION_OPTS.map(([v, l]) => <button key={v} className={`btn sm ${it.decision === v ? '' : 'sec'}`} onClick={() => decide(it.key, v)}>{l}</button>)}
+        </div>
+      </div>) : <div className="empty">Nothing outstanding — every recommended document is on file. 🎉</div>}
+    </Card>
     <Card title="Documents" help="Everything you've stored. Use the download (⬇) and delete (🗑) buttons on each row; a version badge appears on documents you've replaced.">
       {docs.map((d: any) => <div className="row" key={d.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{CATICON[d.typeKey ? cap(d.typeKey) : ''] ?? '📄'}</div><div className="m"><div className="t">{d.title}{d.version > 1 && <span className="pill p-info" style={{ marginLeft: 8 }}>v{d.version}</span>}</div><div className="s">{d.typeKey ?? 'unclassified'} · {d.status}</div></div><span className={`pill ${d.status === 'CONFIRMED' ? 'p-good' : 'p-warn'}`}>{d.status === 'CONFIRMED' ? 'Verified' : 'Pending'}</span><div className="flex" style={{ gap: 6, marginLeft: 10 }}><button className="btn sec" title="Download" onClick={() => download(d)}>⬇</button><button className="btn sec" title="Delete" onClick={() => remove(d)}>🗑</button></div></div>)}
       {!docs.length && <div className="empty">No documents yet — add your first one.</div>}
