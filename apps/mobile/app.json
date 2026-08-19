@@ -8,14 +8,27 @@
     "userInterfaceStyle": "light",
     "scheme": "vaulmo",
     "icon": "./assets/icon.png",
-    "ios": { "supportsTablet": true, "bundleIdentifier": "com.vaulmo.app", "buildNumber": "1" },
-    "android": { "package": "com.vaulmo.app", "versionCode": 1 },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vaulmo.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Vaulmo uses the camera so you can scan documents straight into your vault.",
+        "NSPhotoLibraryUsageDescription": "Vaulmo lets you add documents from your photo library."
+      }
+    },
+    "android": {
+      "package": "com.vaulmo.app",
+      "versionCode": 1,
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES"]
+    },
     "extra": {
       "apiUrl": "https://app.vaulmo.com",
       "eas": { "projectId": "b2696b2b-637a-4171-a101-e2100c22cd72" }
     },
     "plugins": [
-      ["expo-build-properties", { "android": { "kotlinVersion": "1.9.25" } }]
+      ["expo-build-properties", { "android": { "kotlinVersion": "1.9.25" } }],
+      ["expo-image-picker", { "photosPermission": "Vaulmo lets you add documents from your photo library.", "cameraPermission": "Vaulmo uses the camera so you can scan documents straight into your vault." }]
     ]
   }
 }
