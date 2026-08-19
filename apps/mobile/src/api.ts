@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
+import * as FileSystem from 'expo-file-system';
 
 // API base: EAS build profiles inject EXPO_PUBLIC_API_URL (inlined by Expo);
 // falls back to app config, then localhost for a bare `expo start`.
@@ -62,16 +63,29 @@ export async function uploadText(url: string, text: string): Promise<void> {
   await fetch(`${BASE}${url}`, { method: 'PUT', headers: { 'content-type': 'text/plain', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) }, body: text });
 }
 
-// Upload a captured photo / picked image. `uri` is a local file:// or content:// URI
-// from expo-camera / expo-image-picker; we stream its bytes to the presigned PUT URL.
+// The on-device byte size of a local file URI (for the create-document step).
+export async function fileSize(uri: string): Promise<number> {
+  try {
+    const info = await FileSystem.getInfoAsync(uri, { size: true } as any);
+    return info.exists && typeof (info as any).size === 'number' ? (info as any).size : 0;
+  } catch { return 0; }
+}
+
+// Upload a captured photo / picked image. `uri` is a local file:// URI from
+// expo-image-picker / expo-image-manipulator. We use expo-file-system's native
+// binary uploader (streams the file straight to the presigned PUT URL) — far more
+// reliable in React Native than fetching a Blob and PUTting it.
 export async function uploadImage(url: string, uri: string, contentType: string): Promise<void> {
-  const fileRes = await fetch(uri);
-  const blob = await fileRes.blob();
-  await fetch(`${BASE}${url}`, {
-    method: 'PUT',
+  const res = await FileSystem.uploadAsync(`${BASE}${url}`, uri, {
+    httpMethod: 'PUT',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
     headers: { 'content-type': contentType, ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) },
-    body: blob,
   });
+  if (res.status < 200 || res.status >= 300) {
+    let msg = 'Upload failed';
+    try { const j = JSON.parse(res.body); msg = j?.message ?? msg; } catch { /* keep default */ }
+    throw new ApiError(res.status, 'upload_failed', msg);
+  }
 }
 
 export interface AuthResult {
@@ -113,14 +127,72 @@ export const api = {
   snoozeReminder: (id: string, days: number) => P<any>(`/notifications/reminders/${id}/snooze`, { days }),
   unread: () => G<any>('/notifications/unread-count'),
   // integrations
+  providers: () => G<any>('/integrations/providers'),
   connections: () => G<any>('/integrations/connections'),
   connect: (p: string) => P<any>(`/integrations/${p}/connect`),
   callback: (p: string, code: string) => P<any>(`/integrations/${p}/callback`, { code }),
   sync: (id: string) => P<any>(`/integrations/connections/${id}/sync`),
-  detected: () => G<any>('/integrations/detected'),
+  detected: (status = 'pending') => G<any>(`/integrations/detected?status=${status}`),
+  dismissDetected: (id: string) => P<any>(`/integrations/detected/${id}/dismiss`),
   confirmDetected: (id: string) => P<any>(`/inbox/detected/${id}/confirm`),
-  // family / billing
+  // life records
+  trips: () => G<any>('/trips'),
+  createTrip: (b: any) => P<any>('/trips', b),
+  purchases: () => G<any>('/purchases'),
+  createPurchase: (b: any) => P<any>('/purchases', b),
+  trackedSubscriptions: () => G<any>('/tracked-subscriptions'),
+  createSubscription: (b: any) => P<any>('/tracked-subscriptions', b),
+  // assets (properties & vehicles)
+  assets: (kind?: string) => G<any>(`/assets${kind ? `?kind=${kind}` : ''}`),
+  asset: (id: string) => G<any>(`/assets/${id}`),
+  createAsset: (b: { kind: string; name: string; details?: Record<string, any> }) => P<any>('/assets', b),
+  updateAsset: (id: string, b: { name?: string; details?: Record<string, any> }) => req<any>('PATCH', `/assets/${id}`, b),
+  deleteAsset: (id: string) => DEL<any>(`/assets/${id}`),
+  assignDocumentAsset: (id: string, assetId: string | null) => P<any>(`/vault/documents/${id}/asset`, { assetId }),
+  assignDocumentMember: (id: string, memberId: string | null) => P<any>(`/vault/documents/${id}/subject`, { memberId }),
+  memberDocuments: (memberId: string) => G<any>(`/family/members/${memberId}/documents`),
+  // privacy & security centre
+  securityActivity: () => G<any>('/users/me/security-activity'),
+  privacy: () => G<any>('/users/me/privacy'),
+  addConsent: (policy: string, version: string) => P<any>('/users/me/consent', { policy, version }),
+  exportData: () => P<any>('/users/me/export', {}),
+  requestDeletion: (password: string, reason?: string) => P<any>('/users/me/deletion-request', { password, reason }),
+  // family
+  familyMembers: () => G<any>('/family/members'),
+  addMember: (b: any) => P<any>('/family/members', b),
   nok: () => G<any>('/family/nok'),
+  nominateNok: (b: any) => P<any>('/family/nok', b),
+  inviteNok: (id: string) => P<any>(`/family/nok/${id}/invite`),
+  // emergency
   emergencyStatus: () => G<any>('/emergency/status'),
+  emergencyRequests: () => G<any>('/emergency/requests'),
+  emergencyOwnerDecision: (id: string, b: { decision: 'approve' | 'decline'; note?: string }) => P<any>(`/emergency/requests/${id}/owner-decision`, b),
+  emergencyRevoke: (id: string) => P<any>(`/emergency/requests/${id}/revoke`),
+  // billing
+  plans: () => G<any>('/billing/plans'),
+  billing: () => G<any>('/billing'),
   entitlements: () => G<any>('/billing/entitlements'),
+  checkout: (planKey: string) => P<any>('/billing/checkout', { planKey }),
+  cancelSubscription: () => P<any>('/billing/cancel', {}),
+  resumeSubscription: () => P<any>('/billing/resume', {}),
+  changePlan: (planKey: string) => P<any>('/billing/change-plan', { planKey }),
+  // support
+  supportTickets: () => G<any>('/support/tickets'),
+  createSupportTicket: (b: any) => P<any>('/support/tickets', b),
+  supportTicket: (id: string) => G<any>(`/support/tickets/${id}`),
+  supportReply: (id: string, body: string) => P<any>(`/support/tickets/${id}/messages`, { body }),
+  // help centre
+  helpArticles: () => G<any>('/cms/articles'),
+  helpArticle: (slug: string) => G<any>(`/cms/articles/${slug}`),
+  // settings: notifications, MFA, sessions
+  notifSettings: () => G<any>('/notifications/settings'),
+  setNotifSettings: (b: any) => PUT<any>('/notifications/settings', b),
+  enrollMfa: () => P<any>('/mfa/enroll'),
+  confirmMfa: (code: string) => P<any>('/mfa/confirm', { code }),
+  disableMfa: (code: string) => P<any>('/mfa/disable', { code }),
+  sessions: () => G<any>('/auth/sessions'),
+  revokeSession: (id: string) => P<any>(`/auth/sessions/${id}/revoke`),
+  revokeOtherSessions: () => P<any>('/auth/sessions/revoke-others'),
+  requestVerification: () => P<any>('/auth/request-verification'),
+  verifyEmail: (token: string) => P<any>('/auth/verify-email', { token }),
 };

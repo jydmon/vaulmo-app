@@ -73,6 +73,22 @@ export async function downloadDocumentFile(documentId: string, filename: string)
   URL.revokeObjectURL(url);
 }
 
+// Self-serve data export (SEC-18) → downloads a JSON bundle of the user's own data.
+export async function exportMyData(): Promise<void> {
+  const res = await fetch(`${BASE}/api/v1/users/me/export`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) },
+    body: '{}',
+  });
+  if (!res.ok) throw new ApiError(res.status, 'export_failed', 'Could not export your data');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'vaulmo-data-export.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   // auth
   register: (b: any) => P<AuthResult>('/auth/register', b),
@@ -90,6 +106,15 @@ export const api = {
   createDocument: (b: any) => P<any>('/vault/documents', b),
   processDocument: (id: string) => P<any>(`/vault/documents/${id}/process`),
   editDocument: (id: string, b: { typeKey?: string; title?: string; metadata?: Record<string, string> }) => PATCH<any>(`/vault/documents/${id}`, b),
+  assignDocumentMember: (id: string, memberId: string | null) => P<any>(`/vault/documents/${id}/subject`, { memberId }),
+  memberDocuments: (memberId: string) => G<any>(`/family/members/${memberId}/documents`),
+  assignDocumentAsset: (id: string, assetId: string | null) => P<any>(`/vault/documents/${id}/asset`, { assetId }),
+  // assets (properties & vehicles)
+  assets: (kind?: string) => G<any>(`/assets${kind ? `?kind=${kind}` : ''}`),
+  asset: (id: string) => G<any>(`/assets/${id}`),
+  createAsset: (b: { kind: string; name: string; details?: Record<string, any> }) => P<any>('/assets', b),
+  updateAsset: (id: string, b: { name?: string; details?: Record<string, any> }) => PATCH<any>(`/assets/${id}`, b),
+  deleteAsset: (id: string) => DEL<any>(`/assets/${id}`),
   confirmDocument: (id: string, metadata?: any) => P<any>(`/vault/documents/${id}/confirm`, { metadata }),
   replaceDocument: (id: string, b: any) => P<any>(`/vault/documents/${id}/replace`, b),
   deleteDocument: (id: string) => DEL<any>(`/vault/documents/${id}`),
@@ -132,6 +157,10 @@ export const api = {
   billing: () => G<any>('/billing'),
   entitlements: () => G<any>('/billing/entitlements'),
   checkout: (planKey: string) => P<any>('/billing/checkout', { planKey }),
+  billingDetail: () => G<any>('/billing'),
+  cancelSubscription: () => P<any>('/billing/cancel'),
+  resumeSubscription: () => P<any>('/billing/resume'),
+  changePlan: (planKey: string) => P<any>('/billing/change-plan', { planKey }),
   // security / settings
   enrollMfa: () => P<any>('/mfa/enroll'),
   confirmMfa: (code: string) => P<any>('/mfa/confirm', { code }),
@@ -140,6 +169,11 @@ export const api = {
   setNotifSettings: (b: any) => request<any>('PUT', '/notifications/settings', b),
   requestVerification: () => P<any>('/auth/request-verification'),
   verifyEmail: (token: string) => P<any>('/auth/verify-email', { token }),
+  // privacy & security centre
+  securityActivity: () => G<any>('/users/me/security-activity'),
+  privacy: () => G<any>('/users/me/privacy'),
+  addConsent: (policy: string, version: string) => P<any>('/users/me/consent', { policy, version }),
+  requestDeletion: (password: string, reason?: string) => P<any>('/users/me/deletion-request', { password, reason }),
   // sessions / devices
   sessions: () => G<any>('/auth/sessions'),
   revokeSession: (id: string) => P<any>(`/auth/sessions/${id}/revoke`),

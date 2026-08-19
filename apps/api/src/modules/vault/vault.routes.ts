@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { documents, reminders, fileObjects, tenants, documentDecisions } from '../../db/schema';
+import { documents, reminders, fileObjects, tenants, documentDecisions, familyMembers, assets } from '../../db/schema';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
@@ -303,6 +303,39 @@ vaultRouter.get('/documents/:id', requirePermission(PERMISSIONS.FILE_READ), asyn
     }
   }
   res.json({ document: doc, metadataSources: doc.metadataSources ?? {}, previewUrl, downloadUrl });
+});
+
+// ---- Associate a document with a family member / dependant (FAM-02) ----
+const subjectSchema = z.object({ memberId: z.string().uuid().nullable() });
+vaultRouter.post('/documents/:id/subject', requirePermission(PERMISSIONS.FILE_WRITE), async (req, res) => {
+  const tenantId = tid(req);
+  const { memberId } = subjectSchema.parse(req.body);
+  // Verify the member belongs to this household before linking.
+  if (memberId) {
+    const [m] = await db.select().from(familyMembers).where(and(eq(familyMembers.id, memberId), eq(familyMembers.tenantId, tenantId))).limit(1);
+    if (!m) throw new AppError(404, 'unknown_member', 'Family member not found');
+  }
+  const [doc] = await db.update(documents).set({ subjectMemberId: memberId, updatedAt: new Date() })
+    .where(and(eq(documents.id, req.params.id), eq(documents.tenantId, tenantId), isNull(documents.deletedAt))).returning();
+  if (!doc) throw new AppError(404, 'not_found', 'Document not found');
+  await audit({ action: 'document.subject.set', actorId: req.auth!.sub, tenantId, targetType: 'document', targetId: doc.id, metadata: { memberId }, req });
+  res.json({ documentId: doc.id, subjectMemberId: doc.subjectMemberId });
+});
+
+// ---- Associate a document with an asset (property / vehicle) (FAM-04/05) ----
+const assetLinkSchema = z.object({ assetId: z.string().uuid().nullable() });
+vaultRouter.post('/documents/:id/asset', requirePermission(PERMISSIONS.FILE_WRITE), async (req, res) => {
+  const tenantId = tid(req);
+  const { assetId } = assetLinkSchema.parse(req.body);
+  if (assetId) {
+    const [a] = await db.select().from(assets).where(and(eq(assets.id, assetId), eq(assets.tenantId, tenantId))).limit(1);
+    if (!a) throw new AppError(404, 'unknown_asset', 'Asset not found');
+  }
+  const [doc] = await db.update(documents).set({ assetId, updatedAt: new Date() })
+    .where(and(eq(documents.id, req.params.id), eq(documents.tenantId, tenantId), isNull(documents.deletedAt))).returning();
+  if (!doc) throw new AppError(404, 'not_found', 'Document not found');
+  await audit({ action: 'document.asset.set', actorId: req.auth!.sub, tenantId, targetType: 'document', targetId: doc.id, metadata: { assetId }, req });
+  res.json({ documentId: doc.id, assetId: doc.assetId });
 });
 
 // Document preview — streams the bytes, tenant-scoped.

@@ -26,6 +26,32 @@ export async function getSubscription(tenantId: string) {
   return s ?? null;
 }
 
+// SEC-09/10: self-serve cancel / resume. Cancelling schedules the subscription to
+// end at the current period end — access is KEPT until then (never an immediate cut).
+// Resuming clears the scheduled cancellation.
+export async function setCancelAtPeriodEnd(tenantId: string, cancel: boolean) {
+  const sub = await getSubscription(tenantId);
+  if (!sub || !['active', 'trialing', 'past_due'].includes(sub.status)) throw new Error('no_active_subscription');
+  await upsertSubscription(tenantId, { cancelAtPeriodEnd: cancel });
+  return getSubscription(tenantId);
+}
+
+// SEC-12/13: self-serve plan change. In this (fake-gateway) phase the change applies
+// immediately and keeps the current period end; when Stripe is live the gateway
+// prorates. Returns the direction so the UI can message upgrade vs downgrade.
+export async function changePlan(tenantId: string, planKey: string) {
+  const plan = await getPlan(planKey);
+  if (!plan) throw new Error('unknown_plan');
+  const sub = await getSubscription(tenantId);
+  if (!sub || !['active', 'trialing'].includes(sub.status)) throw new Error('no_active_subscription');
+  if (sub.planKey === planKey) throw new Error('already_on_plan');
+  const current = sub.planKey ? await getPlan(sub.planKey) : null;
+  const direction = current && (plan.amount ?? 0) < (current.amount ?? 0) ? 'downgrade' : 'upgrade';
+  await upsertSubscription(tenantId, { planKey, cancelAtPeriodEnd: false });
+  await db.update(tenants).set({ plan: planKey }).where(eq(tenants.id, tenantId));
+  return { subscription: await getSubscription(tenantId), direction };
+}
+
 // Super-admin-managed subscription. LifeHub/Vaulmo sells annual plans that the platform
 // owner administers directly (grant, extend, cancel) — this is that control, independent of
 // the Stripe checkout flow. Keeps subscriptions + tenants.plan in sync.

@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { familyMembers, nextOfKin } from '../../db/schema';
+import { familyMembers, nextOfKin, documents } from '../../db/schema';
+import { isNull } from 'drizzle-orm';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
@@ -22,6 +23,16 @@ const tid = (req: any): string => {
 // ---- Family members / dependants ----
 familyRouter.get('/members', requirePermission(PERMISSIONS.TENANT_READ), async (req, res) => {
   res.json({ members: await db.select().from(familyMembers).where(eq(familyMembers.tenantId, tid(req))) });
+});
+// Documents linked to a specific family member / dependant (FAM-02).
+familyRouter.get('/members/:id/documents', requirePermission(PERMISSIONS.FILE_READ), async (req, res) => {
+  const tenantId = tid(req);
+  const [member] = await db.select().from(familyMembers).where(and(eq(familyMembers.id, req.params.id), eq(familyMembers.tenantId, tenantId))).limit(1);
+  if (!member) throw new AppError(404, 'not_found', 'Family member not found');
+  const docs = await db.select().from(documents)
+    .where(and(eq(documents.tenantId, tenantId), eq(documents.subjectMemberId, member.id), isNull(documents.deletedAt)))
+    .orderBy(desc(documents.createdAt));
+  res.json({ member, documents: docs });
 });
 const memberSchema = z.object({ name: z.string().min(1), relationship: z.string().optional(), isDependant: z.boolean().optional(), dateOfBirth: z.string().optional() });
 familyRouter.post('/members', requirePermission(PERMISSIONS.MEMBER_MANAGE), async (req, res) => {

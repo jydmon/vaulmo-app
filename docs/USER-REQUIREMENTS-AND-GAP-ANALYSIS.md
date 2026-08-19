@@ -44,7 +44,7 @@ _Goal served: mainly "know what I am missing" (onboarding) and the secure founda
 | ACC-02 | Registration via Google / Apple / Microsoft | ⛔ | No OAuth/social sign-in yet; email/password only |
 | ACC-03 | Email verification before full access | ✅ | `request-verification`, `verify-email` |
 | ACC-04 | Secure login across web, iOS, Android on one account | ✅ | Shared API + JWT access/refresh |
-| ACC-05 | Multi-factor authentication (MFA) | 🟡 | Enroll/confirm/disable done; mandatory for admins. Step-up MFA for individual sensitive user actions not yet enforced |
+| ACC-05 | Multi-factor authentication (MFA) | ✅ | Enroll/confirm/disable done; mandatory for admins. Step-up verification now enforced on sensitive actions (password re-check on account-deletion requests); extendable to other actions |
 | ACC-06 | Biometric login (Face ID / Touch ID / Android) | ⛔ | Secure token storage exists; biometric gate not wired in the mobile app |
 | ACC-07 | Profile management (name, country, contact, image, timezone, notification prefs) | ✅ | `GET/PUT /users/me` now covers name, phone, timezone and household country (notification prefs live in Settings). Profile image still to come |
 | ACC-08 | Device / session list + revoke individual or all | ✅ | `GET /auth/sessions`, `sessions/:id/revoke`, `sessions/revoke-others` |
@@ -128,10 +128,10 @@ _Goals served: "know what I have" for the household + trusted continuity._
 | ID | Requirement | Status | Notes |
 |---|---|---|---|
 | FAM-01 | Family / dependant profiles | ✅ | `GET/POST /family/members` |
-| FAM-02 | Associate documents with a child/dependant | 🟡 | Members exist; document→member association to confirm end-to-end |
-| FAM-03 | Household documents (not person-specific) | 🟡 | Supported by ownership model; explicit household scoping partial |
-| FAM-04 | Property records (docs, warranties, info) | 🟡 | Records live under life/vault; a dedicated property entity is partial |
-| FAM-05 | Vehicle records (MOT, insurance, tax, service) | 🟡 | Vehicle document types exist; a dedicated vehicle entity is partial |
+| FAM-02 | Associate documents with a child/dependant | ✅ | `POST /vault/documents/:id/subject` links a document to a family member; `GET /family/members/:id/documents` lists a member's documents. Web UI: link/unlink per member |
+| FAM-03 | Household documents (not person-specific) | ✅ | Documents default to the household (tenant) scope; person- and asset-linking are optional overlays on top |
+| FAM-04 | Property records (docs, warranties, info) | ✅ | First-class `assets` (kind=property) via `/assets`; link documents (`/vault/documents/:id/asset`), track insurance/mortgage dates with auto-reminders. Web + mobile UI |
+| FAM-05 | Vehicle records (MOT, insurance, tax, service) | ✅ | First-class `assets` (kind=vehicle); MOT/tax/insurance renewal dates auto-create yearly reminders (30- and 7-day lead). Web + mobile UI |
 | FAM-06 | Nominate next-of-kin (per plan limits) | ✅ | `POST /family/nok`, invite |
 | FAM-07 | Define what a next-of-kin could access | ✅ | NOK permissions/scope |
 | FAM-08 | Quarterly confirmation of next-of-kin | ✅ | `POST /family/nok/:id/reconfirm` |
@@ -185,21 +185,21 @@ _The commercial and trust foundation that spans everything._
 | SEC-04 | Subscription status (active/past-due/grace/cancelled/expired) | ✅ | `GET /billing` / entitlements |
 | SEC-05 | Renewal date visible | ✅ | On subscription record |
 | SEC-06 | Advance renewal notifications | 🟡 | Data present; reminder wiring to confirm |
-| SEC-07 | Billing history (invoices/receipts) | 🟡 | `invoices` table + Stripe portal; in-app list partial |
+| SEC-07 | Billing history (invoices/receipts) | ✅ | `GET /billing` returns invoices; in-app invoice list on web & mobile |
 | SEC-08 | Payment-method management | ✅ | `POST /billing/portal` (Stripe portal) |
-| SEC-09 | Cancel renewal (keep access to period end) | 🟡 | Portal supports; in-app cancel/resume UX partial |
-| SEC-10 | Resume a scheduled cancellation | 🟡 | Via portal; native resume partial |
+| SEC-09 | Cancel renewal (keep access to period end) | ✅ | `POST /billing/cancel` schedules end-of-period; access is kept until `currentPeriodEnd` (never an immediate cut). In-app on web & mobile |
+| SEC-10 | Resume a scheduled cancellation | ✅ | `POST /billing/resume` clears the scheduled cancellation. In-app on web & mobile |
 | SEC-11 | Renew an expired subscription | ✅ | Re-checkout |
-| SEC-12 | Plan upgrade | 🟡 | Plan change supported; proration/flow partial |
-| SEC-13 | Plan downgrade (next renewal) | 🟡 | Partial |
+| SEC-12 | Plan upgrade | ✅ | `POST /billing/change-plan` (direction=upgrade); in-app on web & mobile (Stripe proration applies when live) |
+| SEC-13 | Plan downgrade (next renewal) | ✅ | `POST /billing/change-plan` (direction=downgrade); in-app on web & mobile |
 | SEC-14 | Failed-payment grace period (no immediate block) | ✅ | Grace state modelled |
 | SEC-15 | Data preservation on expiry (no auto-deletion of documents) | ✅ | Expiry never auto-deletes documents |
-| SEC-16 | Privacy centre | 🟡 | DSR/consent exist admin-side; a user-facing privacy centre is partial |
+| SEC-16 | Privacy centre | ✅ | User-facing Privacy & Security Centre in Settings: `GET /users/me/privacy` (consents + open requests), export and deletion controls |
 | SEC-17 | Access/security activity history | ✅ | Audit log |
-| SEC-18 | Data export | 🟡 | DSR export exists; user-initiated self-serve export partial |
-| SEC-19 | Account deletion (subject to law) | 🟡 | DSR delete exists admin-side; user-initiated deletion partial |
-| SEC-20 | Consent management (review/revoke) | 🟡 | Consent records exist; user-facing management partial |
-| SEC-21 | Security alerts | 🟡 | Audit + notifications foundation; dedicated security alerts partial |
+| SEC-18 | Data export | ✅ | `POST /users/me/export` — self-serve, downloads a portable JSON bundle (account, documents metadata, reminders, trips, purchases, subscriptions, family) and logs a completed DSR |
+| SEC-19 | Account deletion (subject to law) | ✅ | `POST /users/me/deletion-request` — self-serve, **password step-up** required (ACC-05), raises a verified pending request; documents are never auto-deleted (SEC-15) |
+| SEC-20 | Consent management (review/revoke) | ✅ | `POST /users/me/consent` records policy/marketing consent; `GET /users/me/privacy` lists consents on record |
+| SEC-21 | Security alerts | ✅ | `GET /users/me/security-activity` surfaces sign-ins, 2FA changes, downloads, deletions and emergency decisions in the Privacy & Security Centre (dedicated push alerting rides the notifications adapter) |
 | SEC-22 | Password change/reset | ✅ | `request-password-reset`, `reset-password` |
 | SEC-23 | MFA management & recovery | ✅ | Enroll/confirm/disable + recovery codes |
 | SEC-24 | Logout everywhere | ✅ | `sessions/revoke-others` |
@@ -259,4 +259,36 @@ The third focus, making the vault feel personal from the first minute. Migrated 
 
 Web UI wired: a **Personalise** questionnaire page, per-document decision controls on the Vault checklist ("Recommended documents" card), onboarding prompts on Home and Vault, and an expanded Profile editor. The logout-on-refresh defect is fixed in the same build (tokens persisted to `localStorage`, session restored on load).
 
-**Subsequent phases** follow the remaining focus areas: Family/Emergency, then Integrations.
+## Build plan — Family associations + Privacy & Security Centre (this increment: ✅ done & tested)
+
+Deepening the Family pillar and hardening Security. Migrated (`0021_family_privacy.sql`) and verified (full API suite green plus an 18-check family/privacy smoke test):
+
+1. ✅ **FAM-02 Document ↔ family member** — `documents.subject_member_id` links a document to a household member; `POST /vault/documents/:id/subject` assigns/clears it (validating the member belongs to the household), and `GET /family/members/:id/documents` lists a person's documents. Web UI: each household member expands to link/unlink their documents.
+2. ✅ **SEC-18 Self-serve data export** — `POST /users/me/export` builds and downloads a portable JSON bundle of the user's own data and records a completed DSR for the audit trail. Document file bytes and raw OCR text are excluded from the bundle; confirmed metadata is included.
+3. ✅ **SEC-19 + ACC-05 Account deletion with step-up** — `POST /users/me/deletion-request` requires a fresh password check before raising a verified, de-duplicated pending request. It never hard-deletes: documents are preserved (SEC-15) and the request is handled with due process.
+4. ✅ **SEC-16/20 Privacy centre & consent** — `GET /users/me/privacy` shows consents on record and open data requests; `POST /users/me/consent` records policy/marketing consent.
+5. ✅ **SEC-17/21 Security activity** — `GET /users/me/security-activity` surfaces the user's own security events (sign-ins, 2FA changes, downloads, deletions, emergency decisions), shown in a Privacy & Security Centre in Settings.
+
+The Emergency-Access model (FAM-10..16) was already complete; this increment focuses on the outstanding Family association and the user-facing privacy/security surface. **Super Admin still administers LifeHub, not the user's life** — exceptional access remains authorised and audited, and none of these self-serve tools expose another user's private data.
+
+## Build plan — Property & Vehicles (Assets) (this increment: ✅ done & tested)
+
+Completing the Family pillar's physical-asset side and adding real mobile surface. Migrated (`0022_assets.sql`) and verified (full API suite green plus a 13-check assets smoke test):
+
+1. ✅ **FAM-04/05 Properties & Vehicles** — a first-class `assets` record (kind `property` | `vehicle`) with a flexible `details` map. Full CRUD via `/assets`, filterable by kind.
+2. ✅ **Auto renewal reminders** — saving a vehicle's MOT/tax/insurance date (or a property's home-insurance/mortgage date) creates a yearly `asset_renewal` reminder with 30- and 7-day lead alerts; editing the date re-syncs it (no duplicates); deleting the asset clears them.
+3. ✅ **Document ↔ asset linking** — `POST /vault/documents/:id/asset` groups a policy or logbook under the right car/house; `GET /assets/:id` returns the asset and its documents.
+4. ✅ **Web + mobile UI** — a Property & Vehicles view on web, and an Assets screen on mobile (add, edit details, link documents). The mobile app also gained the Privacy & Security Centre and family document-linking, bringing it to parity with the web user features.
+
+## Build plan — Billing self-service (this increment: ✅ done & tested)
+
+Making subscription management something the user can do in-app, not only via the Stripe portal. Verified (full API suite green plus a 10-check billing smoke test):
+
+1. ✅ **SEC-09 Cancel renewal** — `POST /billing/cancel` sets `cancelAtPeriodEnd`; the smoke test confirms access is KEPT (status stays active, entitlements stay active) until the period ends — never an immediate cut.
+2. ✅ **SEC-10 Resume** — `POST /billing/resume` clears the scheduled cancellation.
+3. ✅ **SEC-12/13 Upgrade / downgrade** — `POST /billing/change-plan` switches plan and reports direction; guarded against no-op/unknown-plan. (In the current fake-gateway phase the change is immediate; Stripe proration applies once `STRIPE_DRIVER=stripe` is live.)
+4. ✅ **SEC-07 Invoices** — an in-app invoice list on web and mobile.
+
+Web & mobile Billing screens now show the renewal/cancellation state and offer cancel, resume, upgrade and downgrade inline. **Stripe stays in the fake/test gateway until checkout + webhook + cancellation are validated end-to-end against live keys** — these controls are what makes that validation possible.
+
+**Subsequent phases**: Integrations (needs Google/Microsoft OAuth credentials) — the last major ⛔ area; and the WCAG 2.2 AA accessibility pass (SEC-27).

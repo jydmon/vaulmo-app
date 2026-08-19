@@ -6,7 +6,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { api, setTokens, loadTokens, hasToken, uploadText, uploadImage, ApiError, type AuthResult } from './src/api';
+import { api, setTokens, loadTokens, hasToken, uploadText, uploadImage, fileSize, ApiError, type AuthResult } from './src/api';
 
 /* ============================ design tokens ============================ */
 const C = {
@@ -27,6 +27,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('home');
   const [overlay, setOverlay] = useState<null | 'personalise'>(null);
   const [capture, setCapture] = useState(false);
+  const [sub, setSub] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function App() {
     vault: <Vault key={`v${reloadKey}`} goTab={setTab} openPersonalise={() => setOverlay('personalise')} openCapture={() => setCapture(true)} onChange={bump} />,
     ask: <Ask />,
     reminders: <Reminders key={`r${reloadKey}`} onChange={bump} />,
-    profile: <Profile me={me} refreshMe={refreshMe} goTab={setTab} onSignOut={async () => { await setTokens(null, null); setMe(null); setTab('home'); }} />,
+    profile: <Profile me={me} refreshMe={refreshMe} goTab={setTab} openSub={setSub} onSignOut={async () => { await setTokens(null, null); setMe(null); setTab('home'); }} />,
   };
 
   return (
@@ -80,9 +81,33 @@ export default function App() {
       <Modal visible={overlay === 'personalise'} animationType="slide" onRequestClose={() => setOverlay(null)}>
         <Personalise onClose={() => setOverlay(null)} onSaved={() => { setOverlay(null); bump(); }} />
       </Modal>
+
+      {/* secondary feature screens (pushed from the You tab) */}
+      <Modal visible={!!sub} animationType="slide" onRequestClose={() => setSub(null)}>
+        {sub && <SubScreen title={SUB_TITLES[sub] ?? ''} onClose={() => setSub(null)}>
+          {sub === 'assets' && <Assets />}
+          {sub === 'trips' && <Trips />}
+          {sub === 'purchases' && <Purchases />}
+          {sub === 'subs' && <Subs />}
+          {sub === 'connected' && <Connected />}
+          {sub === 'family' && <Family me={me} />}
+          {sub === 'emergency' && <Emergency />}
+          {sub === 'billing' && <Billing me={me} />}
+          {sub === 'support' && <Support />}
+          {sub === 'help' && <HelpCentre />}
+          {sub === 'privacy' && <PrivacySecurity />}
+          {sub === 'settings' && <Settings me={me} refreshMe={refreshMe} />}
+        </SubScreen>}
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const SUB_TITLES: Record<string, string> = {
+  assets: 'Property & Vehicles', trips: 'Trips', purchases: 'Purchases & Warranties', subs: 'Subscriptions', connected: 'Connected Services',
+  family: 'Family & Access', emergency: 'Emergency Access', billing: 'Plan & Billing', support: 'Support',
+  help: 'Help Centre', privacy: 'Privacy & Security', settings: 'Settings',
+};
 
 const TABS = [
   { id: 'home', ic: '🏠', label: 'Home' },
@@ -298,8 +323,8 @@ function Capture({ onClose, onStored }: { onClose: () => void; onStored: () => v
     setBusy('Uploading…');
     setErr('');
     try {
-      const blob = await (await fetch(image.uri)).blob();
-      const init = await api.createDocument({ filename: image.filename, contentType: image.contentType, sizeBytes: blob.size, title: 'Scanned document' });
+      const size = await fileSize(image.uri);
+      const init = await api.createDocument({ filename: image.filename, contentType: image.contentType, sizeBytes: size, title: 'Scanned document' });
       await uploadImage(init.uploadUrl, image.uri, image.contentType);
       setBusy('Reading…');
       const r = await api.processDocument(init.documentId);
@@ -533,7 +558,7 @@ function Reminders({ onChange }: any) {
 const TIMEZONES = ['Europe/London', 'Europe/Dublin', 'Europe/Paris', 'America/New_York', 'America/Los_Angeles', 'Asia/Dubai', 'Asia/Kolkata', 'Australia/Sydney', 'UTC'];
 const COUNTRIES: [string, string][] = [['GB', 'United Kingdom'], ['US', 'United States'], ['IE', 'Ireland'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['IN', 'India'], ['AE', 'UAE']];
 
-function Profile({ me, refreshMe, onSignOut }: any) {
+function Profile({ me, refreshMe, onSignOut, openSub }: any) {
   const [nok] = useAsync(() => api.nok());
   const [ent] = useAsync(() => api.entitlements().catch(() => ({ planKey: me.tenant?.plan ?? 'starter' })));
   const [editing, setEditing] = useState(false);
@@ -596,16 +621,604 @@ function Profile({ me, refreshMe, onSignOut }: any) {
         {me.tenant?.status && <Text style={{ color: '#fff', opacity: 0.85, fontSize: 12.5, marginTop: 2, textTransform: 'capitalize' }}>{me.tenant.status}</Text>}
       </View>
 
-      {!isSuper && <>
-        <SectionTitle>Next of kin</SectionTitle>
-        {(nok?.nextOfKin ?? []).length ? (nok?.nextOfKin ?? []).map((n: any) => <Item key={n.id} icon="👤" t={n.name} sub={n.email} right={<Text style={st.tag}>{n.status}</Text>} />)
-          : <Card><Text style={st.muted}>No next of kin nominated yet. You can add trusted people from the web app.</Text></Card>}
-      </>}
+      <SectionTitle>Your life</SectionTitle>
+      <MenuItem ic="🚗" bg={C.brandSoft} t="Property & Vehicles" s="Home, car & renewals" onPress={() => openSub('assets')} />
+      <MenuItem ic="✈️" bg={C.brandSoft} t="Trips" s="Flights, hotels & tickets" onPress={() => openSub('trips')} />
+      <MenuItem ic="🧾" bg={C.goodBg} t="Purchases & Warranties" s="Receipts, assets & cover" onPress={() => openSub('purchases')} />
+      <MenuItem ic="🔁" bg={C.warnBg} t="Subscriptions" s="What you pay for" onPress={() => openSub('subs')} />
+      <MenuItem ic="🔌" bg={C.violetBg} t="Connected Services" s="Import from email" onPress={() => openSub('connected')} />
 
-      <View style={{ height: 8 }} />
+      <SectionTitle>People & access</SectionTitle>
+      <MenuItem ic="👪" bg={C.brandSoft} t="Family & Access" s="Members & next of kin" onPress={() => openSub('family')} />
+      <MenuItem ic="🛡️" bg={C.goodBg} t="Emergency Access" s="Requests to reach your vault" onPress={() => openSub('emergency')} />
+
+      <SectionTitle>Account</SectionTitle>
+      <MenuItem ic="💳" bg={C.violetBg} t="Plan & Billing" s="Your subscription" onPress={() => openSub('billing')} />
+      <MenuItem ic="🔐" bg={C.goodBg} t="Privacy & Security" s="Activity, export & data" onPress={() => openSub('privacy')} />
+      <MenuItem ic="⚙️" bg={C.surf2} t="Settings" s="Security & notifications" onPress={() => openSub('settings')} />
+      <MenuItem ic="💬" bg={C.surf2} t="Support" s="Get help & track requests" onPress={() => openSub('support')} />
+      <MenuItem ic="❓" bg={C.surf2} t="Help Centre" s="Guides & answers" onPress={() => openSub('help')} />
+
+      <View style={{ height: 10 }} />
       <Btn label="Sign out" secondary onPress={onSignOut} />
     </ScrollView>
   );
+}
+const MenuItem = ({ ic, bg, t, s, onPress }: any) => (
+  <TouchableOpacity style={st.item} activeOpacity={0.8} onPress={onPress}>
+    <View style={[st.itemIc, { backgroundColor: bg }]}><Text style={{ fontSize: 18 }}>{ic}</Text></View>
+    <View style={{ flex: 1 }}><Text style={st.itemT}>{t}</Text><Text style={st.itemS}>{s}</Text></View>
+    <Text style={st.chev}>›</Text>
+  </TouchableOpacity>
+);
+
+/* ============================ sub-screens ============================ */
+function SubScreen({ title, onClose, children }: any) {
+  return (
+    <SafeAreaView style={st.safe}><StatusBar style="dark" />
+      <View style={st.modalTop}>
+        <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={[st.modalClose, { fontSize: 24, marginRight: 2 }]}>‹</Text><Text style={{ color: C.brand, fontWeight: '700', fontSize: 15 }}>Back</Text>
+        </TouchableOpacity>
+        <Text style={st.modalTitle}>{title}</Text><View style={{ width: 48 }} />
+      </View>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        {children}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+// A small reusable "add record" form toggler used by the life screens.
+function AddToggle({ open, onToggle }: any) {
+  return <TouchableOpacity style={st.smBtn} onPress={onToggle}><Text style={st.smBtnTxt}>{open ? 'Close' : '+ Add'}</Text></TouchableOpacity>;
+}
+
+function Trips() {
+  const [data, reload] = useAsync(() => api.trips());
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ title: '', destination: '', startDate: '', endDate: '' });
+  const [busy, setBusy] = useState(false);
+  async function add() {
+    if (!f.title.trim()) { Alert.alert('Add a title'); return; }
+    setBusy(true);
+    try { await api.createTrip({ ...f, title: f.title.trim() }); setF({ title: '', destination: '', startDate: '', endDate: '' }); setOpen(false); await reload(); }
+    catch (e) { Alert.alert('Could not add', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(false); }
+  }
+  if (!data) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <View style={st.spread}><Text style={st.section}>Your trips</Text><AddToggle open={open} onToggle={() => setOpen(!open)} /></View>
+    {open && <Card>
+      <Field label="Title" value={f.title} onChangeText={(v: string) => setF({ ...f, title: v })} placeholder="Paris break" />
+      <Field label="Destination" value={f.destination} onChangeText={(v: string) => setF({ ...f, destination: v })} placeholder="Paris" />
+      <Field label="Start date (YYYY-MM-DD)" value={f.startDate} onChangeText={(v: string) => setF({ ...f, startDate: v })} placeholder="2026-09-10" />
+      <Field label="End date (YYYY-MM-DD)" value={f.endDate} onChangeText={(v: string) => setF({ ...f, endDate: v })} placeholder="2026-09-14" />
+      <Btn label="Add trip" busy={busy} onPress={add} />
+    </Card>}
+    {(data.trips ?? []).length ? (data.trips ?? []).map((t: any) => (
+      <Item key={t.id} icon="✈️" t={t.title} sub={`${t.destination ?? '—'}${t.startDate ? ` · ${fmt(t.startDate)}` : ''}`} badge={t.items?.length ? `${t.items.length} items` : undefined} />
+    )) : <Card><Text style={st.muted}>No trips yet. Add one, or connect your email so Vaulmo can spot them for you.</Text></Card>}
+  </ScrollView>;
+}
+
+function Purchases() {
+  const [data, reload] = useAsync(() => api.purchases());
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ item: '', merchant: '', amount: '', purchaseDate: '', warrantyExpiry: '' });
+  const [busy, setBusy] = useState(false);
+  async function add() {
+    if (!f.item.trim()) { Alert.alert('Add an item name'); return; }
+    setBusy(true);
+    try { await api.createPurchase({ ...f, item: f.item.trim() }); setF({ item: '', merchant: '', amount: '', purchaseDate: '', warrantyExpiry: '' }); setOpen(false); await reload(); }
+    catch (e) { Alert.alert('Could not add', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(false); }
+  }
+  if (!data) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <View style={st.spread}><Text style={st.section}>Purchases & warranties</Text><AddToggle open={open} onToggle={() => setOpen(!open)} /></View>
+    {open && <Card>
+      <Field label="Item" value={f.item} onChangeText={(v: string) => setF({ ...f, item: v })} placeholder="Bosch washing machine" />
+      <Field label="Merchant" value={f.merchant} onChangeText={(v: string) => setF({ ...f, merchant: v })} placeholder="Currys" />
+      <Field label="Amount" value={f.amount} onChangeText={(v: string) => setF({ ...f, amount: v })} placeholder="£499" />
+      <Field label="Purchase date (YYYY-MM-DD)" value={f.purchaseDate} onChangeText={(v: string) => setF({ ...f, purchaseDate: v })} placeholder="2026-01-10" />
+      <Field label="Warranty expiry (YYYY-MM-DD)" value={f.warrantyExpiry} onChangeText={(v: string) => setF({ ...f, warrantyExpiry: v })} placeholder="2031-01-10" />
+      <Btn label="Add purchase" busy={busy} onPress={add} />
+    </Card>}
+    {(data.purchases ?? []).length ? (data.purchases ?? []).map((p: any) => (
+      <Item key={p.id} icon="🧾" t={p.item} sub={`${p.merchant ?? '—'}${p.amount ? ` · ${p.amount}` : ''}`} right={p.warrantyExpiry ? <DuePill dueDate={p.warrantyExpiry} /> : undefined} />
+    )) : <Card><Text style={st.muted}>No purchases yet. Add receipts and warranties to get renewal reminders.</Text></Card>}
+  </ScrollView>;
+}
+
+function Subs() {
+  const [data, reload] = useAsync(() => api.trackedSubscriptions());
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ name: '', category: '', amount: '', cycle: '', renewalDate: '' });
+  const [busy, setBusy] = useState(false);
+  async function add() {
+    if (!f.name.trim()) { Alert.alert('Add a name'); return; }
+    setBusy(true);
+    try { await api.createSubscription({ ...f, name: f.name.trim() }); setF({ name: '', category: '', amount: '', cycle: '', renewalDate: '' }); setOpen(false); await reload(); }
+    catch (e) { Alert.alert('Could not add', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(false); }
+  }
+  if (!data) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <View style={st.spread}><Text style={st.section}>Subscriptions</Text><AddToggle open={open} onToggle={() => setOpen(!open)} /></View>
+    {open && <Card>
+      <Field label="Name" value={f.name} onChangeText={(v: string) => setF({ ...f, name: v })} placeholder="Netflix" />
+      <Field label="Category" value={f.category} onChangeText={(v: string) => setF({ ...f, category: v })} placeholder="Streaming" />
+      <Field label="Amount" value={f.amount} onChangeText={(v: string) => setF({ ...f, amount: v })} placeholder="£10.99" />
+      <Field label="Cycle" value={f.cycle} onChangeText={(v: string) => setF({ ...f, cycle: v })} placeholder="monthly" />
+      <Field label="Renewal date (YYYY-MM-DD)" value={f.renewalDate} onChangeText={(v: string) => setF({ ...f, renewalDate: v })} placeholder="2026-12-01" />
+      <Btn label="Add subscription" busy={busy} onPress={add} />
+    </Card>}
+    {(data.subscriptions ?? []).length ? (data.subscriptions ?? []).map((sb: any) => (
+      <Item key={sb.id} icon="🔁" t={sb.name} sub={`${sb.category ?? '—'}${sb.amount ? ` · ${sb.amount}${sb.cycle ? `/${sb.cycle}` : ''}` : ''}`} right={sb.renewalDate ? <DuePill dueDate={sb.renewalDate} /> : undefined} />
+    )) : <Card><Text style={st.muted}>Nothing tracked yet. Add what you pay for to get renewal reminders.</Text></Card>}
+  </ScrollView>;
+}
+
+const ASSET_FIELDS: Record<string, { key: string; label: string; date?: boolean }[]> = {
+  vehicle: [{ key: 'registration', label: 'Registration' }, { key: 'make', label: 'Make & model' }, { key: 'motDate', label: 'MOT due (YYYY-MM-DD)', date: true }, { key: 'taxDate', label: 'Road tax due (YYYY-MM-DD)', date: true }, { key: 'insuranceDate', label: 'Insurance renewal (YYYY-MM-DD)', date: true }],
+  property: [{ key: 'address', label: 'Address' }, { key: 'ownership', label: 'Owned / rented' }, { key: 'insuranceDate', label: 'Home insurance renewal (YYYY-MM-DD)', date: true }, { key: 'mortgageEnd', label: 'Mortgage deal ends (YYYY-MM-DD)', date: true }],
+};
+function AssetItem({ a, docs, onChange }: any) {
+  const [data, reload] = useAsync(() => api.asset(a.id), [a.id]);
+  const [edit, setEdit] = useState(false);
+  const [details, setDetails] = useState<any>(a.details ?? {});
+  const [pick, setPick] = useState('');
+  const fields = ASSET_FIELDS[a.kind] ?? [];
+  const linked = data?.documents ?? [];
+  const assignable = (docs ?? []).filter((d: any) => d.assetId !== a.id);
+  async function save() { try { await api.updateAsset(a.id, { details }); setEdit(false); onChange?.(); } catch (e) { Alert.alert('Could not save', e instanceof ApiError ? e.message : ''); } }
+  function remove() { Alert.alert('Remove', `Remove “${a.name}”?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { await api.deleteAsset(a.id); onChange?.(); } }]); }
+  async function link(id: string) { await api.assignDocumentAsset(id, a.id); setPick(''); await reload(); onChange?.(); }
+  return <View style={st.recCard}>
+    <View style={st.recTop}>
+      <Text style={st.recIc}>{a.kind === 'vehicle' ? '🚗' : '🏠'}</Text>
+      <View style={{ flex: 1 }}><Text style={st.itemT}>{a.name}</Text><Text style={st.itemS}>{a.kind}</Text></View>
+      <TouchableOpacity onPress={() => setEdit(!edit)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={{ color: C.brand, fontWeight: '700', fontSize: 13 }}>{edit ? 'Cancel' : 'Edit'}</Text></TouchableOpacity>
+    </View>
+    {!edit ? <View style={{ marginTop: 8 }}>
+      {fields.filter((f) => a.details?.[f.key]).map((f) => (
+        <View key={f.key} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+          <Text style={st.itemS}>{f.label.replace(/ \(.*\)/, '')}</Text>
+          {f.date ? <DuePill dueDate={a.details[f.key]} /> : <Text style={{ fontSize: 13, fontWeight: '600', color: C.ink }}>{a.details[f.key]}</Text>}
+        </View>
+      ))}
+      {!fields.some((f) => a.details?.[f.key]) && <Text style={st.itemS}>No details yet — tap Edit to add renewal dates.</Text>}
+    </View> : <View style={{ marginTop: 6 }}>
+      {fields.map((f) => <Field key={f.key} label={f.label} value={details[f.key] ?? ''} onChangeText={(v: string) => setDetails({ ...details, [f.key]: v })} />)}
+      <Btn label="Save" onPress={save} />
+    </View>}
+    <View style={{ borderTopWidth: 1, borderTopColor: C.line, marginTop: 10, paddingTop: 8 }}>
+      <Text style={[st.itemS, { fontWeight: '700' }]}>Documents ({linked.length})</Text>
+      {linked.map((d: any) => <View key={d.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 13 }}>📄 {d.title}</Text><TouchableOpacity onPress={() => api.assignDocumentAsset(d.id, null).then(reload)}><Text style={{ color: C.brand, fontSize: 12.5 }}>Remove</Text></TouchableOpacity></View>)}
+      {assignable.length > 0 && <View style={st.chipRow}>{assignable.slice(0, 6).map((d: any) => <TouchableOpacity key={d.id} style={st.chip} onPress={() => link(d.id)}><Text style={st.chipTxt} numberOfLines={1}>＋ {d.title}</Text></TouchableOpacity>)}</View>}
+      <View style={{ height: 6 }} />
+      <TouchableOpacity onPress={remove}><Text style={{ color: C.crit, fontSize: 12.5, fontWeight: '600' }}>Remove asset</Text></TouchableOpacity>
+    </View>
+  </View>;
+}
+function Assets() {
+  const [data, reload] = useAsync(() => api.assets());
+  const [docs, reloadDocs] = useAsync(() => api.documents());
+  const [adding, setAdding] = useState<null | 'vehicle' | 'property'>(null);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function create() {
+    if (!name.trim() || !adding) return;
+    setBusy(true);
+    try { await api.createAsset({ kind: adding, name: name.trim() }); setName(''); setAdding(null); await reload(); }
+    catch (e) { Alert.alert('Could not add', e instanceof ApiError ? e.message : ''); } finally { setBusy(false); }
+  }
+  if (!data) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <Text style={st.muted}>Group documents and renewal dates under your home and car. Adding MOT, tax or insurance dates creates reminders automatically.</Text>
+    <View style={[st.spread, { marginTop: 12 }]}>
+      <Text style={st.section}>Your assets</Text>
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        <TouchableOpacity style={st.smBtn} onPress={() => setAdding(adding === 'vehicle' ? null : 'vehicle')}><Text style={st.smBtnTxt}>+ Vehicle</Text></TouchableOpacity>
+        <TouchableOpacity style={st.smBtn} onPress={() => setAdding(adding === 'property' ? null : 'property')}><Text style={st.smBtnTxt}>+ Property</Text></TouchableOpacity>
+      </View>
+    </View>
+    {adding && <Card>
+      <Field label={adding === 'vehicle' ? 'Vehicle name (e.g. “VW Golf”)' : 'Property name (e.g. “Home”)'} value={name} onChangeText={setName} />
+      <Btn label={`Add ${adding}`} busy={busy} onPress={create} />
+    </Card>}
+    {(data.assets ?? []).length ? (data.assets ?? []).map((a: any) => <AssetItem key={a.id} a={a} docs={docs?.documents ?? []} onChange={() => { reload(); reloadDocs(); }} />)
+      : <Card><Text style={st.muted}>No property or vehicles yet. Add your home or car to track MOT, tax and insurance renewals.</Text></Card>}
+  </ScrollView>;
+}
+
+const SEC_ACTION_LABEL: Record<string, string> = {
+  'auth.login': 'Sign-in attempt', 'auth.login.success': 'Signed in', 'auth.login.mfa_challenge': 'Two-factor prompted',
+  'auth.mfa.verify': 'Two-factor verified', 'auth.reset.requested': 'Password reset requested', 'auth.reset.success': 'Password reset',
+  'auth.session.revoked': 'Device signed out', 'auth.session.revoked_others': 'Other devices signed out',
+  'mfa.enabled': 'Two-factor enabled', 'mfa.disabled': 'Two-factor disabled', 'mfa.enroll.begin': 'Two-factor setup started',
+  'user.profile.updated': 'Profile updated', 'document.downloaded': 'Document downloaded', 'document.deleted': 'Document deleted',
+  'emergency.owner.approve': 'Approved emergency access', 'emergency.owner.decline': 'Declined emergency access', 'emergency.revoked': 'Revoked emergency access',
+  'privacy.export': 'Data exported', 'privacy.deletion_requested': 'Account deletion requested', 'privacy.consent': 'Consent updated',
+};
+function PrivacySecurity() {
+  const [act] = useAsync(() => api.securityActivity());
+  const [priv, reloadPriv] = useAsync(() => api.privacy());
+  const [busy, setBusy] = useState('');
+  const [delOpen, setDelOpen] = useState(false);
+  const [pw, setPw] = useState('');
+  const openDeletion = (priv?.requests ?? []).find((r: any) => r.type === 'deletion' && (r.status === 'pending' || r.status === 'in_progress'));
+  async function doExport() {
+    setBusy('export');
+    try { await api.exportData(); await reloadPriv(); Alert.alert('Export ready', 'Your data export has been generated and logged. You can download the full file from the web app.'); }
+    catch (e) { Alert.alert('Export failed', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); }
+  }
+  async function doDelete() {
+    if (!pw) { Alert.alert('Enter your password to confirm'); return; }
+    setBusy('delete');
+    try { await api.requestDeletion(pw); setPw(''); setDelOpen(false); await reloadPriv(); Alert.alert('Request submitted', 'Your account-deletion request has been submitted. Your documents are not deleted automatically.'); }
+    catch (e) { Alert.alert('Could not submit', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); }
+  }
+  if (!act || !priv) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <SectionTitle>Security activity</SectionTitle>
+    {(act.activity ?? []).length ? (act.activity ?? []).slice(0, 12).map((a: any) => (
+      <View key={a.id} style={st.item}><View style={st.itemIc}><Text style={{ fontSize: 16 }}>🔐</Text></View>
+        <View style={{ flex: 1 }}><Text style={st.itemT}>{SEC_ACTION_LABEL[a.action] ?? a.action}</Text><Text style={st.itemS}>{fmt(a.at)}{a.ip ? ` · ${a.ip}` : ''}</Text></View>
+      </View>
+    )) : <Card><Text style={st.muted}>No recent security activity.</Text></Card>}
+
+    <SectionTitle>Your data & privacy</SectionTitle>
+    <Card>
+      <View style={st.detailRow}><Text style={st.itemT}>Export my data</Text><TouchableOpacity style={st.smBtn} disabled={!!busy} onPress={doExport}><Text style={st.smBtnTxt}>{busy === 'export' ? '…' : 'Export'}</Text></TouchableOpacity></View>
+      <View style={[st.detailRow, { borderBottomWidth: 0 }]}><Text style={st.itemS}>Consents: {(priv.consents ?? []).length ? (priv.consents ?? []).map((c: any) => c.policy).join(', ') : 'none recorded'}</Text></View>
+    </Card>
+
+    <SectionTitle>Delete my account</SectionTitle>
+    <Card>
+      <Text style={st.muted}>Raises a verified deletion request. Your documents are never deleted automatically.</Text>
+      {openDeletion ? <View style={[st.okBox, { backgroundColor: C.warnBg, marginTop: 10 }]}><Text style={{ color: C.warn, fontWeight: '600', fontSize: 13 }}>Deletion request submitted — {openDeletion.status}</Text></View>
+        : !delOpen ? <Btn label="Request account deletion" secondary onPress={() => setDelOpen(true)} />
+        : <>
+          <Field label="Confirm your password" value={pw} onChangeText={setPw} secureTextEntry />
+          <Btn label="Submit deletion request" busy={busy === 'delete'} onPress={doDelete} />
+          <Btn label="Cancel" secondary onPress={() => { setDelOpen(false); setPw(''); }} />
+        </>}
+    </Card>
+  </ScrollView>;
+}
+
+function Connected() {
+  const [available, setAvailable] = useState<boolean | null>(null);
+  useEffect(() => { api.providers().then(() => setAvailable(true)).catch(() => setAvailable(false)); }, []);
+  const [conns, rc] = useAsync(() => api.connections().catch(() => ({ connections: [] })));
+  const [det, rd] = useAsync(() => api.detected().catch(() => ({ detected: [] })));
+  const [busy, setBusy] = useState('');
+  if (available === null) return <Loading />;
+  if (available === false) return <ScrollView contentContainerStyle={st.pad}>
+    <View style={[st.okBox, { backgroundColor: C.warnBg }]}><Text style={{ color: C.warn, fontWeight: '600', fontSize: 13.5 }}>⏳ Connected Services are coming soon</Text></View>
+    <Text style={st.muted}>Soon you'll be able to securely connect Gmail or Outlook so Vaulmo can spot trips, receipts and warranties automatically — you'll always confirm before anything is added. We'll switch this on for your account shortly.</Text>
+  </ScrollView>;
+  async function connect(p: string) { setBusy(p); try { await api.connect(p); await api.callback(p, 'demo_' + p); await rc(); } catch (e) { Alert.alert('Could not connect', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(''); } }
+  async function sync(id: string) { setBusy(id); try { await api.sync(id); await rd(); } catch { Alert.alert('Sync failed'); } finally { setBusy(''); } }
+  async function add(id: string) { try { await api.confirmDetected(id); await rd(); } catch { Alert.alert('Try again'); } }
+  async function dismiss(id: string) { try { await api.dismissDetected(id); await rd(); } catch { Alert.alert('Try again'); } }
+  return <ScrollView contentContainerStyle={st.pad}>
+    <Text style={st.muted}>Securely connect your email so Vaulmo can spot trips, receipts and warranties. You confirm before anything is added.</Text>
+    <SectionTitle>Connect a service</SectionTitle>
+    {['gmail', 'outlook'].map((p) => (
+      <View key={p} style={st.item}>
+        <View style={st.itemIc}><Text style={{ fontSize: 18 }}>{p === 'gmail' ? '📧' : '📨'}</Text></View>
+        <View style={{ flex: 1 }}><Text style={st.itemT}>{p === 'gmail' ? 'Gmail' : 'Outlook'}</Text></View>
+        <TouchableOpacity style={st.smBtn} disabled={!!busy} onPress={() => connect(p)}><Text style={st.smBtnTxt}>{busy === p ? '…' : 'Connect'}</Text></TouchableOpacity>
+      </View>
+    ))}
+    <SectionTitle>Your connections</SectionTitle>
+    {(conns?.connections ?? []).length ? (conns?.connections ?? []).map((c: any) => (
+      <View key={c.id} style={st.item}><View style={st.itemIc}><Text style={{ fontSize: 18 }}>🔌</Text></View>
+        <View style={{ flex: 1 }}><Text style={st.itemT}>{c.provider}</Text><Text style={st.itemS}>{c.status}</Text></View>
+        <TouchableOpacity style={st.smBtn} disabled={!!busy} onPress={() => sync(c.id)}><Text style={st.smBtnTxt}>{busy === c.id ? '…' : 'Sync'}</Text></TouchableOpacity>
+      </View>
+    )) : <Card><Text style={st.muted}>No connections yet.</Text></Card>}
+    {(det?.detected ?? []).length > 0 && <>
+      <SectionTitle>Detected — confirm to add</SectionTitle>
+      {(det?.detected ?? []).map((i: any) => (
+        <View key={i.id} style={st.recCard}>
+          <View style={st.recTop}><Text style={st.recIc}>{i.type === 'travel' ? '✈️' : i.type === 'purchase' ? '🧾' : '🔁'}</Text>
+            <View style={{ flex: 1 }}><Text style={st.itemT} numberOfLines={1}>{i.rawSubject ?? i.type}</Text><Text style={st.itemS}>{i.type}</Text></View>
+          </View>
+          <View style={st.chipRow}>
+            <TouchableOpacity style={[st.chip, st.chipOn]} onPress={() => add(i.id)}><Text style={st.chipTxtOn}>Add</Text></TouchableOpacity>
+            <TouchableOpacity style={st.chip} onPress={() => dismiss(i.id)}><Text style={st.chipTxt}>Dismiss</Text></TouchableOpacity>
+          </View>
+        </View>
+      ))}
+    </>}
+  </ScrollView>;
+}
+
+function MemberDocItem({ m, docs, onChange }: any) {
+  const [data, reload] = useAsync(() => api.memberDocuments(m.id), [m.id]);
+  const [open, setOpen] = useState(false);
+  const linked = data?.documents ?? [];
+  const assignable = (docs ?? []).filter((d: any) => d.subjectMemberId !== m.id);
+  async function link(id: string) { await api.assignDocumentMember(id, m.id); await reload(); onChange?.(); }
+  async function unlink(id: string) { await api.assignDocumentMember(id, null); await reload(); onChange?.(); }
+  return <View style={st.recCard}>
+    <TouchableOpacity style={st.recTop} activeOpacity={0.8} onPress={() => setOpen(!open)}>
+      <Text style={st.recIc}>{m.isDependant ? '🧒' : '👤'}</Text>
+      <View style={{ flex: 1 }}><Text style={st.itemT}>{m.name}</Text><Text style={st.itemS}>{m.relationship ?? 'Family member'} · {linked.length} document{linked.length === 1 ? '' : 's'}</Text></View>
+      <Text style={st.chev}>{open ? '▾' : '▸'}</Text>
+    </TouchableOpacity>
+    {open && <View style={{ marginTop: 8 }}>
+      {linked.map((d: any) => <View key={d.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}><Text style={{ fontSize: 13 }}>📄 {d.title}</Text><TouchableOpacity onPress={() => unlink(d.id)}><Text style={{ color: C.brand, fontSize: 12.5 }}>Remove</Text></TouchableOpacity></View>)}
+      {!linked.length && <Text style={st.itemS}>No documents linked yet.</Text>}
+      {assignable.length > 0 && <View style={st.chipRow}>{assignable.slice(0, 6).map((d: any) => <TouchableOpacity key={d.id} style={st.chip} onPress={() => link(d.id)}><Text style={st.chipTxt} numberOfLines={1}>＋ {d.title}</Text></TouchableOpacity>)}</View>}
+    </View>}
+  </View>;
+}
+function Family({ me }: any) {
+  const [members, rm] = useAsync(() => api.familyMembers());
+  const [docsData, rd] = useAsync(() => api.documents());
+  const [nok, rn] = useAsync(() => api.nok());
+  const [mode, setMode] = useState<null | 'member' | 'nok'>(null);
+  const [mf, setMf] = useState({ name: '', relationship: '', dateOfBirth: '' });
+  const [nf, setNf] = useState({ name: '', email: '', relationship: '' });
+  const [busy, setBusy] = useState(false);
+  async function addMember() {
+    if (!mf.name.trim()) { Alert.alert('Add a name'); return; }
+    setBusy(true);
+    try { await api.addMember({ ...mf, name: mf.name.trim() }); setMf({ name: '', relationship: '', dateOfBirth: '' }); setMode(null); await rm(); }
+    catch (e) { Alert.alert('Could not add', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(false); }
+  }
+  async function nominate() {
+    if (!nf.name.trim() || !/^[^@]+@[^@]+$/.test(nf.email)) { Alert.alert('Add a name and a valid email'); return; }
+    setBusy(true);
+    try { await api.nominateNok({ ...nf, name: nf.name.trim() }); setNf({ name: '', email: '', relationship: '' }); setMode(null); await rn(); }
+    catch (e) { Alert.alert('Could not nominate', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(false); }
+  }
+  async function invite(id: string) { try { await api.inviteNok(id); await rn(); Alert.alert('Invite sent', 'Your next of kin has been invited.'); } catch { Alert.alert('Try again'); } }
+  if (!members || !nok) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <View style={st.spread}><Text style={st.section}>Family members</Text><AddToggle open={mode === 'member'} onToggle={() => setMode(mode === 'member' ? null : 'member')} /></View>
+    {mode === 'member' && <Card>
+      <Field label="Name" value={mf.name} onChangeText={(v: string) => setMf({ ...mf, name: v })} placeholder="Sam Morgan" />
+      <Field label="Relationship" value={mf.relationship} onChangeText={(v: string) => setMf({ ...mf, relationship: v })} placeholder="Child / Partner" />
+      <Field label="Date of birth (YYYY-MM-DD)" value={mf.dateOfBirth} onChangeText={(v: string) => setMf({ ...mf, dateOfBirth: v })} placeholder="2015-06-01" />
+      <Btn label="Add member" busy={busy} onPress={addMember} />
+    </Card>}
+    {(members.members ?? []).length ? (members.members ?? []).map((m: any) => (
+      <MemberDocItem key={m.id} m={m} docs={docsData?.documents ?? []} onChange={rd} />
+    )) : <Card><Text style={st.muted}>No family members added yet.</Text></Card>}
+
+    <View style={st.spread}><Text style={st.section}>Next of kin</Text><AddToggle open={mode === 'nok'} onToggle={() => setMode(mode === 'nok' ? null : 'nok')} /></View>
+    {mode === 'nok' && <Card>
+      <Field label="Name" value={nf.name} onChangeText={(v: string) => setNf({ ...nf, name: v })} placeholder="Jordan Morgan" />
+      <Field label="Email" value={nf.email} onChangeText={(v: string) => setNf({ ...nf, email: v })} autoCapitalize="none" keyboardType="email-address" placeholder="jordan@example.com" />
+      <Field label="Relationship" value={nf.relationship} onChangeText={(v: string) => setNf({ ...nf, relationship: v })} placeholder="Sibling" />
+      <Btn label="Nominate" busy={busy} onPress={nominate} />
+    </Card>}
+    {(nok.nextOfKin ?? []).length ? (nok.nextOfKin ?? []).map((n: any) => (
+      <View key={n.id} style={st.item}><View style={st.itemIc}><Text style={{ fontSize: 18 }}>🤝</Text></View>
+        <View style={{ flex: 1 }}><Text style={st.itemT}>{n.name}</Text><Text style={st.itemS}>{n.email} · {n.status}</Text></View>
+        {n.status !== 'confirmed' && <TouchableOpacity style={st.smBtn} onPress={() => invite(n.id)}><Text style={st.smBtnTxt}>Invite</Text></TouchableOpacity>}
+      </View>
+    )) : <Card><Text style={st.muted}>Nominate a trusted person who can reach your vault in an emergency.</Text></Card>}
+  </ScrollView>;
+}
+
+function Emergency() {
+  const [status] = useAsync(() => api.emergencyStatus());
+  const [reqs, reload] = useAsync(() => api.emergencyRequests().catch(() => ({ requests: [] })));
+  async function decide(id: string, decision: 'approve' | 'decline') {
+    try { await api.emergencyOwnerDecision(id, { decision }); await reload(); } catch (e) { Alert.alert('Could not save', e instanceof ApiError ? e.message : 'Try again'); }
+  }
+  async function revoke(id: string) { try { await api.emergencyRevoke(id); await reload(); } catch { Alert.alert('Try again'); } }
+  if (!status) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <View style={[st.okBox, { backgroundColor: status.enabled ? C.goodBg : C.warnBg }]}>
+      <Text style={{ color: status.enabled ? C.good : C.warn, fontWeight: '600', fontSize: 13.5 }}>{status.enabled ? '🛡️ ' : '⏳ '}{status.message}</Text>
+    </View>
+    <Text style={st.muted}>If your next of kin ever requests access to your vault, it appears here for your approval. Nothing is shared without you saying yes.</Text>
+    <SectionTitle>Access requests</SectionTitle>
+    {(reqs?.requests ?? []).length ? (reqs?.requests ?? []).map((r: any) => (
+      <View key={r.id} style={st.recCard}>
+        <View style={st.recTop}><Text style={st.recIc}>🛡️</Text>
+          <View style={{ flex: 1 }}><Text style={st.itemT}>{r.requesterName ?? r.requesterEmail ?? 'A next of kin'}</Text><Text style={st.itemS}>{r.status} · {fmt(r.createdAt)}</Text></View>
+        </View>
+        {r.status === 'pending_owner' || r.status === 'pending' ? <View style={st.chipRow}>
+          <TouchableOpacity style={[st.chip, st.chipOn]} onPress={() => decide(r.id, 'approve')}><Text style={st.chipTxtOn}>Approve</Text></TouchableOpacity>
+          <TouchableOpacity style={st.chip} onPress={() => decide(r.id, 'decline')}><Text style={st.chipTxt}>Decline</Text></TouchableOpacity>
+        </View> : r.status === 'active' ? <View style={st.chipRow}><TouchableOpacity style={st.chip} onPress={() => revoke(r.id)}><Text style={st.chipTxt}>Revoke access</Text></TouchableOpacity></View> : null}
+      </View>
+    )) : <Card><Text style={st.muted}>No emergency-access requests. You're in control — this stays empty unless someone asks.</Text></Card>}
+  </ScrollView>;
+}
+
+function Billing({ me }: any) {
+  const [plans] = useAsync(() => api.plans());
+  const [bill, reload] = useAsync(() => api.billing().catch(() => null));
+  const [busy, setBusy] = useState('');
+  const sub = bill?.subscription;
+  const current = sub?.planKey ?? me.tenant?.plan ?? 'starter';
+  const hasPaid = sub && ['active', 'trialing', 'past_due'].includes(sub.status);
+  const currentAmount = (plans?.plans ?? []).find((x: any) => x.key === current)?.amount ?? 0;
+
+  async function choose(key: string) {
+    setBusy(key);
+    try {
+      if (hasPaid) { const r = await api.changePlan(key); Alert.alert('Plan changed', `${r.direction === 'downgrade' ? 'Downgraded' : 'Upgraded'} to ${key}.`); await reload(); }
+      else { const s = await api.checkout(key); Alert.alert('Checkout', s?.url ? 'Continue in your browser to complete payment.' : 'Checkout started.'); }
+    } catch (e) { Alert.alert('Could not change plan', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(''); }
+  }
+  async function cancel() {
+    Alert.alert('Cancel renewal', 'You keep full access until the end of your current period.', [
+      { text: 'Keep plan', style: 'cancel' },
+      { text: 'Cancel renewal', style: 'destructive', onPress: async () => { setBusy('cancel'); try { await api.cancelSubscription(); await reload(); } catch (e) { Alert.alert('Failed', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); } } },
+    ]);
+  }
+  async function resume() { setBusy('resume'); try { await api.resumeSubscription(); await reload(); } catch (e) { Alert.alert('Failed', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); } }
+  if (!plans) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <View style={st.planCard}><Text style={st.planLab}>CURRENT PLAN</Text><Text style={st.planName}>{current}</Text>
+      {sub?.status && <Text style={{ color: '#fff', opacity: 0.85, fontSize: 12.5, marginTop: 2, textTransform: 'capitalize' }}>{sub.status}{sub.cancelAtPeriodEnd ? ' · ends at period end' : ''}{sub.currentPeriodEnd ? ` · ${sub.cancelAtPeriodEnd ? 'until' : 'renews'} ${fmt(sub.currentPeriodEnd)}` : ''}</Text>}
+    </View>
+    {hasPaid && <View style={{ marginBottom: 4 }}>
+      {sub.cancelAtPeriodEnd
+        ? <Btn label={busy === 'resume' ? 'Resuming…' : 'Resume renewal'} onPress={resume} busy={busy === 'resume'} />
+        : <Btn label={busy === 'cancel' ? 'Cancelling…' : 'Cancel renewal'} secondary onPress={cancel} busy={busy === 'cancel'} />}
+    </View>}
+    <SectionTitle>Plans</SectionTitle>
+    {(plans.plans ?? []).map((p: any) => {
+      const isCurrent = current === p.key;
+      const isDown = hasPaid && p.amount > 0 && p.amount < currentAmount;
+      return <View key={p.key} style={st.recCard}>
+        <View style={st.recTop}><Text style={st.recIc}>💳</Text>
+          <View style={{ flex: 1 }}><Text style={st.itemT}>{p.name}</Text><Text style={st.itemS}>{p.amount ? `${(p.currency ?? 'GBP').toUpperCase()} ${(Number(p.amount) / 100).toFixed(2)}/${p.interval ?? 'yr'}` : 'Free'}</Text></View>
+          {isCurrent ? <Text style={[st.tag, { backgroundColor: C.goodBg, color: C.good }]}>current</Text>
+            : p.amount > 0 ? <TouchableOpacity style={st.smBtn} disabled={!!busy} onPress={() => choose(p.key)}><Text style={st.smBtnTxt}>{busy === p.key ? '…' : hasPaid ? (isDown ? 'Downgrade' : 'Upgrade') : 'Choose'}</Text></TouchableOpacity> : null}
+        </View>
+      </View>;
+    })}
+    {(bill?.invoices ?? []).length > 0 && <>
+      <SectionTitle>Invoices</SectionTitle>
+      {(bill?.invoices ?? []).map((iv: any) => <Item key={iv.id} icon="🧾" t={iv.number ?? 'Invoice'} sub={`${iv.status ?? ''} · ${fmt(iv.createdAt)}`} />)}
+    </>}
+  </ScrollView>;
+}
+
+function Support() {
+  const [data, reload] = useAsync(() => api.supportTickets());
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ subject: '', body: '' });
+  const [busy, setBusy] = useState(false);
+  const [active, setActive] = useState<any>(null);
+  async function create() {
+    if (!f.subject.trim() || !f.body.trim()) { Alert.alert('Add a subject and a message'); return; }
+    setBusy(true);
+    try { await api.createSupportTicket({ subject: f.subject.trim(), body: f.body.trim() }); setF({ subject: '', body: '' }); setOpen(false); await reload(); }
+    catch (e) { Alert.alert('Could not send', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(false); }
+  }
+  if (active) return <TicketThread id={active} onBack={() => { setActive(null); reload(); }} />;
+  if (!data) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <View style={st.spread}><Text style={st.section}>Your requests</Text><AddToggle open={open} onToggle={() => setOpen(!open)} /></View>
+    {open && <Card>
+      <Field label="Subject" value={f.subject} onChangeText={(v: string) => setF({ ...f, subject: v })} placeholder="I can't add a document" />
+      <Field label="Message" value={f.body} onChangeText={(v: string) => setF({ ...f, body: v })} multiline placeholder="Describe what's happening…" />
+      <Btn label="Send request" busy={busy} onPress={create} />
+    </Card>}
+    {(data.tickets ?? []).length ? (data.tickets ?? []).map((t: any) => (
+      <TouchableOpacity key={t.id} onPress={() => setActive(t.id)} activeOpacity={0.8}>
+        <Item icon="💬" t={t.subject} sub={`${t.status}${t.messageCount ? ` · ${t.messageCount} messages` : ''}`} right={<Text style={st.chev}>›</Text>} />
+      </TouchableOpacity>
+    )) : <Card><Text style={st.muted}>No requests yet. Tap + Add if you need help.</Text></Card>}
+  </ScrollView>;
+}
+function TicketThread({ id, onBack }: any) {
+  const [data, reload] = useAsync(() => api.supportTicket(id));
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function send() {
+    if (!msg.trim()) return;
+    setBusy(true);
+    try { await api.supportReply(id, msg.trim()); setMsg(''); await reload(); } catch { Alert.alert('Try again'); } finally { setBusy(false); }
+  }
+  if (!data) return <Loading />;
+  return <View style={{ flex: 1 }}>
+    <ScrollView contentContainerStyle={st.pad}>
+      <TouchableOpacity onPress={onBack} style={{ marginBottom: 8 }}><Text style={st.link}>‹ All requests</Text></TouchableOpacity>
+      <Text style={st.section}>{data.ticket?.subject}</Text>
+      {(data.messages ?? []).map((m: any) => (
+        <View key={m.id} style={[st.bubble, m.authorType === 'agent' || m.fromAgent ? st.bubbleAi : st.bubbleMe, { alignSelf: (m.authorType === 'agent' || m.fromAgent) ? 'flex-start' : 'flex-end', marginBottom: 8, maxWidth: '86%' }]}>
+          <Text style={(m.authorType === 'agent' || m.fromAgent) ? { color: C.ink } : { color: '#fff' }}>{m.body}</Text>
+        </View>
+      ))}
+    </ScrollView>
+    <View style={st.composer}>
+      <TextInput style={st.composerInput} value={msg} onChangeText={setMsg} placeholder="Reply…" placeholderTextColor={C.soft} />
+      <TouchableOpacity style={st.sendBtn} disabled={busy} onPress={send}><Text style={{ color: '#fff', fontWeight: '700' }}>Send</Text></TouchableOpacity>
+    </View>
+  </View>;
+}
+
+function HelpCentre() {
+  const [data] = useAsync(() => api.helpArticles());
+  const [active, setActive] = useState<any>(null);
+  if (active) return <ScrollView contentContainerStyle={st.pad}>
+    <TouchableOpacity onPress={() => setActive(null)} style={{ marginBottom: 8 }}><Text style={st.link}>‹ All articles</Text></TouchableOpacity>
+    <Text style={st.section}>{active.title}</Text>
+    <Text style={[st.muted, { lineHeight: 21 }]}>{active.body ?? active.excerpt}</Text>
+  </ScrollView>;
+  if (!data) return <Loading />;
+  return <ScrollView contentContainerStyle={st.pad}>
+    <Text style={st.muted}>Guides and answers to common questions.</Text>
+    <View style={{ height: 8 }} />
+    {(data.articles ?? []).length ? (data.articles ?? []).map((a: any) => (
+      <TouchableOpacity key={a.id} onPress={() => setActive(a)} activeOpacity={0.8}>
+        <Item icon="📘" t={a.title} sub={a.category ?? a.excerpt ?? ''} right={<Text style={st.chev}>›</Text>} />
+      </TouchableOpacity>
+    )) : <Card><Text style={st.muted}>No help articles yet.</Text></Card>}
+  </ScrollView>;
+}
+
+function Settings({ me, refreshMe }: any) {
+  const [ns, setNs] = useState<any>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [enroll, setEnroll] = useState<any>(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState('');
+  useEffect(() => { api.notifSettings().then(setNs).catch(() => {}); api.sessions().then((r) => setSessions(r.sessions ?? [])).catch(() => {}); }, []);
+  async function saveNs(patch: any) { const next = { ...ns, ...patch }; setNs(next); try { await api.setNotifSettings(patch); } catch { Alert.alert('Could not save'); } }
+  async function beginMfa() { setBusy('mfa'); try { setEnroll(await api.enrollMfa()); } catch (e) { Alert.alert('Error', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); } }
+  async function confirmMfa() { setBusy('mfa'); try { await api.confirmMfa(code); setEnroll(null); setCode(''); await refreshMe(); Alert.alert('Two-factor enabled', 'Save your recovery codes from the web app.'); } catch (e) { Alert.alert('Invalid code', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); } }
+  async function disableMfa() {
+    Alert.prompt?.('Disable 2FA', 'Enter a current authenticator code to turn off two-factor.', async (c?: string) => {
+      if (!c) return; try { await api.disableMfa(c); await refreshMe(); } catch (e) { Alert.alert('Could not disable', e instanceof ApiError ? e.message : ''); }
+    });
+  }
+  async function revokeOthers() { try { await api.revokeOtherSessions(); const r = await api.sessions(); setSessions(r.sessions ?? []); Alert.alert('Done', 'Other devices signed out.'); } catch { Alert.alert('Try again'); } }
+  return <ScrollView contentContainerStyle={st.pad}>
+    <SectionTitle>Two-factor authentication</SectionTitle>
+    <Card>
+      <View style={st.spread}><Text style={st.itemT}>Status</Text><Text style={[st.tag, me.mfaEnabled ? { backgroundColor: C.goodBg, color: C.good } : { backgroundColor: C.warnBg, color: C.warn }]}>{me.mfaEnabled ? 'Enabled' : 'Off'}</Text></View>
+      {!me.mfaEnabled && !enroll && <Btn label="Enable 2FA" busy={busy === 'mfa'} onPress={beginMfa} />}
+      {enroll && <>
+        <Text style={[st.muted, { marginTop: 10 }]}>Add this key to your authenticator app, then enter the 6-digit code:</Text>
+        <Text style={{ fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 13, marginTop: 6 }}>{enroll.secret}</Text>
+        <Field label="Code" value={code} onChangeText={setCode} keyboardType="number-pad" placeholder="123456" />
+        <Btn label="Verify & enable" busy={busy === 'mfa'} onPress={confirmMfa} />
+      </>}
+      {me.mfaEnabled && Platform.OS === 'ios' && <Btn label="Disable 2FA" secondary onPress={disableMfa} />}
+    </Card>
+
+    {ns && <>
+      <SectionTitle>Notifications</SectionTitle>
+      <Card>
+        <Toggle label="In-app alerts" value={ns.inApp} onChange={(v: boolean) => saveNs({ inApp: v })} />
+        <Toggle label="Email" value={ns.email} onChange={(v: boolean) => saveNs({ email: v })} />
+        <Toggle label="Push" value={ns.push} onChange={(v: boolean) => saveNs({ push: v })} last />
+      </Card>
+      <SectionTitle>Quiet hours</SectionTitle>
+      <Card>
+        <Text style={st.muted}>Hold non-urgent alerts during these hours (24h). Overdue items still come through.</Text>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1 }}><Field label="From" value={ns.quietStart == null ? '' : String(ns.quietStart)} onChangeText={(v: string) => saveNs({ quietStart: v === '' ? null : Math.max(0, Math.min(23, parseInt(v) || 0)) })} keyboardType="number-pad" placeholder="22" /></View>
+          <View style={{ flex: 1 }}><Field label="To" value={ns.quietEnd == null ? '' : String(ns.quietEnd)} onChangeText={(v: string) => saveNs({ quietEnd: v === '' ? null : Math.max(0, Math.min(23, parseInt(v) || 0)) })} keyboardType="number-pad" placeholder="7" /></View>
+        </View>
+      </Card>
+    </>}
+
+    <SectionTitle>Signed-in devices</SectionTitle>
+    {sessions.length ? sessions.map((sn: any) => (
+      <Item key={sn.id} icon="📱" t={sn.userAgent ? String(sn.userAgent).slice(0, 28) : 'Device'} sub={`${sn.current ? 'This device · ' : ''}${fmt(sn.createdAt)}`} />
+    )) : <Card><Text style={st.muted}>Just this device.</Text></Card>}
+    {sessions.length > 1 && <Btn label="Sign out other devices" secondary onPress={revokeOthers} />}
+  </ScrollView>;
+}
+function Toggle({ label, value, onChange, last }: any) {
+  return <TouchableOpacity style={[st.detailRow, last && { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => onChange(!value)}>
+    <Text style={st.itemT}>{label}</Text>
+    <View style={[st.switch, value && { backgroundColor: C.brand, alignItems: 'flex-end' }]}><View style={st.switchKnob} /></View>
+  </TouchableOpacity>;
 }
 
 /* ============================ primitives ============================ */
@@ -832,6 +1445,8 @@ const st = StyleSheet.create({
   profileName: { fontSize: 18, fontWeight: '800', color: C.ink },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: C.line },
   detailVal: { fontWeight: '700', color: C.ink, fontSize: 14 },
+  switch: { width: 46, height: 28, borderRadius: 16, backgroundColor: C.line, padding: 3, justifyContent: 'center' },
+  switchKnob: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
   planCard: { backgroundColor: C.violet, borderRadius: 18, padding: 18, marginTop: 12 },
   planLab: { color: '#fff', opacity: 0.8, fontSize: 11.5, fontWeight: '800', letterSpacing: 1 },
   planName: { color: '#fff', fontSize: 20, fontWeight: '800', textTransform: 'capitalize', marginTop: 4 },

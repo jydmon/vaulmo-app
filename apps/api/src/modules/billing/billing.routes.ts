@@ -8,7 +8,7 @@ import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
-import { entitlementsFor, getSubscription, startCheckout, billingPortal, provisionPlan } from '../../lib/billing/service';
+import { entitlementsFor, getSubscription, startCheckout, billingPortal, provisionPlan, setCancelAtPeriodEnd, changePlan } from '../../lib/billing/service';
 
 export const billingRouter = Router();
 billingRouter.use(requireAuth, requireMfaSatisfied);
@@ -65,6 +65,44 @@ billingRouter.post('/portal', requirePermission(PERMISSIONS.TENANT_MANAGE), asyn
   } catch (e) {
     throw new AppError(400, 'portal_failed', (e as Error).message);
   }
+});
+
+// ---- Self-serve subscription management (SEC-09/10/12/13) ----
+const friendly = (e: unknown) => {
+  const m = (e as Error).message;
+  if (m === 'no_active_subscription') return 'You don’t have an active subscription to change.';
+  if (m === 'unknown_plan') return 'That plan is not available.';
+  if (m === 'already_on_plan') return 'You’re already on that plan.';
+  return m;
+};
+
+// SEC-09: cancel the renewal — keeps access until the current period ends.
+billingRouter.post('/cancel', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {
+  try {
+    const sub = await setCancelAtPeriodEnd(tid(req), true);
+    await audit({ action: 'billing.cancel_scheduled', actorId: req.auth!.sub, tenantId: tid(req), req });
+    res.json({ subscription: sub });
+  } catch (e) { throw new AppError(400, 'cancel_failed', friendly(e)); }
+});
+
+// SEC-10: resume a scheduled cancellation.
+billingRouter.post('/resume', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {
+  try {
+    const sub = await setCancelAtPeriodEnd(tid(req), false);
+    await audit({ action: 'billing.cancel_resumed', actorId: req.auth!.sub, tenantId: tid(req), req });
+    res.json({ subscription: sub });
+  } catch (e) { throw new AppError(400, 'resume_failed', friendly(e)); }
+});
+
+// SEC-12/13: change plan (upgrade / downgrade).
+const changeSchema = z.object({ planKey: z.string().min(1) });
+billingRouter.post('/change-plan', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {
+  const body = changeSchema.parse(req.body);
+  try {
+    const result = await changePlan(tid(req), body.planKey);
+    await audit({ action: 'billing.plan_changed', actorId: req.auth!.sub, tenantId: tid(req), metadata: { planKey: body.planKey, direction: result.direction }, req });
+    res.json(result);
+  } catch (e) { throw new AppError(400, 'change_failed', friendly(e)); }
 });
 
 // ---- Super Admin: plan management ----

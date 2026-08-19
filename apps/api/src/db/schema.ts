@@ -186,6 +186,8 @@ export const documents = pgTable(
     version: integer('version').notNull().default(1),
     previousVersionId: uuid('previous_version_id'),
     replacedByDocumentId: uuid('replaced_by_document_id'),
+    subjectMemberId: uuid('subject_member_id'),
+    assetId: uuid('asset_id'),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -338,6 +340,17 @@ export const familyMembers = pgTable('family_members', {
   linkedUserId: uuid('linked_user_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Properties & Vehicles (FAM-03/04/05) — first-class asset records.
+export const assets = pgTable('assets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // property | vehicle
+  name: text('name').notNull(),
+  details: jsonb('details').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ tenantIdx: index('assets_tenant_idx').on(t.tenantId) }));
 
 export const nextOfKin = pgTable('next_of_kin', {
   id: uuid('id').defaultRandom().primaryKey(),

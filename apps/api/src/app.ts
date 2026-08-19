@@ -25,6 +25,7 @@ import { familyRouter, nokPublicRouter } from './modules/family/family.routes';
 import { emergencyRouter, emergencyPublicRouter } from './modules/emergency/emergency.routes';
 import { integrationsRouter, integrationsWebhookRouter } from './modules/integrations/integrations.routes';
 import { lifeRouter } from './modules/life/life.routes';
+import { assetsRouter } from './modules/assets/assets.routes';
 import { healthRouter } from './modules/health/health.routes';
 
 export function createApp() {
@@ -78,6 +79,7 @@ export function createApp() {
   app.use('/api/v1/integrations', integrationsRouter);
   app.use('/api/v1/integrations-webhook', integrationsWebhookRouter);
   app.use('/api/v1', lifeRouter);
+  app.use('/api/v1/assets', assetsRouter);
 
   app.use(notFound);
   app.use(errorHandler);
