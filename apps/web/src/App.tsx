@@ -192,6 +192,38 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
+  const help: Record<string, string> = {
+    home: isSuper ? 'A live overview of every tenant, subscriptions and platform health.' : 'Your personalised summary — what needs attention and what is coming up next.',
+    vault: 'Your secure document store. Upload or scan a document, let AI extract the details, then confirm to store it. Each document can be downloaded, replaced or deleted.',
+    assistant: 'Ask questions in plain English about your documents, trips, purchases and warranties. Answers come only from your own data, with sources.',
+    reminders: 'Deadlines and alerts. Add your own reminder, set it to repeat, snooze it, or mark it done when handled.',
+    trips: 'Your travel grouped into trips — flights, hotels and tickets together in one place.',
+    purchases: 'Receipts, valuable assets and warranty dates, with reminders before warranties expire.',
+    subs: 'Track what you personally pay for — broadband, streaming, gym — and get renewal reminders.',
+    connected: 'Securely connect Gmail or Outlook so Vaulmo can spot travel, receipts and warranties for you. You confirm before anything is added.',
+    family: 'Add family members, nominate trusted next-of-kin, and control emergency access to your vault.',
+    billing: 'Your subscription plan, renewal date, invoices and payment method.',
+    settings: 'Two-factor authentication, notification channels, quiet hours and your signed-in devices.',
+    profile: 'Your name, contact details and account information.',
+    support: isSuper ? 'Manage and respond to customer support tickets.' : 'Get help and track the status of your support requests.',
+    emergency: isSuper ? 'Review and authorise emergency-access requests with due diligence and an audit trail.' : 'See and control any requests from your next-of-kin to access your vault. Nothing is granted without your approval.',
+    help: 'Guides, FAQs and answers to common questions.',
+    customers: 'Every customer account and the people within each household.',
+    subscriptions: 'Plans, subscription status and revenue across all customers.',
+    reports: 'Growth, usage and revenue analytics for the platform.',
+    crm: 'Customer lifecycle, tags, notes and troubleshooting tools.',
+    cms: 'Create and manage the help-centre articles customers see.',
+    catalogue: 'The recommended-document list, the metadata fields AI extracts, and reminder rules.',
+    notifadmin: 'Notification templates and delivery monitoring.',
+    aiadmin: 'AI providers, usage, cost, and document-processing (OCR) settings.',
+    integadmin: 'Integration providers, availability and connection health.',
+    security: 'Sign-in threats, account lockouts and active sessions.',
+    roles: 'Administrative users and least-privilege role assignments.',
+    gdpr: 'GDPR data-export and deletion requests, consent records and retention.',
+    config: 'Feature flags, announcements and platform-wide settings.',
+    health: 'Live status of every platform component.',
+    audit: 'A complete, append-only log of platform activity.',
+  };
   const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
@@ -203,9 +235,10 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
       <div className="sb-foot"><div className="av">{me.fullName.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}</div><div><div className="nm">{me.fullName}</div><div className="rl">{isSuper ? 'Super Admin' : me.tenant?.name ?? 'Member'}</div></div></div>
     </aside>
     <main className="main">
-      <div className="top"><div><h2>{t0}</h2><div className="sub">{t1}</div></div>
+      <div className="top"><div className="top-in">
+        <div><div className="flex" style={{ gap: 8 }}><h2>{t0}</h2>{help[active] && <Help text={help[active]} />}</div><div className="sub">{t1}</div></div>
         <div className="sp">{isSuper && cfg.environment && <span className={`pill ${envPill(cfg.environment)}`} style={{ textTransform: 'capitalize' }}>{cfg.environment}</span>}<NotificationBell onOpenReminders={!isSuper ? () => setActive('reminders') : undefined} /><button className="btn sec sm" onClick={onSignOut}>Sign out</button></div>
-      </div>
+      </div></div>
       <div className="view" key={active}>
         {anns.map((a: any) => <div key={a.id} className="card" style={{ marginBottom: 16, border: 0, background: a.level === 'critical' ? 'var(--crit-bg)' : a.level === 'warning' ? 'var(--warn-bg)' : 'var(--brand-soft)' }}><div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><div><b>{a.title}</b>{a.body && <div style={{ fontSize: 13.5, marginTop: 3 }}>{a.body}</div>}</div><a onClick={() => setDismissed([...dismissed, a.id])} style={{ cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--soft)' }}>×</a></div></div>)}
         {views[active]}
@@ -289,7 +322,11 @@ function useData<T>(fn: () => Promise<T>, deps: any[] = []) {
   return { data, err, reload };
 }
 const Tile = ({ ic, bg, lab, val, note }: any) => <div className="tile"><div className="lab"><span className="ic" style={{ background: bg }}>{ic}</span>{lab}</div><div className="val">{val}</div>{note && <div className="note">{note}</div>}</div>;
-const Card = ({ title, right, children }: any) => <div className="card"><div className="card-h"><h3>{title}</h3>{right && <span className="r">{right}</span>}</div><div className="card-b">{children}</div></div>;
+// Interactive help "?" — reveals a short explanation on hover or keyboard focus.
+function Help({ text }: { text: string }) {
+  return <span className="help" tabIndex={0} role="img" aria-label={`Help: ${text}`}>?<span className="tip">{text}</span></span>;
+}
+const Card = ({ title, right, help, children }: any) => <div className="card"><div className="card-h"><h3>{title}</h3>{help && <Help text={help} />}{right && <span className="r">{right}</span>}</div><div className="card-b">{children}</div></div>;
 function remPill(r: any) { const d = r.dueDate ? Math.round((+new Date(r.dueDate) - Date.now()) / 86400000) : null; const cls = d == null ? 'p-neutral' : d < 0 ? 'p-crit' : d <= 7 ? 'p-crit' : d <= 30 ? 'p-warn' : 'p-good'; return <span className={`pill ${cls}`}>{d == null ? 'on file' : d < 0 ? `${-d}d overdue` : `in ${d}d`}</span>; }
 
 /* ---------------- tenant views ---------------- */
@@ -347,7 +384,7 @@ function Vault({ toast }: any) {
         <div className="flex"><button className="btn" onClick={confirm} disabled={!!busy}>{busy || 'Confirm & store'}</button><button className="btn sec" onClick={() => setDoc(null)}>Back</button></div>
       </>}
     </div></div>}
-    <Card title="Documents">
+    <Card title="Documents" help="Everything you've stored. Use the download (⬇) and delete (🗑) buttons on each row; a version badge appears on documents you've replaced.">
       {docs.map((d: any) => <div className="row" key={d.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{CATICON[d.typeKey ? cap(d.typeKey) : ''] ?? '📄'}</div><div className="m"><div className="t">{d.title}{d.version > 1 && <span className="pill p-info" style={{ marginLeft: 8 }}>v{d.version}</span>}</div><div className="s">{d.typeKey ?? 'unclassified'} · {d.status}</div></div><span className={`pill ${d.status === 'CONFIRMED' ? 'p-good' : 'p-warn'}`}>{d.status === 'CONFIRMED' ? 'Verified' : 'Pending'}</span><div className="flex" style={{ gap: 6, marginLeft: 10 }}><button className="btn sec" title="Download" onClick={() => download(d)}>⬇</button><button className="btn sec" title="Delete" onClick={() => remove(d)}>🗑</button></div></div>)}
       {!docs.length && <div className="empty">No documents yet — add your first one.</div>}
     </Card>
@@ -378,11 +415,11 @@ function Reminders({ onRead, toast }: any) {
   const overdue = rem?.overdue ?? []; const upcoming = rem?.upcoming ?? []; const completed = rem?.completed ?? [];
   const row = (r: any, isOverdue = false) => <div className="row" key={r.id}><div className="ic" style={{ background: isOverdue ? 'var(--warn-bg)' : 'var(--surface-2)' }}>{isOverdue ? '⚠️' : '🗓️'}</div><div className="m"><div className="t">{r.title}{r.recurrence && r.recurrence !== 'none' && <span className="pill p-info" style={{ marginLeft: 8 }}>{r.recurrence}</span>}</div><div className="s">{fmt(r.dueDate)}</div></div><div className="flex" style={{ gap: 6 }}><button className="btn sec" title="Mark done" onClick={() => complete(r.id)}>✓</button><button className="btn sec" title="Snooze 7 days" onClick={() => snooze(r.id)}>💤</button></div></div>;
   return <div className="grid2">
-    <Card title="Notifications" right={<a onClick={async () => { await api.readAll(); reload(); onRead(); }}>Mark all read</a>}>
+    <Card title="Notifications" help="Alerts about your documents, reminders and account. Click one to mark it read." right={<a onClick={async () => { await api.readAll(); reload(); onRead(); }}>Mark all read</a>}>
       {(notifs?.notifications ?? []).map((n: any) => <div className="row" key={n.id} onClick={() => !n.readAt && read(n.id)} style={{ cursor: n.readAt ? 'default' : 'pointer', opacity: n.readAt ? 0.6 : 1 }}><div className="ic" style={{ background: 'var(--warn-bg)' }}>{n.category === 'missing_document' ? '📄' : n.category === 'system' ? '⚙️' : '🔔'}</div><div className="m"><div className="t">{n.title}</div><div className="s">{n.body}</div></div>{!n.readAt && <span className="pill p-info">new</span>}</div>)}
       {!(notifs?.notifications ?? []).length && <div className="empty">No notifications.</div>}
     </Card>
-    <Card title="Reminders" right={<a onClick={() => setAdd((v) => !v)}>{add ? 'Close' : '+ Add reminder'}</a>}>
+    <Card title="Reminders" help="Add your own reminder with an optional repeat. Use ✓ to mark done or 💤 to snooze for a week." right={<a onClick={() => setAdd((v) => !v)}>{add ? 'Close' : '+ Add reminder'}</a>}>
       {add && <div className="card" style={{ marginBottom: 12 }}><div className="card-b">
         <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Renew car insurance" /></label>
         <div className="grid2"><label>Date<input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label><label>Repeat<select value={rec} onChange={(e) => setRec(e.target.value)}><option value="none">One-off</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></label></div>
@@ -490,7 +527,7 @@ function Settings({ me, toast }: any) {
   async function verify() { const r = await api.requestVerification(); if (r.devToken) { await api.verifyEmail(r.devToken); setVerifyMsg('Email verified ✓'); } else setVerifyMsg('Verification email sent — check your inbox.'); }
 
   return <>
-    <Card title="Two-factor authentication">
+    <Card title="Two-factor authentication" help="Adds a second step at sign-in using an authenticator app, so a password alone isn't enough to get in.">
       {mfaOn ? <div className="flex"><span className="pill p-good">Enabled</span><span className="muted">Your account is protected with an authenticator app.</span></div>
       : !enroll ? <><p className="muted" style={{ marginTop: 0 }}>Add a second layer of security with an authenticator app (Google Authenticator, 1Password, Authy).</p><button className="btn" onClick={startMfa}>Enable two-factor</button></>
       : <div className="flex" style={{ alignItems: 'flex-start' }}>
@@ -504,7 +541,7 @@ function Settings({ me, toast }: any) {
       {codes && <div className="ok" style={{ marginTop: 12 }}>Save these one-time recovery codes: <b>{codes.join('  ')}</b></div>}
     </Card>
 
-    <Card title="Notifications">
+    <Card title="Notifications" help="Choose how you're alerted (in-app, email, push) and set quiet hours to hold non-urgent alerts overnight.">
       {['inApp', 'email', 'push'].map((k) => <div className="row" key={k} style={{ borderBottom: '1px solid var(--surface-2)' }}>
         <div className="m"><div className="t">{k === 'inApp' ? 'In-app' : cap(k)}</div><div className="s">Reminders & alerts via {k === 'inApp' ? 'the app' : k}</div></div>
         <button className={`pill ${prefs?.[k] ? 'p-good' : 'p-neutral'}`} onClick={() => togglePref(k, !prefs?.[k])} style={{ cursor: 'pointer' }}>{prefs?.[k] ? 'On' : 'Off'}</button>
