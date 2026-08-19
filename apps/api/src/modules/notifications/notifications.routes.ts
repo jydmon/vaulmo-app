@@ -47,12 +47,18 @@ notificationsRouter.post('/read-all', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Channel preferences.
+// Channel preferences + quiet hours.
 notificationsRouter.get('/settings', async (req, res) => {
   const [s] = await db.select().from(notificationSettings).where(eq(notificationSettings.userId, req.auth!.sub)).limit(1);
-  res.json(s ?? { userId: req.auth!.sub, inApp: true, email: true, push: true });
+  res.json(s ?? { userId: req.auth!.sub, inApp: true, email: true, push: true, quietStart: null, quietEnd: null });
 });
-const prefSchema = z.object({ inApp: z.boolean().optional(), email: z.boolean().optional(), push: z.boolean().optional() });
+const prefSchema = z.object({
+  inApp: z.boolean().optional(),
+  email: z.boolean().optional(),
+  push: z.boolean().optional(),
+  quietStart: z.number().int().min(0).max(23).nullable().optional(),
+  quietEnd: z.number().int().min(0).max(23).nullable().optional(),
+});
 notificationsRouter.put('/settings', async (req, res) => {
   const body = prefSchema.parse(req.body);
   const [existing] = await db.select().from(notificationSettings).where(eq(notificationSettings.userId, req.auth!.sub)).limit(1);
@@ -86,6 +92,71 @@ notificationsRouter.post('/reminders/:id/snooze', requirePermission(PERMISSIONS.
   if (!r) throw new AppError(404, 'not_found', 'Reminder not found');
   await audit({ action: 'reminder.snoozed', actorId: req.auth!.sub, tenantId: req.auth!.tid, targetType: 'reminder', targetId: r.id, metadata: { until }, req });
   res.json({ id: r.id, snoozedUntil: until });
+});
+
+// ---- Reminders: create custom, list, complete (REM-03/04/06) ----
+const tid = (req: any): string => {
+  if (!req.auth?.tid) throw new AppError(400, 'no_tenant', 'Only tenant accounts have reminders');
+  return req.auth.tid;
+};
+const RECUR = ['none', 'monthly', 'quarterly', 'yearly'] as const;
+// Roll an ISO date forward by one recurrence interval.
+function nextDue(dateISO: string, recurrence: string): string {
+  const d = new Date(dateISO + 'T00:00:00Z');
+  if (recurrence === 'monthly') d.setUTCMonth(d.getUTCMonth() + 1);
+  else if (recurrence === 'quarterly') d.setUTCMonth(d.getUTCMonth() + 3);
+  else if (recurrence === 'yearly') d.setUTCFullYear(d.getUTCFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Create a user-defined reminder (custom dates/schedules + optional recurrence).
+const createReminderSchema = z.object({
+  title: z.string().min(1).max(160),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  kind: z.string().max(40).optional(),
+  recurrence: z.enum(RECUR).optional(),
+  leadDays: z.array(z.number().int().min(0).max(3650)).max(6).optional(),
+});
+notificationsRouter.post('/reminders', requirePermission(PERMISSIONS.FILE_WRITE), async (req, res) => {
+  const b = createReminderSchema.parse(req.body);
+  const [r] = await db.insert(reminders).values({
+    tenantId: tid(req), documentId: null, kind: b.kind ?? 'custom', title: b.title, dueDate: b.dueDate,
+    recurrence: b.recurrence ?? 'none', leadDays: b.leadDays, status: 'ACTIVE', source: 'user', activatedAt: new Date(),
+  }).returning();
+  await audit({ action: 'reminder.created', actorId: req.auth!.sub, tenantId: tid(req), targetType: 'reminder', targetId: r.id, req });
+  res.status(201).json({ reminder: r });
+});
+
+// Notification centre view: overdue / upcoming / completed / snoozed.
+notificationsRouter.get('/reminders', requirePermission(PERMISSIONS.FILE_READ), async (req, res) => {
+  const all = await db.select().from(reminders).where(eq(reminders.tenantId, tid(req)));
+  const today = new Date().toISOString().slice(0, 10);
+  const now = Date.now();
+  const isSnoozed = (r: any) => r.snoozedUntil && new Date(r.snoozedUntil).getTime() > now;
+  const activeUnsnoozed = all.filter((r) => r.status === 'ACTIVE' && !isSnoozed(r));
+  res.json({
+    overdue: activeUnsnoozed.filter((r) => r.dueDate && r.dueDate < today),
+    upcoming: activeUnsnoozed.filter((r) => !r.dueDate || r.dueDate >= today),
+    snoozed: all.filter((r) => r.status === 'ACTIVE' && isSnoozed(r)),
+    completed: all.filter((r) => r.status === 'COMPLETED'),
+  });
+});
+
+// Mark a reminder complete — stops alerts; a recurring reminder spawns its next occurrence.
+notificationsRouter.post('/reminders/:id/complete', requirePermission(PERMISSIONS.FILE_WRITE), async (req, res) => {
+  const tenantId = tid(req);
+  const [r] = await db.select().from(reminders).where(and(eq(reminders.id, req.params.id), eq(reminders.tenantId, tenantId))).limit(1);
+  if (!r) throw new AppError(404, 'not_found', 'Reminder not found');
+  await db.update(reminders).set({ status: 'COMPLETED', completedAt: new Date() }).where(eq(reminders.id, r.id));
+  let next: any = null;
+  if (r.recurrence && r.recurrence !== 'none' && r.dueDate) {
+    [next] = await db.insert(reminders).values({
+      tenantId, documentId: r.documentId, kind: r.kind, title: r.title, dueDate: nextDue(r.dueDate, r.recurrence),
+      recurrence: r.recurrence, leadDays: r.leadDays, status: 'ACTIVE', source: r.source, activatedAt: new Date(),
+    }).returning();
+  }
+  await audit({ action: 'reminder.completed', actorId: req.auth!.sub, tenantId, targetType: 'reminder', targetId: r.id, metadata: { recurrence: r.recurrence, nextId: next?.id ?? null }, req });
+  res.json({ id: r.id, status: 'COMPLETED', nextOccurrence: next ? { id: next.id, dueDate: next.dueDate } : null });
 });
 
 // Mark one as read — kept last so it doesn't shadow the specific routes above.

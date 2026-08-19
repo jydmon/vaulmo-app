@@ -2,18 +2,20 @@
   "expo": {
     "name": "Vaulmo",
     "slug": "vaulmo",
+    "owner": "jydmon",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "vaulmo",
     "icon": "./assets/icon.png",
-    "runtimeVersion": { "policy": "appVersion" },
-    "updates": { "url": "https://u.expo.dev/PROJECT_ID" },
     "ios": { "supportsTablet": true, "bundleIdentifier": "com.vaulmo.app", "buildNumber": "1" },
     "android": { "package": "com.vaulmo.app", "versionCode": 1 },
     "extra": {
-      "apiUrl": "http://localhost:4000",
-      "eas": { "projectId": "PROJECT_ID" }
-    }
+      "apiUrl": "https://app.vaulmo.com",
+      "eas": { "projectId": "b2696b2b-637a-4171-a101-e2100c22cd72" }
+    },
+    "plugins": [
+      ["expo-build-properties", { "android": { "kotlinVersion": "1.9.25" } }]
+    ]
   }
 }

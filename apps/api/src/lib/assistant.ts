@@ -1,6 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull, ilike, or, desc } from 'drizzle-orm';
 import { db } from '../db/client';
-import { reminders, documents, tenants } from '../db/schema';
+import { reminders, documents, tenants, trips, purchases, trackedSubscriptions } from '../db/schema';
 import { searchDocuments, type SearchHit } from './search';
 import { recommendedForCountry } from './catalogue';
 import { byKey } from './catalogue';
@@ -33,14 +33,94 @@ function dateFieldFrom(hit: SearchHit): { label: string; value: string } | null 
   return null;
 }
 
+// ---- Cross-entity answers (AIX-14/15/16): trips, purchases, warranties ----
+// The assistant routes travel/purchase/warranty questions to the relevant life
+// records, so "what trips next month?", "find the receipt for my TV" and "is my
+// washing machine under warranty?" are answerable — not just document questions.
+// Salient content words from a question, minus common stop/intent words, so we match
+// on nouns ("washing machine") rather than the whole sentence.
+const STOP = new Set(['the', 'and', 'for', 'you', 'your', 'are', 'have', 'has', 'was', 'were', 'still', 'under', 'about', 'what', 'when', 'where', 'which', 'does', 'did', 'can', 'could', 'would', 'find', 'show', 'tell', 'get', 'got', 'any', 'all', 'this', 'that', 'these', 'those', 'with', 'from', 'into', 'out', 'off', 'now', 'next', 'coming', 'upcoming', 'trip', 'trips', 'travel', 'receipt', 'receipts', 'purchase', 'purchases', 'bought', 'buy', 'warranty', 'warranties', 'subscription', 'subscriptions', 'renew', 'renews', 'renewal', 'membership', 'expire', 'expires', 'expiry']);
+function terms(q: string): string[] {
+  return (q.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length >= 3 && !STOP.has(w));
+}
+// Build an OR of ILIKE `%token%` across the given columns for each salient term.
+function anyTermMatches(cols: any[], q: string) {
+  const t = terms(q);
+  const likes = t.flatMap((w) => cols.map((c) => ilike(c, `%${w}%`)));
+  return likes.length ? or(...likes) : undefined;
+}
+
+async function answerFromLifeRecords(tenantId: string, ql: string, raw: string): Promise<Answer | null> {
+  // Travel / trips
+  if (/(trip|travel|flight|holiday|vacation|hotel)/.test(ql)) {
+    const match = anyTermMatches([trips.title, trips.destination], raw);
+    const rows = await db.select().from(trips)
+      .where(match ? and(eq(trips.tenantId, tenantId), or(match, ilike(trips.status, '%upcoming%'))) : eq(trips.tenantId, tenantId))
+      .orderBy(desc(trips.startDate)).limit(5);
+    if (rows.length) {
+      const sources: Source[] = rows.map((t) => ({ title: t.title, ref: `Trip: ${t.title}` }));
+      const list = rows.map((t) => `${t.title}${t.destination ? ` to ${t.destination}` : ''}${t.startDate ? ` (${t.startDate})` : ''}`).join('; ');
+      return { answer: `Trips in your account: ${list}.`, sources, retrieved: rows.length };
+    }
+    return { answer: "I couldn't find any trips in your account.", sources: [], retrieved: 0 };
+  }
+
+  // Warranty
+  if (/warrant/.test(ql)) {
+    const match = anyTermMatches([purchases.item, purchases.merchant], raw);
+    const rows = await db.select().from(purchases)
+      .where(match ? and(eq(purchases.tenantId, tenantId), match) : eq(purchases.tenantId, tenantId)).limit(5);
+    const withW = rows.filter((p) => p.warrantyExpiry);
+    if (withW.length) {
+      const p = withW[0];
+      const active = p.warrantyExpiry! >= new Date().toISOString().slice(0, 10);
+      const sources: Source[] = withW.map((r) => ({ title: r.item, ref: `Purchase: ${r.item}` }));
+      return { answer: `Your ${p.item} warranty ${active ? 'is still active' : 'has expired'} — warranty expiry ${p.warrantyExpiry}. (Source: ${p.item}.)`, sources, retrieved: withW.length };
+    }
+    if (rows.length) return { answer: `I found "${rows[0].item}" but no warranty date is recorded for it.`, sources: [{ title: rows[0].item, ref: `Purchase: ${rows[0].item}` }], retrieved: rows.length };
+    return { answer: "I couldn't find a matching purchase to check its warranty.", sources: [], retrieved: 0 };
+  }
+
+  // Purchase / receipt
+  if (/(receipt|purchase|bought|buy|paid for)/.test(ql)) {
+    const match = anyTermMatches([purchases.item, purchases.merchant], raw);
+    const rows = await db.select().from(purchases)
+      .where(match ? and(eq(purchases.tenantId, tenantId), match) : eq(purchases.tenantId, tenantId)).limit(5);
+    if (rows.length) {
+      const p = rows[0];
+      const sources: Source[] = rows.map((r) => ({ title: r.item, ref: `Purchase: ${r.item}` }));
+      return { answer: `Found your ${p.item}${p.merchant ? ` from ${p.merchant}` : ''}${p.purchaseDate ? ` (${p.purchaseDate})` : ''}${p.amount ? `, ${p.amount}` : ''}. (Source: ${p.item}.)`, sources, retrieved: rows.length };
+    }
+    return { answer: "I couldn't find a matching purchase or receipt.", sources: [], retrieved: 0 };
+  }
+
+  // Subscriptions
+  if (/(subscription|renew|broadband|streaming|gym|membership)/.test(ql)) {
+    const match = anyTermMatches([trackedSubscriptions.name, trackedSubscriptions.category], raw);
+    const rows = await db.select().from(trackedSubscriptions)
+      .where(match ? and(eq(trackedSubscriptions.tenantId, tenantId), match) : eq(trackedSubscriptions.tenantId, tenantId)).limit(5);
+    if (rows.length) {
+      const s = rows[0];
+      const sources: Source[] = rows.map((r) => ({ title: r.name, ref: `Subscription: ${r.name}` }));
+      return { answer: `${s.name}${s.amount ? ` — ${s.amount}` : ''}${s.renewalDate ? `, renews ${s.renewalDate}` : ''}. (Source: ${s.name}.)`, sources, retrieved: rows.length };
+    }
+    // fall through to documents if no subscription matched
+  }
+  return null;
+}
+
 export async function ask(tenantId: string, question: string): Promise<Answer> {
+  const ql = question.toLowerCase();
+  // Route life-record questions (trips, purchases, warranties, subscriptions) first.
+  const life = await answerFromLifeRecords(tenantId, ql, question);
+  if (life) return life;
+
   const hits = await searchDocuments(tenantId, question, 5);
   if (!hits.length) {
     return { answer: "I couldn't find anything about that in your vault.", sources: [], retrieved: 0 };
   }
   const top = hits[0];
   const sources: Source[] = hits.map((h) => ({ documentId: h.documentId, title: h.title, typeKey: h.typeKey, ref: h.title }));
-  const ql = question.toLowerCase();
 
   // Date-style questions → answer from the top document's confirmed date field.
   if (/(expire|expiry|renew|renewal|due|when|valid)/.test(ql)) {
@@ -77,7 +157,7 @@ export async function whatDoINeedToKnow(tenantId: string, now = new Date()): Pro
   const overdue = withDays.filter((r) => r.days < 0);
   const upcoming = withDays.filter((r) => r.days >= 0);
 
-  const docs = await db.select().from(documents).where(eq(documents.tenantId, tenantId));
+  const docs = await db.select().from(documents).where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)));
   const present = new Set(docs.map((d) => d.typeKey ?? d.classifiedTypeKey).filter(Boolean) as string[]);
   const outstanding = recommendedForCountry(tenant?.country ?? 'GB')
     .filter((rt) => !present.has(rt.key))

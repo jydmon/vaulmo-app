@@ -8,8 +8,10 @@
  * → refresh rotation → brute-force lockout signal.
  */
 import { authenticator } from 'otplib';
+import { eq } from 'drizzle-orm';
 import { createApp } from '../src/app';
-import { pool } from '../src/db/client';
+import { pool, db } from '../src/db/client';
+import { users } from '../src/db/schema';
 
 const PORT = 4010;
 const base = `http://127.0.0.1:${PORT}`;
@@ -113,9 +115,17 @@ async function main() {
   check('file appears in the tenant vault', Array.isArray(list.json?.files) && list.json.files.length === 1);
 
   console.log('\nSUPER ADMIN (platform role)');
+  // Super admins must satisfy MFA before reaching admin APIs. The seeded admin has no
+  // MFA yet, so its first login is a restricted session that can only enrol MFA; we
+  // enrol + confirm to obtain a full, MFA-satisfied admin session.
+  // Reset any prior MFA enrolment so the setup→enrol→confirm flow is deterministic across runs.
+  await db.update(users).set({ mfaEnabled: false, mfaSecret: null }).where(eq(users.email, 'admin@lifehub.local'));
   const sa1 = await api('POST', '/api/v1/auth/login', { email: 'admin@lifehub.local', password: 'ChangeMe123!' });
   check('super admin can log in', !!sa1.json?.accessToken, `status ${sa1.status}`);
-  const saToken: string = sa1.json?.accessToken;
+  let saToken: string = sa1.json?.accessToken;
+  const saEnroll = await api('POST', '/api/v1/mfa/enroll', {}, saToken);
+  const saConfirm = await api('POST', '/api/v1/mfa/confirm', { code: authenticator.generate(saEnroll.json.secret) }, saToken);
+  saToken = saConfirm.json?.accessToken ?? saToken;
   const tenants = await api('GET', '/api/v1/admin/tenants', undefined, saToken);
   check('super admin CAN read all tenants (200)', tenants.status === 200 && Array.isArray(tenants.json?.tenants));
   check('platform sees the newly registered tenant', tenants.json?.tenants?.some((t: any) => t.name === 'The Reid Household'));

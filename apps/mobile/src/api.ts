@@ -10,14 +10,21 @@ const BASE: string =
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 
+// SecureStore is native-only (iOS/Android). Guard every call so a web/preview
+// build (where SecureStore is unavailable) falls back to in-memory tokens instead
+// of throwing — device builds are unaffected and still use the secure keychain.
 export async function loadTokens() {
-  accessToken = await SecureStore.getItemAsync('access');
-  refreshToken = await SecureStore.getItemAsync('refresh');
+  try {
+    accessToken = await SecureStore.getItemAsync('access');
+    refreshToken = await SecureStore.getItemAsync('refresh');
+  } catch { /* no secure store (e.g. web) — tokens stay in memory */ }
 }
 export async function setTokens(a: string | null, r: string | null) {
   accessToken = a; refreshToken = r;
-  if (a) await SecureStore.setItemAsync('access', a); else await SecureStore.deleteItemAsync('access');
-  if (r) await SecureStore.setItemAsync('refresh', r); else await SecureStore.deleteItemAsync('refresh');
+  try {
+    if (a) await SecureStore.setItemAsync('access', a); else await SecureStore.deleteItemAsync('access');
+    if (r) await SecureStore.setItemAsync('refresh', r); else await SecureStore.deleteItemAsync('refresh');
+  } catch { /* no secure store (e.g. web) — tokens stay in memory */ }
 }
 export function hasToken() { return !!accessToken; }
 

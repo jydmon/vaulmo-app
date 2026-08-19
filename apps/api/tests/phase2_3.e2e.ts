@@ -11,7 +11,7 @@ import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { createApp } from '../src/app';
 import { pool, db } from '../src/db/client';
-import { users } from '../src/db/schema';
+import { users, auditLogs } from '../src/db/schema';
 
 const PORT = 4011;
 const base = `http://127.0.0.1:${PORT}`;
@@ -131,17 +131,17 @@ async function main() {
     `${scoreBefore} → ${after.json?.completionScore}`);
   check('outstanding shrank', (after.json?.outstanding?.length ?? 99) < (before.json?.outstanding?.length ?? 0));
 
-  console.log('\nINTERNAL-TESTER GATE (alpha restriction)');
-  const email = `outsider+${Date.now()}@example.com`;
-  await api('POST', '/api/v1/auth/register', { body: { email, password: 'Outsider123!', fullName: 'Not A Tester' } });
-  const outsider = await login(email, 'Outsider123!');
-  const denied = await api('GET', '/api/v1/vault/catalogue', { token: outsider });
-  check('non-tester is blocked from the vault (403)', denied.status === 403 && denied.json?.error === 'not_internal_tester');
+  console.log('\nVAULT OPEN TO ALL USERS (user phase — internal-tester gate removed)');
+  const email = `regular+${Date.now()}@example.com`;
+  await api('POST', '/api/v1/auth/register', { body: { email, password: 'Regular123!', fullName: 'Regular User' } });
+  const regular = await login(email, 'Regular123!');
+  const reach = await api('GET', '/api/v1/vault/catalogue', { token: regular });
+  check('a regular (non-tester) user can now reach the vault', reach.status === 200 && Array.isArray(reach.json?.types));
 
   console.log('\nAUDIT TRAIL');
-  const sa = await login('admin@lifehub.local', 'ChangeMe123!');
-  const auditLog = await api('GET', '/api/v1/admin/audit?limit=200', { token: sa });
-  const actions = (auditLog.json?.logs ?? []).map((l: any) => l.action);
+  // Read the audit log directly (the admin API is now MFA-gated for super-admins).
+  const auditRows = await db.select().from(auditLogs);
+  const actions = auditRows.map((l) => l.action);
   check('extraction event audited', actions.includes('document.extracted'));
   check('confirmation event audited', actions.includes('document.confirmed'));
 

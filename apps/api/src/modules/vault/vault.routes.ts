@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { documents, reminders, fileObjects, tenants } from '../../db/schema';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
-import { requireInternalTester } from '../../middleware/internalTester';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
@@ -16,9 +15,11 @@ import { classify } from '../../lib/classify';
 import { extract, requiredFieldsPresent } from '../../lib/extract';
 import { reindexDocument } from '../../lib/search';
 
-// Everything in the vault requires auth + MFA-satisfied + internal-tester (alpha gate).
+// The vault is available to every authenticated, MFA-satisfied tenant user.
+// (Subscription entitlement is the access control; the alpha internal-tester gate
+// has been removed for the live user phase.)
 export const vaultRouter = Router();
-vaultRouter.use(requireAuth, requireMfaSatisfied, requireInternalTester);
+vaultRouter.use(requireAuth, requireMfaSatisfied);
 
 async function tenantCountry(tenantId: string): Promise<string> {
   const [t] = await db.select({ country: tenants.country }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
@@ -46,7 +47,7 @@ vaultRouter.get('/checklist', async (req, res) => {
   const tenantId = tid(req);
   const country = await tenantCountry(tenantId);
   const recommended = recommendedForCountry(country);
-  const docs = await db.select().from(documents).where(eq(documents.tenantId, tenantId));
+  const docs = await db.select().from(documents).where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)));
 
   const items = recommended.map((rt) => {
     const match = docs.find((d) => (d.typeKey ?? d.classifiedTypeKey) === rt.key);
@@ -110,6 +111,11 @@ vaultRouter.post('/documents/:id/process', requirePermission(PERMISSIONS.FILE_WR
   const cls = classify(ocr.text, country);
   const ext = cls.typeKey ? extract(ocr.text, cls.typeKey) : { fields: [], metadata: {}, reminderCandidates: [] };
 
+  // Every field the AI extracted is tagged with provenance 'ai' (AIX-07). The user's
+  // edits later overwrite individual entries with 'manual'.
+  const aiSources: Record<string, string> = {};
+  for (const k of Object.keys(ext.metadata ?? {})) aiSources[k] = 'ai';
+
   await db
     .update(documents)
     .set({
@@ -118,6 +124,7 @@ vaultRouter.post('/documents/:id/process', requirePermission(PERMISSIONS.FILE_WR
       classificationConfidence: cls.confidence,
       typeKey: cls.typeKey,
       extractedMetadata: { fields: ext.fields, metadata: ext.metadata } as any,
+      metadataSources: aiSources as any,
       status: 'AWAITING_CONFIRM',
       updatedAt: new Date(),
     })
@@ -166,17 +173,21 @@ vaultRouter.patch('/documents/:id', requirePermission(PERMISSIONS.FILE_WRITE), a
 
   const current = (doc.extractedMetadata as any) ?? { fields: [], metadata: {} };
   const mergedMeta = { ...(current.metadata ?? {}), ...(body.metadata ?? {}) };
+  // Any field the user typed here is provenance 'manual' (corrected or added) (AIX-07).
+  const sources: Record<string, string> = { ...((doc.metadataSources as any) ?? {}) };
+  for (const k of Object.keys(body.metadata ?? {})) sources[k] = 'manual';
   await db
     .update(documents)
     .set({
       typeKey: body.typeKey ?? doc.typeKey,
       title: body.title ?? doc.title,
       extractedMetadata: { ...current, metadata: mergedMeta } as any,
+      metadataSources: sources as any,
       updatedAt: new Date(),
     })
     .where(eq(documents.id, doc.id));
   await audit({ action: 'document.metadata.edited', actorId: req.auth!.sub, tenantId, targetType: 'document', targetId: doc.id, req });
-  res.json({ documentId: doc.id, metadata: mergedMeta, typeKey: body.typeKey ?? doc.typeKey });
+  res.json({ documentId: doc.id, metadata: mergedMeta, metadataSources: sources, typeKey: body.typeKey ?? doc.typeKey });
 });
 
 // ---- Confirm → Store (activates reminders) ----
@@ -197,9 +208,11 @@ vaultRouter.post('/documents/:id/confirm', requirePermission(PERMISSIONS.FILE_WR
     throw new AppError(422, 'missing_required', `Required fields still missing: ${missing.join(', ')}`);
   }
 
+  const confirmSources: Record<string, string> = { ...((doc.metadataSources as any) ?? {}) };
+  for (const k of Object.keys(body.metadata ?? {})) confirmSources[k] = 'manual';
   await db
     .update(documents)
-    .set({ status: 'CONFIRMED', typeKey, confirmedMetadata: finalMeta as any, updatedAt: new Date() })
+    .set({ status: 'CONFIRMED', typeKey, confirmedMetadata: finalMeta as any, metadataSources: confirmSources as any, updatedAt: new Date() })
     .where(eq(documents.id, doc.id));
   await reindexDocument(doc.id); // re-index with confirmed metadata (Phase 5)
 
@@ -220,20 +233,29 @@ vaultRouter.post('/documents/:id/confirm', requirePermission(PERMISSIONS.FILE_WR
 });
 
 // ---- List / detail / preview ----
+// By default only current, non-deleted documents are returned. Pass ?includeHistory=1
+// to also see superseded prior versions (VLT-08) — deleted documents stay hidden.
 vaultRouter.get('/documents', requirePermission(PERMISSIONS.FILE_READ), async (req, res) => {
-  const list = await db.select().from(documents).where(eq(documents.tenantId, tid(req))).orderBy(desc(documents.createdAt));
+  const includeHistory = req.query.includeHistory === '1' || req.query.includeHistory === 'true';
+  const conditions = [eq(documents.tenantId, tid(req)), isNull(documents.deletedAt)];
+  if (!includeHistory) conditions.push(isNull(documents.replacedByDocumentId));
+  const list = await db.select().from(documents).where(and(...conditions)).orderBy(desc(documents.createdAt));
   res.json({ documents: list });
 });
 
 vaultRouter.get('/documents/:id', requirePermission(PERMISSIONS.FILE_READ), async (req, res) => {
-  const [doc] = await db.select().from(documents).where(and(eq(documents.id, req.params.id), eq(documents.tenantId, tid(req)))).limit(1);
+  const [doc] = await db.select().from(documents).where(and(eq(documents.id, req.params.id), eq(documents.tenantId, tid(req)), isNull(documents.deletedAt))).limit(1);
   if (!doc) throw new AppError(404, 'not_found', 'Document not found');
   let previewUrl: string | null = null;
+  let downloadUrl: string | null = null;
   if (doc.fileId) {
     const [file] = await db.select().from(fileObjects).where(eq(fileObjects.id, doc.fileId)).limit(1);
-    if (file) previewUrl = `/api/v1/vault/documents/${doc.id}/preview`;
+    if (file) {
+      previewUrl = `/api/v1/vault/documents/${doc.id}/preview`;
+      downloadUrl = `/api/v1/vault/documents/${doc.id}/download`;
+    }
   }
-  res.json({ document: doc, previewUrl });
+  res.json({ document: doc, metadataSources: doc.metadataSources ?? {}, previewUrl, downloadUrl });
 });
 
 // Document preview — streams the bytes, tenant-scoped.
@@ -246,6 +268,64 @@ vaultRouter.get('/documents/:id/preview', requirePermission(PERMISSIONS.FILE_REA
   res.setHeader('content-type', file.contentType);
   res.setHeader('content-disposition', `inline; filename="${file.filename}"`);
   res.send(bytes);
+});
+
+// ---- Document download (VLT-07) — same bytes as preview but as an attachment ----
+vaultRouter.get('/documents/:id/download', requirePermission(PERMISSIONS.FILE_READ), async (req, res) => {
+  const [doc] = await db.select().from(documents).where(and(eq(documents.id, req.params.id), eq(documents.tenantId, tid(req)), isNull(documents.deletedAt))).limit(1);
+  if (!doc || !doc.fileId) throw new AppError(404, 'not_found', 'No file to download');
+  const [file] = await db.select().from(fileObjects).where(eq(fileObjects.id, doc.fileId)).limit(1);
+  if (!file) throw new AppError(404, 'not_found', 'File missing');
+  const bytes = await storage.getObject(file.storageKey);
+  await audit({ action: 'document.downloaded', actorId: req.auth!.sub, tenantId: tid(req), targetType: 'document', targetId: doc.id, req });
+  res.setHeader('content-type', file.contentType || 'application/octet-stream');
+  res.setHeader('content-disposition', `attachment; filename="${file.filename}"`);
+  res.send(bytes);
+});
+
+// ---- Document deletion (VLT-09) — soft-delete, retains the row for audit/retention ----
+vaultRouter.delete('/documents/:id', requirePermission(PERMISSIONS.FILE_WRITE), async (req, res) => {
+  const tenantId = tid(req);
+  const [doc] = await db.select().from(documents).where(and(eq(documents.id, req.params.id), eq(documents.tenantId, tenantId), isNull(documents.deletedAt))).limit(1);
+  if (!doc) throw new AppError(404, 'not_found', 'Document not found');
+  await db.update(documents).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(documents.id, doc.id));
+  // Its reminders are no longer relevant.
+  await db.delete(reminders).where(and(eq(reminders.documentId, doc.id), eq(reminders.status, 'DRAFT')));
+  await db.update(reminders).set({ status: 'DISMISSED' }).where(and(eq(reminders.documentId, doc.id), eq(reminders.status, 'ACTIVE')));
+  await audit({ action: 'document.deleted', actorId: req.auth!.sub, tenantId, targetType: 'document', targetId: doc.id, req });
+  res.json({ documentId: doc.id, deleted: true });
+});
+
+// ---- Document replacement / versioning (VLT-08) ----
+// Creates a NEW document version linked to the old one; the old version is kept as
+// history (marked replaced) rather than destroyed. Returns an upload URL for the new file.
+vaultRouter.post('/documents/:id/replace', requirePermission(PERMISSIONS.FILE_WRITE), async (req, res) => {
+  const tenantId = tid(req);
+  const body = initSchema.parse(req.body);
+  const [old] = await db.select().from(documents).where(and(eq(documents.id, req.params.id), eq(documents.tenantId, tenantId), isNull(documents.deletedAt))).limit(1);
+  if (!old) throw new AppError(404, 'not_found', 'Document not found');
+  if (old.replacedByDocumentId) throw new AppError(409, 'already_replaced', 'This version has already been replaced');
+
+  const key = storage.key(tenantId, body.filename);
+  const [file] = await db
+    .insert(fileObjects)
+    .values({ tenantId, ownerId: req.auth!.sub, storageKey: key, filename: body.filename, contentType: body.contentType, sizeBytes: body.sizeBytes, status: 'PENDING' })
+    .returning();
+  const [next] = await db
+    .insert(documents)
+    .values({
+      tenantId, ownerId: req.auth!.sub, fileId: file.id,
+      title: body.title ?? old.title,
+      typeKey: old.typeKey,
+      status: 'DRAFT',
+      version: (old.version ?? 1) + 1,
+      previousVersionId: old.id,
+    })
+    .returning();
+  await db.update(documents).set({ replacedByDocumentId: next.id, updatedAt: new Date() }).where(eq(documents.id, old.id));
+  const presigned = await storage.presignUpload(key, body.contentType);
+  await audit({ action: 'document.replaced', actorId: req.auth!.sub, tenantId, targetType: 'document', targetId: next.id, metadata: { previousVersionId: old.id, version: next.version }, req });
+  res.status(201).json({ documentId: next.id, previousVersionId: old.id, version: next.version, fileId: file.id, uploadUrl: presigned.url, method: presigned.method, storageKey: key });
 });
 
 // ---- Reminders (live vs draft) ----

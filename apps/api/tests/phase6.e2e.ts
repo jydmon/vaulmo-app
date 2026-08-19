@@ -5,9 +5,10 @@
  * signature verification. Flipping to real Stripe is env + keys only.
  */
 import { eq } from 'drizzle-orm';
+import { authenticator } from 'otplib';
 import { createApp } from '../src/app';
 import { pool, db } from '../src/db/client';
-import { subscriptions } from '../src/db/schema';
+import { subscriptions, users } from '../src/db/schema';
 import { signWebhookPayload } from '../src/lib/billing/gateway';
 
 const PORT = 4014;
@@ -24,6 +25,14 @@ async function api(method: string, url: string, o: { body?: unknown; token?: str
   return { status: res.status, json: j };
 }
 const login = async (e: string, p: string) => (await api('POST', '/api/v1/auth/login', { body: { email: e, password: p } })).json?.accessToken;
+async function adminLogin(e: string, p: string): Promise<string> {
+  await db.update(users).set({ mfaEnabled: false, mfaSecret: null }).where(eq(users.email, e.toLowerCase()));
+  const r = await api('POST', '/api/v1/auth/login', { body: { email: e, password: p } });
+  const token = r.json?.accessToken;
+  const en = await api('POST', '/api/v1/mfa/enroll', { token });
+  const cf = await api('POST', '/api/v1/mfa/confirm', { token, body: { code: authenticator.generate(en.json.secret) } });
+  return cf.json?.accessToken ?? token;
+}
 
 // Post a signed Stripe webhook (raw body must match the signed string exactly).
 async function webhook(id: string, type: string, object: Record<string, unknown>, badSig = false) {
@@ -38,7 +47,7 @@ async function main() {
   const app = createApp();
   const server = app.listen(PORT);
   await new Promise((r) => setTimeout(r, 300));
-  const sa = await login('admin@lifehub.local', 'ChangeMe123!');
+  const sa = await adminLogin('admin@lifehub.local', 'ChangeMe123!');
   const R = Date.now().toString(36) + Math.floor(Math.random()*1e6).toString(36);
 
   const email = `cust+${Date.now()}@lifehub.local`;

@@ -9,7 +9,7 @@
 import { eq } from 'drizzle-orm';
 import { createApp } from '../src/app';
 import { pool, db } from '../src/db/client';
-import { users, connections } from '../src/db/schema';
+import { users, connections, auditLogs } from '../src/db/schema';
 import { decrypt } from '../src/lib/crypto';
 
 const PORT = 4016;
@@ -107,8 +107,8 @@ async function main() {
   const denied = await api('GET', '/api/v1/integrations/connections', { token: outsider });
   check('non-pilot user cannot access integrations (403)', denied.status === 403);
 
-  const auditLog = await api('GET', '/api/v1/admin/audit?limit=300', { token: sa });
-  const actions = (auditLog.json.logs ?? []).map((l: any) => l.action);
+  const auditRows = await db.select().from(auditLogs);
+  const actions = auditRows.map((l) => l.action);
   check('connect, sync and confirm are audited (provenance)', ['integration.connected', 'integration.synced', 'inbox.confirmed'].every((a) => actions.includes(a)));
 
   server.close();

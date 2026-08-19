@@ -7,7 +7,7 @@
 import { eq } from 'drizzle-orm';
 import { createApp } from '../src/app';
 import { pool, db } from '../src/db/client';
-import { users } from '../src/db/schema';
+import { users, auditLogs } from '../src/db/schema';
 
 const PORT = 4013;
 const base = `http://127.0.0.1:${PORT}`;
@@ -79,14 +79,15 @@ async function main() {
   check('B\'s assistant returns nothing (no access to A\'s data)', bAsk.json.retrieved === 0 && /couldn't find/i.test(bAsk.json.answer), bAsk.json.answer);
   check('A can still retrieve their own passport (control)', (await api('POST', '/api/v1/assistant/search', { token: A, body: { query: '546872331' } })).json.results.length >= 1);
 
-  console.log('\nGATE + AUDIT');
+  console.log('\nOPEN ACCESS + AUDIT');
   const outEmail = `out+${Date.now()}@x.com`;
   await api('POST', '/api/v1/auth/register', { body: { email: outEmail, password: 'Outsider12345!', fullName: 'Out' } });
   const outsider = await login(outEmail, 'Outsider12345!');
-  const denied = await api('POST', '/api/v1/assistant/ask', { token: outsider, body: { question: 'hi' } });
-  check('non-pilot user blocked from the assistant (403)', denied.status === 403);
-  const auditLog = await api('GET', '/api/v1/admin/audit?limit=200', { token: sa });
-  check('assistant queries are audited', (auditLog.json.logs ?? []).some((l: any) => l.action === 'assistant.ask'));
+  const reach = await api('POST', '/api/v1/assistant/ask', { token: outsider, body: { question: 'hi' } });
+  check('any subscribed user can now reach the assistant (gate removed)', reach.status === 200);
+  // Read audit directly (admin API is MFA-gated for super-admins now).
+  const auditRows = await db.select().from(auditLogs);
+  check('assistant queries are audited', auditRows.some((l) => l.action === 'assistant.ask'));
 
   server.close();
   await pool.end();

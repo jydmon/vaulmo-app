@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
-import { requireInternalTester } from '../../middleware/internalTester';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
@@ -11,7 +10,7 @@ import { ask, whatDoINeedToKnow } from '../../lib/assistant';
 import { logAiUsage } from '../../lib/aiUsage';
 
 export const assistantRouter = Router();
-assistantRouter.use(requireAuth, requireMfaSatisfied, requireInternalTester, requirePermission(PERMISSIONS.FILE_READ));
+assistantRouter.use(requireAuth, requireMfaSatisfied, requirePermission(PERMISSIONS.FILE_READ));
 
 function tid(req: any): string {
   if (!req.auth?.tid) throw new AppError(400, 'no_tenant', 'Only tenant users have an assistant');

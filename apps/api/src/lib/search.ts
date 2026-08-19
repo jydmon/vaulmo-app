@@ -42,6 +42,7 @@ export async function searchDocuments(tenantId: string, query: string, limit = 5
       ts_rank(to_tsvector('english', coalesce(search_text,'')), to_tsquery('english', ${orQuery})) AS rank
     FROM documents
     WHERE tenant_id = ${tenantId}
+      AND deleted_at IS NULL
       AND (
         to_tsvector('english', coalesce(search_text,'')) @@ to_tsquery('english', ${orQuery})
         OR search_text ILIKE ${'%' + q + '%'}

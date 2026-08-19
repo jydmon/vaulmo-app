@@ -6,6 +6,7 @@
  * due diligence → restricted temporary access → revocation → audit.
  */
 import { eq } from 'drizzle-orm';
+import { authenticator } from 'otplib';
 import { createApp } from '../src/app';
 import { pool, db } from '../src/db/client';
 import { users, nextOfKin, emergencyRequests } from '../src/db/schema';
@@ -25,12 +26,20 @@ async function api(method: string, url: string, o: { body?: unknown; token?: str
   return { status: res.status, json: j };
 }
 const login = async (e: string, p: string) => (await api('POST', '/api/v1/auth/login', { body: { email: e, password: p } })).json?.accessToken;
+async function adminLogin(e: string, p: string): Promise<string> {
+  await db.update(users).set({ mfaEnabled: false, mfaSecret: null }).where(eq(users.email, e.toLowerCase()));
+  const r = await api('POST', '/api/v1/auth/login', { body: { email: e, password: p } });
+  const token = r.json?.accessToken;
+  const en = await api('POST', '/api/v1/mfa/enroll', { token });
+  const cf = await api('POST', '/api/v1/mfa/confirm', { token, body: { code: authenticator.generate(en.json.secret) } });
+  return cf.json?.accessToken ?? token;
+}
 
 async function main() {
   const app = createApp();
   const server = app.listen(PORT);
   await new Promise((r) => setTimeout(r, 300));
-  const sa = await login('admin@lifehub.local', 'ChangeMe123!');
+  const sa = await adminLogin('admin@lifehub.local', 'ChangeMe123!');
 
   const ownerEmail = `owner+${Date.now()}@lifehub.local`;
   const reg = await api('POST', '/api/v1/auth/register', { body: { email: ownerEmail, password: 'Owner123456!', fullName: 'Account Owner' } });

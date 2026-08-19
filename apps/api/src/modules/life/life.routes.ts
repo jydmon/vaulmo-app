@@ -4,14 +4,13 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { trips, tripItems, purchases, trackedSubscriptions, detectedItems, reminders } from '../../db/schema';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
-import { requireInternalTester } from '../../middleware/internalTester';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
 
 export const lifeRouter = Router();
-lifeRouter.use(requireAuth, requireMfaSatisfied, requireInternalTester);
+lifeRouter.use(requireAuth, requireMfaSatisfied);
 const tid = (req: any): string => {
   if (!req.auth?.tid) throw new AppError(400, 'no_tenant', 'Only tenant accounts have this');
   return req.auth.tid;

@@ -20,7 +20,7 @@ export const tenantStatus = pgEnum('tenant_status', [
 export const userStatus = pgEnum('user_status', ['ACTIVE', 'INVITED', 'SUSPENDED', 'DISABLED']);
 export const fileStatus = pgEnum('file_status', ['PENDING', 'STORED', 'QUARANTINED', 'DELETED']);
 export const documentStatus = pgEnum('document_status', ['DRAFT', 'PROCESSING', 'AWAITING_CONFIRM', 'CONFIRMED']);
-export const reminderStatus = pgEnum('reminder_status', ['DRAFT', 'ACTIVE', 'DISMISSED']);
+export const reminderStatus = pgEnum('reminder_status', ['DRAFT', 'ACTIVE', 'DISMISSED', 'COMPLETED']);
 
 // ---- Tenants ----
 export const tenants = pgTable('tenants', {
@@ -178,7 +178,12 @@ export const documents = pgTable(
     classificationConfidence: real('classification_confidence'),
     extractedMetadata: jsonb('extracted_metadata'),
     confirmedMetadata: jsonb('confirmed_metadata'),
+    metadataSources: jsonb('metadata_sources').notNull().default({}),
     searchText: text('search_text'),
+    version: integer('version').notNull().default(1),
+    previousVersionId: uuid('previous_version_id'),
+    replacedByDocumentId: uuid('replaced_by_document_id'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -200,10 +205,12 @@ export const reminders = pgTable(
     dueDate: text('due_date'), // stored as ISO date (YYYY-MM-DD)
     status: reminderStatus('status').notNull().default('DRAFT'),
     source: text('source').notNull().default('extracted'),
+    recurrence: text('recurrence').notNull().default('none'), // none | monthly | quarterly | yearly
     leadDays: integer('lead_days').array().notNull().default([30, 7, 1, 0]),
     escalationLevel: integer('escalation_level').notNull().default(0),
     snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
     lastNotifiedAt: timestamp('last_notified_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     activatedAt: timestamp('activated_at', { withTimezone: true }),
   },
@@ -216,6 +223,8 @@ export const notificationSettings = pgTable('notification_settings', {
   inApp: boolean('in_app').notNull().default(true),
   email: boolean('email').notNull().default(true),
   push: boolean('push').notNull().default(true),
+  quietStart: integer('quiet_start'), // hour 0–23, inclusive; null = disabled
+  quietEnd: integer('quiet_end'),     // hour 0–23, exclusive
 });
 
 export const deviceTokens = pgTable('device_tokens', {

@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from 'react';
-import { api, setTokens, uploadText, ApiError, type AuthResult } from './api';
+import { api, setTokens, uploadText, downloadDocumentFile, ApiError, type AuthResult } from './api';
 
 /* ---------------- helpers ---------------- */
 function useToast() {
@@ -192,7 +192,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
-  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
     <aside className="sidebar">
@@ -329,6 +329,8 @@ function Vault({ toast }: any) {
   const [doc, setDoc] = useState<any>(null); const [meta, setMeta] = useState<any>({}); const [busy, setBusy] = useState('');
   async function runScan() { setBusy('Scanning…'); try { const bytes = new Blob([text]).size; const init = await api.createDocument({ filename: 'doc.txt', contentType: 'text/plain', sizeBytes: bytes, title: 'Document' }); await uploadText(init.uploadUrl, text); const r = await api.processDocument(init.documentId); setDoc({ id: init.documentId, ...r }); const m: any = {}; r.extracted.forEach((f: any) => f.value && (m[f.key] = f.value)); setMeta(m); } finally { setBusy(''); } }
   async function confirm() { setBusy('Storing…'); try { await api.confirmDocument(doc.id, meta); setScan(false); setDoc(null); toast('Stored and reminders set'); reload(); reloadCl(); } finally { setBusy(''); } }
+  async function download(d: any) { try { await downloadDocumentFile(d.id, (d.title || 'document') + '.pdf'); } catch { toast('Download failed'); } }
+  async function remove(d: any) { if (!window.confirm(`Delete "${d.title}"? It will be removed from your vault.`)) return; try { await api.deleteDocument(d.id); toast('Document deleted'); reload(); reloadCl(); } catch { toast('Delete failed'); } }
   const docs = data?.documents ?? [];
   return <>
     <div className="spread" style={{ marginBottom: 16 }}>
@@ -346,7 +348,7 @@ function Vault({ toast }: any) {
       </>}
     </div></div>}
     <Card title="Documents">
-      {docs.map((d: any) => <div className="row" key={d.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{CATICON[d.typeKey ? cap(d.typeKey) : ''] ?? '📄'}</div><div className="m"><div className="t">{d.title}</div><div className="s">{d.typeKey ?? 'unclassified'} · {d.status}</div></div><span className={`pill ${d.status === 'CONFIRMED' ? 'p-good' : 'p-warn'}`}>{d.status === 'CONFIRMED' ? 'Verified' : 'Pending'}</span></div>)}
+      {docs.map((d: any) => <div className="row" key={d.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{CATICON[d.typeKey ? cap(d.typeKey) : ''] ?? '📄'}</div><div className="m"><div className="t">{d.title}{d.version > 1 && <span className="pill p-info" style={{ marginLeft: 8 }}>v{d.version}</span>}</div><div className="s">{d.typeKey ?? 'unclassified'} · {d.status}</div></div><span className={`pill ${d.status === 'CONFIRMED' ? 'p-good' : 'p-warn'}`}>{d.status === 'CONFIRMED' ? 'Verified' : 'Pending'}</span><div className="flex" style={{ gap: 6, marginLeft: 10 }}><button className="btn sec" title="Download" onClick={() => download(d)}>⬇</button><button className="btn sec" title="Delete" onClick={() => remove(d)}>🗑</button></div></div>)}
       {!docs.length && <div className="empty">No documents yet — add your first one.</div>}
     </Card>
   </>;
@@ -359,23 +361,37 @@ function Assistant() {
   async function ask(question: string) { if (!question.trim()) return; setChat((c) => [...c, { role: 'me', text: question }]); setQ(''); setBusy(true); try { const r = await api.ask(question); setChat((c) => [...c, { role: 'ai', text: r.answer, sources: r.sources }]); } catch { setChat((c) => [...c, { role: 'ai', text: 'Something went wrong.' }]); } finally { setBusy(false); } }
   return <div style={{ maxWidth: 720 }}>
     <div style={{ marginBottom: 16 }}>{chat.map((m, i) => <div key={i} className={`assist-msg ${m.role === 'ai' ? 'ai' : 'me'}`}>{m.role === 'ai' && <div className="ab">L</div>}<div className="bub">{m.text}{m.sources?.length ? <div className="src">Sources: {m.sources.map((s: any) => s.ref).join(', ')}</div> : null}</div></div>)}</div>
-    <div className="chips">{['When does my passport expire?', 'What do I need to know?', 'Find my home insurance'].map((s) => <button className="chip" key={s} onClick={() => ask(s)}>{s}</button>)}</div>
+    <div className="chips">{['When does my passport expire?', 'What do I need to know?', 'What trips do I have coming up?', 'Is my washing machine under warranty?'].map((s) => <button className="chip" key={s} onClick={() => ask(s)}>{s}</button>)}</div>
     <form className="flex" onSubmit={(e) => { e.preventDefault(); ask(q); }}><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask a question…" style={{ marginTop: 0 }} /><button className="btn" disabled={busy}>Ask</button></form>
   </div>;
 }
 
-function Reminders({ onRead }: any) {
+function Reminders({ onRead, toast }: any) {
   const { data: notifs, reload } = useData(() => api.notifications());
-  const { data: rem } = useData(() => api.reminders());
+  const { data: rem, reload: reloadRem } = useData(() => api.reminderCentre());
+  const [add, setAdd] = useState(false);
+  const [title, setTitle] = useState(''); const [due, setDue] = useState(''); const [rec, setRec] = useState('none'); const [busy, setBusy] = useState(false);
   async function read(id: string) { await api.markRead(id); reload(); onRead(); }
+  async function create() { if (!title || !due) return; setBusy(true); try { await api.createReminder({ title, dueDate: due, recurrence: rec }); setTitle(''); setDue(''); setRec('none'); setAdd(false); toast('Reminder added'); reloadRem(); } finally { setBusy(false); } }
+  async function complete(id: string) { await api.completeReminder(id); toast('Marked done'); reloadRem(); }
+  async function snooze(id: string) { await api.snoozeReminder(id, 7); toast('Snoozed 7 days'); reloadRem(); }
+  const overdue = rem?.overdue ?? []; const upcoming = rem?.upcoming ?? []; const completed = rem?.completed ?? [];
+  const row = (r: any, isOverdue = false) => <div className="row" key={r.id}><div className="ic" style={{ background: isOverdue ? 'var(--warn-bg)' : 'var(--surface-2)' }}>{isOverdue ? '⚠️' : '🗓️'}</div><div className="m"><div className="t">{r.title}{r.recurrence && r.recurrence !== 'none' && <span className="pill p-info" style={{ marginLeft: 8 }}>{r.recurrence}</span>}</div><div className="s">{fmt(r.dueDate)}</div></div><div className="flex" style={{ gap: 6 }}><button className="btn sec" title="Mark done" onClick={() => complete(r.id)}>✓</button><button className="btn sec" title="Snooze 7 days" onClick={() => snooze(r.id)}>💤</button></div></div>;
   return <div className="grid2">
     <Card title="Notifications" right={<a onClick={async () => { await api.readAll(); reload(); onRead(); }}>Mark all read</a>}>
       {(notifs?.notifications ?? []).map((n: any) => <div className="row" key={n.id} onClick={() => !n.readAt && read(n.id)} style={{ cursor: n.readAt ? 'default' : 'pointer', opacity: n.readAt ? 0.6 : 1 }}><div className="ic" style={{ background: 'var(--warn-bg)' }}>{n.category === 'missing_document' ? '📄' : n.category === 'system' ? '⚙️' : '🔔'}</div><div className="m"><div className="t">{n.title}</div><div className="s">{n.body}</div></div>{!n.readAt && <span className="pill p-info">new</span>}</div>)}
       {!(notifs?.notifications ?? []).length && <div className="empty">No notifications.</div>}
     </Card>
-    <Card title="Upcoming dates" right={`${rem?.live?.length ?? 0} live`}>
-      {(rem?.live ?? []).map((r: any) => <div className="row" key={r.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>🗓️</div><div className="m"><div className="t">{r.title}</div><div className="s">{fmt(r.dueDate)}</div></div>{remPill(r)}</div>)}
-      {!(rem?.live ?? []).length && <div className="empty">Nothing scheduled.</div>}
+    <Card title="Reminders" right={<a onClick={() => setAdd((v) => !v)}>{add ? 'Close' : '+ Add reminder'}</a>}>
+      {add && <div className="card" style={{ marginBottom: 12 }}><div className="card-b">
+        <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Renew car insurance" /></label>
+        <div className="grid2"><label>Date<input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label><label>Repeat<select value={rec} onChange={(e) => setRec(e.target.value)}><option value="none">One-off</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></label></div>
+        <div className="flex"><button className="btn" onClick={create} disabled={busy || !title || !due}>{busy ? 'Adding…' : 'Add reminder'}</button></div>
+      </div></div>}
+      {overdue.map((r: any) => row(r, true))}
+      {upcoming.map((r: any) => row(r))}
+      {!overdue.length && !upcoming.length && <div className="empty">Nothing scheduled — add a reminder.</div>}
+      {completed.length > 0 && <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>{completed.length} completed</div>}
     </Card>
   </div>;
 }
@@ -493,6 +509,17 @@ function Settings({ me, toast }: any) {
         <div className="m"><div className="t">{k === 'inApp' ? 'In-app' : cap(k)}</div><div className="s">Reminders & alerts via {k === 'inApp' ? 'the app' : k}</div></div>
         <button className={`pill ${prefs?.[k] ? 'p-good' : 'p-neutral'}`} onClick={() => togglePref(k, !prefs?.[k])} style={{ cursor: 'pointer' }}>{prefs?.[k] ? 'On' : 'Off'}</button>
       </div>)}
+      <div className="row">
+        <div className="m"><div className="t">Quiet hours</div><div className="s">Hold non-urgent email &amp; push during these hours (overdue alerts still come through). Times in UTC.</div></div>
+        <div className="flex" style={{ gap: 6 }}>
+          {prefs?.quietStart != null && prefs?.quietEnd != null ? <>
+            <select value={prefs.quietStart} onChange={(e) => api.setNotifSettings({ quietStart: Number(e.target.value) }).then(reloadPrefs)}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}</select>
+            <span className="muted">to</span>
+            <select value={prefs.quietEnd} onChange={(e) => api.setNotifSettings({ quietEnd: Number(e.target.value) }).then(reloadPrefs)}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}</select>
+            <button className="btn sec" onClick={() => api.setNotifSettings({ quietStart: null, quietEnd: null }).then(reloadPrefs)}>Off</button>
+          </> : <button className="btn sec" onClick={() => api.setNotifSettings({ quietStart: 22, quietEnd: 7 }).then(reloadPrefs)}>Set quiet hours</button>}
+        </div>
+      </div>
     </Card>
 
     <Card title="Account">

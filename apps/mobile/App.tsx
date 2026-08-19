@@ -24,7 +24,7 @@ export default function App() {
   if (!me) return (
     <SafeAreaView style={s.safe}><StatusBar style="dark" />
       <View style={s.login}>
-        <View style={s.logo}><Text style={s.logoTxt}>LH</Text></View>
+        <View style={s.logo}><Text style={s.logoTxt}>V</Text></View>
         <Text style={s.h1}>{screen === 'login' ? 'Welcome to Vaulmo' : 'Two-factor code'}</Text>
         {!!error && <Text style={s.err}>{error}</Text>}
         {screen === 'login' ? <>
@@ -47,7 +47,7 @@ export default function App() {
         {([['home', '🏠', 'Home'], ['vault', '🗄️', 'Vault'], ['add', '＋', ''], ['ask', '💬', 'Ask'], ['profile', '👤', 'You']] as const).map(([id, ic, label]) =>
           id === 'add'
             ? <TouchableOpacity key={id} style={s.fab} onPress={() => setTab('vault')}><Text style={{ color: '#fff', fontSize: 26 }}>＋</Text></TouchableOpacity>
-            : <TouchableOpacity key={id} style={s.tab} onPress={() => setTab(id as Tab)}><Text style={{ fontSize: 20 }}>{ic}</Text><Text style={[s.tabLabel, tab === id && { color: '#2a78d6' }]}>{label}</Text></TouchableOpacity>
+            : <TouchableOpacity key={id} style={s.tab} onPress={() => setTab(id as Tab)}><Text style={{ fontSize: 20 }}>{ic}</Text><Text style={[s.tabLabel, tab === id && { color: '#2563EB' }]}>{label}</Text></TouchableOpacity>
         )}
       </View>
     </SafeAreaView>
@@ -148,7 +148,7 @@ function Profile({ me, onSignOut, goTab }: any) {
 
 /* ---- primitives ---- */
 const Loading = () => <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator /></View>;
-const Btn = ({ label, onPress, small, secondary }: any) => <TouchableOpacity style={[s.btn, small && s.btnSm, secondary && s.btnSec]} onPress={onPress}><Text style={[s.btnTxt, secondary && { color: '#2a78d6' }]}>{label}</Text></TouchableOpacity>;
+const Btn = ({ label, onPress, small, secondary }: any) => <TouchableOpacity style={[s.btn, small && s.btnSm, secondary && s.btnSec]} onPress={onPress}><Text style={[s.btnTxt, secondary && { color: '#2563EB' }]}>{label}</Text></TouchableOpacity>;
 const Card = ({ children }: any) => <View style={s.card}>{children}</View>;
 const Stat = ({ v, l }: any) => <View style={s.stat}><Text style={s.statV}>{v}</Text><Text style={s.statL}>{l}</Text></View>;
 const Item = ({ icon, t, sub, pill }: any) => <View style={s.item}><Text style={{ fontSize: 20, marginRight: 10 }}>{icon}</Text><View style={{ flex: 1 }}><Text style={s.itemT}>{t}</Text><Text style={s.itemS}>{sub}</Text></View>{pill && <Text style={s.pill}>{pill}</Text>}</View>;
@@ -156,29 +156,29 @@ const Item = ({ icon, t, sub, pill }: any) => <View style={s.item}><Text style={
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#eef1f6' },
   login: { flex: 1, padding: 28, paddingTop: 60 },
-  logo: { width: 56, height: 56, borderRadius: 16, backgroundColor: '#2a5f97', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  logo: { width: 56, height: 56, borderRadius: 16, backgroundColor: '#1E3A8A', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   logoTxt: { color: '#fff', fontWeight: '800', fontSize: 18 },
   h1: { fontSize: 22, fontWeight: '750' as any, marginBottom: 14 },
   label: { fontSize: 13, fontWeight: '600', color: '#5b6472', marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#e6eaf1', borderRadius: 11, padding: 12, fontSize: 15, marginTop: 6, backgroundColor: '#fff' },
   err: { color: '#d03b3b', marginBottom: 8 }, ok: { color: '#0ca30c', marginBottom: 8, fontWeight: '600' },
-  btn: { backgroundColor: '#2a78d6', borderRadius: 13, padding: 14, alignItems: 'center', marginTop: 14 },
+  btn: { backgroundColor: '#2563EB', borderRadius: 13, padding: 14, alignItems: 'center', marginTop: 14 },
   btnSm: { paddingVertical: 8, paddingHorizontal: 14, marginTop: 0, borderRadius: 10 },
   btnSec: { backgroundColor: '#f4f6fa' }, btnTxt: { color: '#fff', fontWeight: '700' },
   pad: { padding: 18, paddingBottom: 110 },
   hi: { fontSize: 13, color: '#5b6472', fontWeight: '600' }, big: { fontSize: 24, fontWeight: '750' as any, marginBottom: 12 },
-  hero: { backgroundColor: '#2a78d6', borderRadius: 20, padding: 18, marginBottom: 14 },
+  hero: { backgroundColor: '#2563EB', borderRadius: 20, padding: 18, marginBottom: 14 },
   heroLab: { color: '#fff', opacity: 0.85, fontSize: 12.5, fontWeight: '600' }, heroBig: { color: '#fff', fontSize: 24, fontWeight: '750' as any, marginVertical: 6 }, heroSub: { color: '#fff', opacity: 0.9, fontSize: 13 },
   row2: { flexDirection: 'row', gap: 12, marginBottom: 14 }, stat: { flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 15 }, statV: { fontSize: 22, fontWeight: '750' as any }, statL: { fontSize: 12, color: '#5b6472', fontWeight: '600' },
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12 }, cardT: { fontWeight: '700', marginBottom: 6 }, muted: { color: '#5b6472', fontSize: 13.5 },
   sec: { fontSize: 16, fontWeight: '700', marginVertical: 12 },
   item: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, padding: 13, marginBottom: 10 }, itemT: { fontWeight: '600', fontSize: 14.5 }, itemS: { fontSize: 12.5, color: '#5b6472' },
-  pill: { fontSize: 11, fontWeight: '700', color: '#2a78d6', backgroundColor: '#e7f0fb', paddingVertical: 4, paddingHorizontal: 9, borderRadius: 20, overflow: 'hidden' },
+  pill: { fontSize: 11, fontWeight: '700', color: '#2563EB', backgroundColor: '#e7f0fb', paddingVertical: 4, paddingHorizontal: 9, borderRadius: 20, overflow: 'hidden' },
   spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   banner: { borderRadius: 12, padding: 12, marginBottom: 10 },
-  msg: { flexDirection: 'row', marginBottom: 10 }, bub: { padding: 11, borderRadius: 14, maxWidth: '82%' }, bubAi: { backgroundColor: '#fff' }, bubMe: { backgroundColor: '#2a78d6' }, src: { fontSize: 11.5, color: '#5b6472', marginTop: 5 },
+  msg: { flexDirection: 'row', marginBottom: 10 }, bub: { padding: 11, borderRadius: 14, maxWidth: '82%' }, bubAi: { backgroundColor: '#fff' }, bubMe: { backgroundColor: '#2563EB' }, src: { fontSize: 11.5, color: '#5b6472', marginTop: 5 },
   composer: { position: 'absolute', bottom: 92, left: 0, right: 0, flexDirection: 'row', gap: 8, padding: 12, backgroundColor: 'rgba(238,241,246,0.95)', alignItems: 'center' },
   tabbar: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 84, flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e6eaf1', paddingTop: 10 },
   tab: { flex: 1, alignItems: 'center' }, tabLabel: { fontSize: 10.5, fontWeight: '600', color: '#8b93a1', marginTop: 2 },
-  fab: { width: 54, height: 54, borderRadius: 17, backgroundColor: '#2a78d6', alignItems: 'center', justifyContent: 'center', marginTop: -14, marginHorizontal: 6 },
+  fab: { width: 54, height: 54, borderRadius: 17, backgroundColor: '#2563EB', alignItems: 'center', justifyContent: 'center', marginTop: -14, marginHorizontal: 6 },
 });

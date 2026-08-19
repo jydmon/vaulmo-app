@@ -5,6 +5,7 @@
  * and missing-document reminders. Real DB; deterministic (dates computed from now).
  */
 import { and, eq } from 'drizzle-orm';
+import { authenticator } from 'otplib';
 import { createApp } from '../src/app';
 import { pool, db } from '../src/db/client';
 import { users, notifications, reminders } from '../src/db/schema';
@@ -25,6 +26,14 @@ async function api(method: string, url: string, o: { body?: unknown; token?: str
   return { status: res.status, json: j };
 }
 const login = async (e: string, p: string) => (await api('POST', '/api/v1/auth/login', { body: { email: e, password: p } })).json?.accessToken;
+async function adminLogin(e: string, p: string): Promise<string> {
+  await db.update(users).set({ mfaEnabled: false, mfaSecret: null }).where(eq(users.email, e.toLowerCase()));
+  const r = await api('POST', '/api/v1/auth/login', { body: { email: e, password: p } });
+  const token = r.json?.accessToken;
+  const en = await api('POST', '/api/v1/mfa/enroll', { token });
+  const cf = await api('POST', '/api/v1/mfa/confirm', { token, body: { code: authenticator.generate(en.json.secret) } });
+  return cf.json?.accessToken ?? token;
+}
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function dateInDays(days: number): { iso: string; label: string } {
@@ -55,7 +64,7 @@ async function main() {
   const userId = reg.json.user.id;
   await db.update(users).set({ isInternalTester: true }).where(eq(users.id, userId));
   const token = await login(email, 'Pilot12345!');
-  const sa = await login('admin@lifehub.local', 'ChangeMe123!');
+  const sa = await adminLogin('admin@lifehub.local', 'ChangeMe123!');
   check('pilot user signs in', !!token);
 
   console.log('\nDUE-DATE REMINDER + ESCALATION');
@@ -112,8 +121,8 @@ async function main() {
   const outEmail = `outsider+${Date.now()}@x.com`;
   await api('POST', '/api/v1/auth/register', { body: { email: outEmail, password: 'Outsider123!', fullName: 'Out' } });
   const outsider = await login(outEmail, 'Outsider123!');
-  const denied = await api('GET', '/api/v1/notifications', { token: outsider });
-  check('non-pilot user blocked from notifications (403)', denied.status === 403);
+  const openAccess = await api('GET', '/api/v1/notifications', { token: outsider });
+  check('any user can now reach their notifications (gate removed)', openAccess.status === 200);
 
   const auditLog = await api('GET', '/api/v1/admin/audit?limit=200', { token: sa });
   check('reminder tick audited', (auditLog.json.logs ?? []).some((l: any) => l.action === 'reminder.tick'));

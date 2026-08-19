@@ -45,7 +45,22 @@ export async function uploadText(url: string, text: string): Promise<void> {
 const G = <T,>(p: string) => request<T>('GET', p);
 const P = <T,>(p: string, b?: unknown) => request<T>('POST', p, b ?? {});
 const PUT = <T,>(p: string, b?: unknown) => request<T>('PUT', p, b ?? {});
+const PATCH = <T,>(p: string, b?: unknown) => request<T>('PATCH', p, b ?? {});
 const DEL = <T,>(p: string) => request<T>('DELETE', p);
+
+// Authenticated file download → triggers a browser "Save as" with the right filename.
+export async function downloadDocumentFile(documentId: string, filename: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/v1/vault/documents/${documentId}/download`, {
+    headers: { ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) },
+  });
+  if (!res.ok) throw new ApiError(res.status, 'download_failed', 'Could not download the document');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename || 'document';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export const api = {
   // auth
@@ -56,10 +71,14 @@ export const api = {
   updateProfile: (fullName: string) => PUT<any>('/users/me', { fullName }),
   // vault
   checklist: () => G<any>('/vault/checklist'),
-  documents: () => G<any>('/vault/documents'),
+  documents: (includeHistory = false) => G<any>(`/vault/documents${includeHistory ? '?includeHistory=1' : ''}`),
+  getDocument: (id: string) => G<any>(`/vault/documents/${id}`),
   createDocument: (b: any) => P<any>('/vault/documents', b),
   processDocument: (id: string) => P<any>(`/vault/documents/${id}/process`),
+  editDocument: (id: string, b: { typeKey?: string; title?: string; metadata?: Record<string, string> }) => PATCH<any>(`/vault/documents/${id}`, b),
   confirmDocument: (id: string, metadata?: any) => P<any>(`/vault/documents/${id}/confirm`, { metadata }),
+  replaceDocument: (id: string, b: any) => P<any>(`/vault/documents/${id}/replace`, b),
+  deleteDocument: (id: string) => DEL<any>(`/vault/documents/${id}`),
   reminders: () => G<any>('/vault/reminders'),
   // assistant
   ask: (question: string) => P<any>('/assistant/ask', { question }),
@@ -70,6 +89,10 @@ export const api = {
   unread: () => G<any>('/notifications/unread-count'),
   markRead: (id: string) => P<any>(`/notifications/${id}/read`),
   readAll: () => P<any>('/notifications/read-all'),
+  reminderCentre: () => G<any>('/notifications/reminders'),
+  createReminder: (b: { title: string; dueDate: string; recurrence?: string; leadDays?: number[]; kind?: string }) => P<any>('/notifications/reminders', b),
+  completeReminder: (id: string) => P<any>(`/notifications/reminders/${id}/complete`),
+  snoozeReminder: (id: string, days: number) => P<any>(`/notifications/reminders/${id}/snooze`, { days }),
   // family
   familyMembers: () => G<any>('/family/members'),
   addMember: (b: any) => P<any>('/family/members', b),

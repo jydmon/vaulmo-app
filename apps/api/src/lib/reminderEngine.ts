@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, isNotNull, lt, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { reminders, documents, tenants, users, nextOfKin } from '../db/schema';
 import { recommendedForCountry } from './catalogue';
@@ -63,6 +63,7 @@ export async function runReminderTick(now = new Date()): Promise<TickResult> {
         body: `${r.title} — ${urgency(d)} (${r.dueDate}).`,
         reminderId: r.id,
         dedupeKey: `reminder:${r.id}:lvl${target}`,
+        critical: d <= 0, // due/overdue items reach the user even during quiet hours
       });
       if (delivered.length) notified++;
     }
@@ -108,17 +109,15 @@ function isoWeek(now: Date): string {
 export async function runMissingDocReminders(now = new Date()): Promise<number> {
   let count = 0;
   const week = isoWeek(now);
-  // Only tenants that have at least one internal tester / pilot user get these during alpha/pilot.
-  const pilotTenants = await db
-    .selectDistinct({ tenantId: users.tenantId, country: tenants.country })
-    .from(users)
-    .innerJoin(tenants, eq(users.tenantId, tenants.id))
-    .where(eq(users.isInternalTester, true));
+  // Missing-document reminders now run for every tenant (user phase — no longer pilot-only).
+  const allTenants = await db
+    .select({ tenantId: tenants.id, country: tenants.country })
+    .from(tenants);
 
-  for (const t of pilotTenants) {
+  for (const t of allTenants) {
     if (!t.tenantId) continue;
     const recommended = recommendedForCountry(t.country ?? 'GB');
-    const docs = await db.select().from(documents).where(eq(documents.tenantId, t.tenantId));
+    const docs = await db.select().from(documents).where(and(eq(documents.tenantId, t.tenantId), isNull(documents.deletedAt)));
     const present = new Set(docs.map((d) => d.typeKey ?? d.classifiedTypeKey).filter(Boolean) as string[]);
     const missing = recommended.filter((rt) => !present.has(rt.key));
     if (!missing.length) continue;
