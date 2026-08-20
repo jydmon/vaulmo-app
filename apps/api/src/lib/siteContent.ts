@@ -14,6 +14,11 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
     content: {
       brand: 'Vaulmo',
       tagline: 'Your family’s document vault, locked down',
+      // Website logo (shown in the header & footer) and favicon (browser tab icon).
+      // Leave blank to use the built-in Vaulmo mark. Paste an image URL, or upload one
+      // in the Website (CMS) editor to store it inline.
+      brandLogo: '',
+      favicon: '',
       appUrl: 'https://app.vaulmo.com',
       appStoreUrl: '#',
       googlePlayUrl: '#',
@@ -22,20 +27,22 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
         { label: 'Plans', href: '#/plans' },
         { label: 'Security', href: '#/security' },
         { label: 'Support', href: '#/support' },
-        { label: 'About', href: '#/about' },
+        { label: 'About Us', href: '#/about' },
         { label: 'FAQs', href: '#/faq' },
-        { label: 'Contact', href: '#/contact' },
+        { label: 'Contact Us', href: '#/contact' },
       ],
       footerNote: '© 2026 Vaulmo. All rights reserved.',
       footerLinks: [
         { label: 'Features', href: '#/features' },
         { label: 'Security', href: '#/security' },
         { label: 'Support', href: '#/support' },
-        { label: 'About', href: '#/about' },
-        { label: 'Contact', href: '#/contact' },
+        { label: 'About Us', href: '#/about' },
+        { label: 'Contact Us', href: '#/contact' },
         { label: 'Privacy Policy', href: '#/privacy' },
         { label: 'Terms & Conditions', href: '#/terms' },
       ],
+      // Master on/off switch for the social icons in the footer (admin-controlled).
+      showSocials: true,
       // Social links — paste full URLs; each icon only shows when its link is set.
       socials: { instagram: '', twitter: '', facebook: '' },
       // Waitlist sign-up form (shown top & bottom, and inside the launch popup).
@@ -102,6 +109,7 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
     content: {
       title: 'Simple plans for every household',
       intro: 'Start free and upgrade any time. Every plan includes bank-grade security — you only pay for the extra features and capacity you need.',
+      image: 'plans',
       freeText: 'Free',
       perYear: '/year',
       perMonth: '/month',
@@ -186,31 +194,34 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
   },
   {
     slug: 'about',
-    title: 'About',
+    title: 'About Us',
     content: {
-      title: 'About Vaulmo',
-      intro: 'Vaulmo is a personal life operating system — a secure digital vault for your family’s most important documents, dates and details, designed to give households genuine peace of mind.',
+      title: 'About Us',
+      intro: 'We’re a small, security-obsessed team on a mission to take the stress out of family admin — by giving every household one calm, trusted place for the documents, dates and details that matter most.',
+      image: 'about',
       sections: [
+        { heading: 'About Us', body: 'We’re the team behind Vaulmo. We started this because we kept living the same frustration ourselves: important paperwork scattered across drawers, inboxes and cloud folders, renewals quietly slipping past, and that low-level worry of never quite knowing where the thing you need actually is. We believe your documents are yours and should stay that way, that good software should reduce mental load rather than add to it, and that the boring-but-important admin of family life deserves a tool that’s genuinely trustworthy. Those principles guide every decision we make — from how we handle your data to the words we choose in the app. We build in the open with the households who use Vaulmo, and we’d genuinely love to hear what would help your family.' },
+        { heading: 'About Vaulmo', body: 'Vaulmo is a personal life operating system — a secure digital vault for your family’s most important documents, dates and details. You scan or photograph a document and Vaulmo reads the key details, works out what it is, files it, and makes it instantly searchable. It tracks the dates that matter and reminds you in good time, so nothing important is ever missed, and when you have a question — “when does my passport expire?”, “what renews next month?” — you can simply ask and get an answer drawn only from your own information. It works across web, iOS and Android, all signed in to the same account, so your vault is the same wherever you are.' },
         { heading: 'The problem we set out to solve', body: 'Modern family life generates a mountain of paperwork: passports and driving licences, insurance policies and warranties, tenancy agreements and mortgage papers, MOT and tax reminders, payslips, school letters, medical records and more. It ends up scattered across drawers, email inboxes, cloud folders and the occasional shoebox. When you actually need something — a policy number at the roadside, a passport expiry date before booking a holiday, a warranty when an appliance fails — it’s never where you expect, and important renewals quietly slip past until it’s too late. We built Vaulmo because that everyday low-level stress is completely avoidable.' },
-        { heading: 'What Vaulmo does', body: 'Vaulmo brings all of it into one secure, organised place. You scan or photograph a document and Vaulmo reads the important details, works out what it is, files it, and makes it instantly searchable. It tracks the dates that matter and reminds you in good time, so nothing important is ever missed. And when you have a question — “when does my passport expire?”, “what renews next month?” — you can simply ask, and get an answer drawn only from your own information. It’s the difference between hoping you’re on top of things and actually knowing you are.' },
         { heading: 'Security is the foundation, not an afterthought', body: 'Because Vaulmo holds the documents that matter most, we built it security-first from day one. Your data is encrypted in transit and at rest, protected by two-factor authentication and an optional biometric lock, and governed by strict, least-privilege access — our own team cannot casually view your documents. Nothing is shared without your say-so, and every action on your account is logged. We believe privacy is a feature you can feel, not fine print you have to trust.' },
         { heading: 'Built for the whole household', body: 'Real life isn’t a single person with a single folder — it’s a household. Vaulmo lets you organise documents by family member, keep everyone’s essentials together, and nominate a trusted next of kin who can reach what they need in a genuine emergency, always with your approval. It’s designed to be simple enough for everyone in the family to use, on whatever device they have to hand.' },
-        { heading: 'What we believe', body: 'We believe your documents are yours, and should stay that way. We believe good software should reduce mental load, not add to it. And we believe the important, boring, easy-to-forget admin of family life deserves a tool that’s calm, clear and genuinely trustworthy. Those principles guide every decision we make — from how we handle your data to the words we choose in the app.' },
         { heading: 'Where we’re headed', body: 'Vaulmo is growing quickly, guided by the households who use it. We’re continually adding smarter capture, deeper reminders, and more of the everyday tools families need in one trusted place — always with the same commitment to security and simplicity. If you have an idea for what would help your family, we’d genuinely love to hear it.' },
       ],
     },
   },
   {
     slug: 'contact',
-    title: 'Contact',
+    title: 'Contact Us',
     content: {
-      title: 'Contact us',
-      intro: 'Questions, feedback or press enquiries — we’d love to hear from you.',
-      email: 'hello@vaulmo.com',
-      supportEmail: 'support@vaulmo.com',
-      phone: '',
-      address: '',
-      hours: 'Monday to Friday, 9am–5pm',
+      title: 'Contact Us',
+      intro: 'Questions, feedback or press enquiries — fill in the form below and we’ll get back to you. We’d love to hear from you.',
+      image: 'contact',
+      namePlaceholder: 'Your name',
+      emailPlaceholder: 'you@example.com',
+      subjectPlaceholder: 'What’s it about?',
+      messagePlaceholder: 'How can we help?',
+      button: 'Send message',
+      success: 'Thanks — your message has been sent. We’ll be in touch soon.',
     },
   },
   {

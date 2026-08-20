@@ -9,6 +9,7 @@ import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
 import { runReminderTick } from '../../lib/reminderEngine';
+import { processDueCampaigns } from '../crm/campaigns.routes';
 import { emailIsLive } from '../../lib/mailer';
 
 export const notificationsRouter = Router();
@@ -19,8 +20,9 @@ notificationsRouter.use(requireAuth, requireMfaSatisfied);
 // Platform: run the reminder engine tick (a cron calls this in prod).
 notificationsRouter.post('/run-tick', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
   const result = await runReminderTick(new Date());
-  await audit({ action: 'reminder.tick', actorId: req.auth!.sub, metadata: { ...result }, req });
-  res.json(result);
+  const campaigns = await processDueCampaigns(new Date());
+  await audit({ action: 'reminder.tick', actorId: req.auth!.sub, metadata: { ...result, campaignsSent: campaigns.sent }, req });
+  res.json({ ...result, campaigns });
 });
 
 // In-app inbox.

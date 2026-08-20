@@ -1,4 +1,5 @@
 import { runReminderTick } from './lib/reminderEngine';
+import { processDueCampaigns } from './modules/crm/campaigns.routes';
 import { logger } from './logger';
 import { pool } from './db/client';
 
@@ -15,6 +16,12 @@ async function tick() {
     logger.info({ ...r }, 'reminder tick complete');
   } catch (err) {
     logger.error({ err }, 'reminder tick failed');
+  }
+  try {
+    const c = await processDueCampaigns(new Date());
+    if (c.sent) logger.info({ ...c }, 'scheduled campaigns tick complete');
+  } catch (err) {
+    logger.error({ err }, 'scheduled campaigns tick failed');
   }
 }
 

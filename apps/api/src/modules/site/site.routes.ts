@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { desc, sql, eq as eqOp } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { sitePages, siteSubscribers, plans } from '../../db/schema';
+import { sitePages, siteSubscribers, plans, contactMessages } from '../../db/schema';
 import { MODULES, effectiveModules, netAmount } from '../../lib/modules';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
@@ -54,10 +54,14 @@ const MODULE_NAME: Record<string, string> = Object.fromEntries(MODULES.map((m) =
 siteRouter.get('/plans', async (_req, res) => {
   const rows = await db.select().from(plans).where(eqOp(plans.active, true)).orderBy(plans.sort);
   const list = rows.map((p) => {
+    // Prefer the admin-curated marketing feature list (edited in the Subscriptions admin);
+    // fall back to deriving it from the plan's modules + member allowance so older plans
+    // still show something sensible.
+    const explicit = Array.isArray((p as any).features) ? ((p as any).features as any[]).filter((x) => typeof x === 'string' && x.trim()) : [];
     const mods = effectiveModules((p as any).modules);
-    const features = mods.map((k) => MODULE_NAME[k] ?? k);
+    const features = explicit.length ? explicit.slice() : mods.map((k) => MODULE_NAME[k] ?? k);
     const members = (p.entitlements as any)?.members;
-    if (typeof members === 'number') features.unshift(members >= 999 ? 'Unlimited household members' : `Up to ${members} household member${members === 1 ? '' : 's'}`);
+    if (!explicit.length && typeof members === 'number') features.unshift(members >= 999 || members < 0 ? 'Unlimited household members' : `Up to ${members} household member${members === 1 ? '' : 's'}`);
     return {
       key: p.key, name: p.name, amount: p.amount, currency: p.currency, interval: p.interval,
       discountPercent: (p as any).discountPercent ?? 0, discountLabel: (p as any).discountLabel ?? null,
@@ -87,6 +91,32 @@ siteRouter.post('/subscribe', async (req, res) => {
 
 // Handle the CORS preflight for the public subscribe POST.
 siteRouter.options('/subscribe', (_req, res) => {
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.status(204).end();
+});
+
+// ---- Public: contact-form submission (captured to the admin inbox) ----
+const contactSchema = z.object({
+  name: z.string().min(1).max(120),
+  email: z.string().email().max(200),
+  subject: z.string().max(200).optional(),
+  message: z.string().min(1).max(5000),
+  source: z.string().max(40).optional(),
+});
+siteRouter.post('/contact', async (req, res) => {
+  const b = contactSchema.parse(req.body);
+  const [row] = await db.insert(contactMessages).values({
+    name: b.name.trim(),
+    email: b.email.toLowerCase().trim(),
+    subject: b.subject?.trim() || null,
+    message: b.message.trim(),
+    source: b.source ?? 'website',
+  }).returning({ id: contactMessages.id });
+  await audit({ action: 'site.contact.received', targetType: 'contact_message', targetId: row?.id, metadata: { email: b.email.toLowerCase().trim() }, req });
+  res.status(201).json({ ok: true });
+});
+siteRouter.options('/contact', (_req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'content-type');
   res.status(204).end();
@@ -126,6 +156,29 @@ siteRouter.get('/admin/subscribers.csv', ...adminGuard, async (_req, res) => {
     ...rows.map((r) => [r.name, r.email, r.notifyAtLaunch, r.source, r.createdAt?.toISOString()].map(esc).join(','))].join('\n');
   res.setHeader('content-type', 'text/csv');
   res.setHeader('content-disposition', 'attachment; filename="vaulmo-waitlist.csv"');
+  res.send(csv);
+});
+
+// Admin: the contact-form inbox. List, mark read, CSV export.
+siteRouter.get('/admin/messages', ...adminGuard, async (_req, res) => {
+  const rows = await db.select().from(contactMessages).orderBy(desc(contactMessages.createdAt));
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(contactMessages);
+  const [{ unread }] = await db.select({ unread: sql<number>`count(*) filter (where status = 'new')::int` }).from(contactMessages);
+  res.json({ total: Number(count) || 0, unread: Number(unread) || 0, messages: rows });
+});
+siteRouter.post('/admin/messages/:id/read', ...adminGuard, async (req, res) => {
+  const [row] = await db.update(contactMessages).set({ status: 'read' }).where(eq(contactMessages.id, req.params.id)).returning();
+  if (!row) throw new AppError(404, 'not_found', 'Message not found');
+  await audit({ action: 'site.contact.read', actorId: req.auth!.sub, targetType: 'contact_message', targetId: req.params.id, req });
+  res.json({ message: row });
+});
+siteRouter.get('/admin/messages.csv', ...adminGuard, async (_req, res) => {
+  const rows = await db.select().from(contactMessages).orderBy(desc(contactMessages.createdAt));
+  const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = ['name,email,subject,message,status,source,created_at',
+    ...rows.map((r) => [r.name, r.email, r.subject, r.message, r.status, r.source, r.createdAt?.toISOString()].map(esc).join(','))].join('\n');
+  res.setHeader('content-type', 'text/csv');
+  res.setHeader('content-disposition', 'attachment; filename="vaulmo-contact-messages.csv"');
   res.send(csv);
 });
 

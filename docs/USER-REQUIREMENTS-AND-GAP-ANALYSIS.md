@@ -497,3 +497,33 @@ A pricing page on vaulmo.com that mirrors what the super-admin creates and activ
 2. ✅ **Pricing page** — a new Plans page and nav item on the marketing site render plan cards (name, price, discount badge with struck-through original, feature list, call-to-action). Free plans show "Free"; the middle plan is highlighted.
 3. ✅ **CMS-editable surround** — the page heading, intro, CTA label and small print live in the CMS (the "plans" page in the Website editor); the plan data itself always comes from the admin.
 4. ✅ **CORS fix** — the global CORS now declines unknown origins without erroring, so public /api/v1/site/* endpoints can serve the separate vaulmo.com origin. Verified cross-origin (Origin: https://vaulmo.com -> 200, Access-Control-Allow-Origin: *).
+
+## Build plan — Contact form + inbox, better page images, About Us restructure (this increment: ✅ done & tested)
+
+Turning Contact into a real form that feeds a super-admin inbox, all CMS-editable, plus richer imagery and an About Us split. Migration `0029_contact_messages.sql` (a `contact_messages` table); verified — the site smoke suite now runs 33 checks, all passing, and a headless render of the landing confirms the new pages.
+
+1. ✅ **Contact Us is now just a form** — no phone number, email address or postal address anywhere on the page. The public form captures name, email, an optional subject and a message, and posts to a new public, CORS-open `POST /site/contact` (validated: a name, a valid email and a non-empty message are required; bad input is rejected). On success the form is replaced by a friendly confirmation.
+2. ✅ **Form submissions land in a super-admin inbox** — a new **Form submissions** area under Content in the admin console lists every message newest-first, shows total and unread counts, flags unread messages, opens each one in a reader (which marks it read), offers a one-click "Reply by email", and exports everything to CSV. Backed by `GET /site/admin/messages`, `POST /site/admin/messages/:id/read` and `GET /site/admin/messages.csv`, all restricted to platform admins (non-admins get 403).
+3. ✅ **The contact form is CMS-editable** — its title, intro, field placeholders, button label and success message all live on the "contact" page in the Website (CMS) editor, so you can reword any of it without a deploy.
+4. ✅ **Better images across Plans, Contact and About** — the emoji placeholders are replaced by a self-contained inline-SVG illustration library (no external hosting), and the Plans, Contact and About pages each gained a header illustration. Every image is CMS-editable — keep a built-in illustration or paste a real image URL later.
+5. ✅ **"About" is now "About Us"** — renamed in the top nav and footer of every page, and the page itself leads with a section headed **About Us** (the team and mission) followed by a section headed **About Vaulmo** (what the product does), then the existing deeper story.
+
+Everything above is served from the CMS defaults, so it appears on deploy; any page an admin has already edited is preserved. Deploy as usual (`git pull` + `docker compose ... up -d --build`); the new table migrates automatically on API start.
+
+## Build plan — Contact Us rename, scheduled rich-HTML campaigns, plan-features parity, plan consolidation, favicon/logo CMS, social toggle (this increment: ✅ done & tested)
+
+Six related requests, delivered together. Migrations `0030_plan_features.sql` and `0031_campaign_scheduling.sql`. Verified: campaigns smoke 18/18, site smoke 38/38, plans 11/11, billing 10/10, a11y clean, and a headless render of the landing.
+
+1. ✅ **"Contact" → "Contact Us"** — renamed in the top nav, the footer and the page heading across the site (CMS defaults + live fallback).
+
+2. ✅ **Plan the CRM emails — schedule rich-HTML sends to multiple groups** — the Campaigns area now lets you compose a **rich-HTML** email (with a live preview), pick **one or more audience groups** and **send now or schedule for a future date & time**. The groups are: App users (all), App users who are paying subscribers, App users with no active plan, Website waitlist sign-ups, and Contact-form senders. The recipient list is the de-duplicated union across whichever groups you tick, with a live recipient count as you choose. Scheduled campaigns send automatically on the hourly server run at or after the chosen time (a “Process due now” button lets you trigger it on demand). Emails go out live once SMTP is configured on the server; until then they’re logged to the dev outbox. Automated workflow emails (welcome, renewal, re-engagement, payment issue) remain available alongside.
+
+3. ✅ **Plans-page features match the admin definition** — each plan now has an editable **feature list** in the Subscriptions admin (add/remove bullet points). Those exact bullets appear on the public Plans page. If a plan has no explicit list, the page still derives sensible features from the plan’s modules, so nothing looks empty.
+
+4. ✅ **Premium removed; Family is now the single paid tier** — you confirmed Family and Premium were effectively identical. Premium is retired (hidden from customers, history preserved) and **Family now includes everything**, including Connected Services (email auto-import), with its own clear feature list. Free **Starter** remains for new sign-ups.
+
+5. ✅ **Favicon fixed + logo/favicon editable in the CMS** — the site had no favicon declared (so browsers showed a broken/missing icon); it now ships a proper built-in Vaulmo favicon (an inline SVG that always loads). In the Website (CMS) editor you can now set a **website logo** and a **favicon** — upload an image (stored inline) or paste a URL — and they apply to the header, footer and browser tab. Leave them blank to keep the built-in Vaulmo mark.
+
+6. ✅ **Social links on/off switch** — a master **Show socials** toggle in the CMS turns the footer social icons on or off in one click, independently of the individual Instagram/X/Facebook URLs. (Each icon still only appears when both the switch is on and that network’s URL is set.)
+
+Deploy as usual (`git pull` + `docker compose -f docker-compose.prod.yml up -d --build`); both new migrations run automatically on API start, and the reminder worker also processes any due scheduled campaigns each hour.

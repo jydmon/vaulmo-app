@@ -107,6 +107,59 @@ async function main() {
   const uForbidden = await api('GET', '/api/v1/site/admin/subscribers', utok);
   ok('non-admin cannot read the waitlist (403)', uForbidden.status === 403, `→ ${uForbidden.status}`);
 
+  // Contact page is a form (no email/phone/address fields; has form placeholders + image).
+  const contact = await api('GET', '/api/v1/site/pages/contact');
+  const cc = contact.j?.content ?? {};
+  ok('contact page is a form (no email/phone/address)', !cc.email && !cc.phone && !cc.address && !!cc.button && !!cc.messagePlaceholder && !!cc.image, JSON.stringify(Object.keys(cc)));
+
+  // About page renamed to "About Us" and has BOTH an "About Us" and an "About Vaulmo" section.
+  const about = await api('GET', '/api/v1/site/pages/about');
+  const aHeads = (about.j?.content?.sections ?? []).map((s: any) => s.heading);
+  ok('about page titled "About Us"', about.j?.title === 'About Us' && about.j?.content?.title === 'About Us', about.j?.title);
+  ok('about has "About Us" AND "About Vaulmo" sections', aHeads.includes('About Us') && aHeads.includes('About Vaulmo'), JSON.stringify(aHeads));
+  ok('about + plans carry a header image', !!about.j?.content?.image && !!(await api('GET', '/api/v1/site/pages/plans')).j?.content?.image);
+
+  // Nav/footer now say "About Us".
+  const g2 = (await api('GET', '/api/v1/site/pages/global')).j?.content ?? {};
+  ok('nav + footer label is "About Us"', (g2.nav ?? []).some((n: any) => n.label === 'About Us') && (g2.footerLinks ?? []).some((n: any) => n.label === 'About Us'));
+
+  // Public contact-form submission is captured; validation enforced.
+  const cName = 'Contact Tester', cEmail = `contact+${Date.now()}@example.com`, cMsg = 'Please get in touch about pricing.';
+  const cSub = await api('POST', '/api/v1/site/contact', undefined, { name: cName, email: cEmail, subject: 'Pricing', message: cMsg, source: 'website' });
+  ok('public can submit the contact form (201)', cSub.status === 201 && cSub.j?.ok === true, `→ ${cSub.status}`);
+  const cBad = await api('POST', '/api/v1/site/contact', undefined, { name: 'X', email: 'nope', message: '' });
+  ok('invalid contact submission rejected (422)', cBad.status === 422, `→ ${cBad.status}`);
+
+  // Admin inbox: message appears, is unread, marks read; non-admin blocked.
+  const inbox = await api('GET', '/api/v1/site/admin/messages', tok);
+  const mine = (inbox.j?.messages ?? []).find((m: any) => m.email === cEmail);
+  ok('admin inbox lists the message', inbox.status === 200 && !!mine && mine.message === cMsg && mine.status === 'new', `→ ${inbox.status}`);
+  ok('inbox reports an unread count', typeof inbox.j?.unread === 'number' && inbox.j.unread >= 1, `→ ${inbox.j?.unread}`);
+  const mRead = await api('POST', `/api/v1/site/admin/messages/${mine?.id}/read`, tok, {});
+  ok('admin can mark a message read', mRead.status === 200 && mRead.j?.message?.status === 'read', `→ ${mRead.status}`);
+  const mForbidden = await api('GET', '/api/v1/site/admin/messages', utok);
+  ok('non-admin cannot read the inbox (403)', mForbidden.status === 403, `→ ${mForbidden.status}`);
+
+  // Contact page label is "Contact Us"; global exposes logo/favicon + a socials on/off switch.
+  const contactPg = await api('GET', '/api/v1/site/pages/contact');
+  ok('contact page titled "Contact Us"', contactPg.j?.title === 'Contact Us' && contactPg.j?.content?.title === 'Contact Us', contactPg.j?.title);
+  const gc = (await api('GET', '/api/v1/site/pages/global')).j?.content ?? {};
+  ok('nav + footer say "Contact Us"', (gc.nav ?? []).some((n: any) => n.label === 'Contact Us') && (gc.footerLinks ?? []).some((n: any) => n.label === 'Contact Us'));
+  ok('global exposes brandLogo, favicon + showSocials toggle', 'brandLogo' in gc && 'favicon' in gc && typeof gc.showSocials === 'boolean');
+
+  // Admin-defined plan features are surfaced verbatim on the public pricing page.
+  const fkey = `feat${Date.now()}`;
+  const planFeats = ['Everything in Starter', 'Unlimited documents', 'Priority support'];
+  await api('POST', '/api/v1/billing/admin/plans', tok, { key: fkey, name: 'Feature Test Plan', amount: 4900, active: true, modules: ['vault'], features: planFeats });
+  const pricing2 = await api('GET', '/api/v1/site/plans');
+  const fp = (pricing2.j?.plans ?? []).find((p: any) => p.key === fkey);
+  ok('plan features match the admin-defined list exactly', !!fp && JSON.stringify(fp.features) === JSON.stringify(planFeats), JSON.stringify(fp?.features));
+  // A plan with no explicit features still derives them from its modules (fallback).
+  const dkey = `deriv${Date.now()}`;
+  await api('POST', '/api/v1/billing/admin/plans', tok, { key: dkey, name: 'Derived Plan', amount: 100, active: true, modules: ['vault', 'passwords'], features: [] });
+  const dp = (await api('GET', '/api/v1/site/plans')).j?.plans?.find((p: any) => p.key === dkey);
+  ok('plan without explicit features falls back to modules', !!dp && dp.features.length >= 2, JSON.stringify(dp?.features));
+
   console.log(`\n  RESULT: ${pass} passed, ${fail} failed\n`);
   server.close(); await pool.end(); process.exit(fail ? 1 : 0);
 }

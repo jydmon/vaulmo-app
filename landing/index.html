@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Vaulmo — Your family's document vault, locked down</title>
 <meta name="description" content="Vaulmo keeps your family's most important documents secure, organised, and always to hand. Bank-level encryption, smart scanning, and renewal reminders." />
+<link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='116' fill='%232563EB'/%3E%3Cpath d='M256 120c44 0 80 12 116 30v112c0 74-46 126-116 152-70-26-116-78-116-152V150c36-18 72-30 116-30Z' fill='%23ffffff'/%3E%3Cpath d='M196 196l60 126 60-126' fill='none' stroke='%232563EB' stroke-width='40' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='116' fill='%232563EB'/%3E%3Cpath d='M256 120c44 0 80 12 116 30v112c0 74-46 126-116 152-70-26-116-78-116-152V150c36-18 72-30 116-30Z' fill='%23ffffff'/%3E%3C/svg%3E" />
 <style>
   :root{
     --navy:#0F172A; --navy2:#111c33; --blue:#2563EB; --blue-d:#1E3A8A;
@@ -22,6 +24,8 @@
   .nav-in{display:flex;align-items:center;justify-content:space-between;height:68px}
   .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px;letter-spacing:-.5px}
   .brand svg{display:block}
+  .brand-logo{display:block;height:38px;width:auto;max-width:190px;object-fit:contain}
+  #footBrand .brand-logo{height:30px}
   .nav-links{display:flex;align-items:center;gap:22px}
   .nav-links a{color:var(--muted);font-weight:600;font-size:15px}
   .nav-links a:hover{color:var(--ink)}
@@ -126,9 +130,22 @@
   .illus{width:100%;aspect-ratio:16/10;border-radius:16px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
   .illus::before{content:"";position:absolute;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.16);top:-50px;right:-40px}
   .illus::after{content:"";position:absolute;width:120px;height:120px;border-radius:30px;background:rgba(255,255,255,.12);bottom:-30px;left:-20px;transform:rotate(18deg)}
-  .illus-g{font-size:74px;filter:drop-shadow(0 8px 18px rgba(0,0,0,.25));position:relative}
+  .illus svg{width:60%;height:auto;position:relative;filter:drop-shadow(0 8px 18px rgba(0,0,0,.22))}
   .feat-img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:16px}
   @media(max-width:720px){.feat-row{grid-template-columns:1fr}.feat-row.rev .feat-media{order:0}}
+  /* header illustration on content pages */
+  .page-illus{max-width:460px;margin:20px auto 4px}
+  .page-illus .illus{aspect-ratio:16/9}
+  .page-illus img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:18px}
+  /* contact form */
+  .contact-form{max-width:640px;margin:28px auto 0;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px 26px 28px;box-shadow:var(--shadow);display:grid;gap:14px}
+  .contact-form .cf-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:560px){.contact-form .cf-row{grid-template-columns:1fr}}
+  .contact-form input,.contact-form textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px 14px;font:inherit;font-size:15.5px;background:#fff;color:var(--ink)}
+  .contact-form textarea{min-height:130px;resize:vertical}
+  .contact-form input:focus,.contact-form textarea:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue)}
+  .contact-form .cf-err{color:#dc2626;font-size:14px}
+  .cf-ok{max-width:640px;margin:28px auto 0;background:#e7f8ee;border:1px solid #b6e6c9;color:#0f7a43;border-radius:16px;padding:22px 24px;text-align:center;font-weight:600}
 
   /* subscribe form */
   .subwrap{max-width:560px;margin:24px auto 0}
@@ -187,9 +204,9 @@
 
 <nav>
   <div class="wrap nav-in">
-    <a class="brand" href="#/" aria-label="Vaulmo home">
+    <a class="brand" id="navBrand" href="#/" aria-label="Vaulmo home">
       <svg width="34" height="34" viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="ng" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B82F6"/><stop offset=".55" stop-color="#2563EB"/><stop offset="1" stop-color="#1E3A8A"/></linearGradient></defs><rect width="512" height="512" rx="116" fill="url(#ng)"/><path d="M256 120c44 0 80 12 116 30v112c0 74-46 126-116 152-70-26-116-78-116-152V150c36-18 72-30 116-30Z" fill="#fff"/><path d="M196 196l60 126 60-126" fill="none" stroke="#2563EB" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/><circle cx="256" cy="300" r="19" fill="#22D3EE"/></svg>
-      Vaulmo
+      <span>Vaulmo</span>
     </a>
     <div class="nav-links" id="navLinks"></div>
   </div>
@@ -199,9 +216,9 @@
 
 <footer>
   <div class="wrap foot-in">
-    <div class="brand" style="font-size:18px">
+    <div class="brand" id="footBrand" style="font-size:18px">
       <svg width="26" height="26" viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="fg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B82F6"/><stop offset=".55" stop-color="#2563EB"/><stop offset="1" stop-color="#1E3A8A"/></linearGradient></defs><rect width="512" height="512" rx="116" fill="url(#fg)"/><path d="M256 120c44 0 80 12 116 30v112c0 74-46 126-116 152-70-26-116-78-116-152V150c36-18 72-30 116-30Z" fill="#fff"/><path d="M196 196l60 126 60-126" fill="none" stroke="#2563EB" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/><circle cx="256" cy="300" r="19" fill="#22D3EE"/></svg>
-      Vaulmo
+      <span>Vaulmo</span>
     </div>
     <div class="foot-links" id="footLinks"></div>
     <div class="socials" id="footSocials"></div>
@@ -230,12 +247,13 @@ var API = (window.VAULMO_API || 'https://app.vaulmo.com') + '/api/v1';
 /* Built-in fallback copy (mirrors the API seed). */
 var DEFAULTS = {
   global: {
-    brand:'Vaulmo',
+    brand:'Vaulmo', brandLogo:'', favicon:'',
     appStoreUrl:'#', googlePlayUrl:'#',
     appUrl:'https://app.vaulmo.com',
-    nav:[{label:'Features',href:'#/features'},{label:'Plans',href:'#/plans'},{label:'Security',href:'#/security'},{label:'Support',href:'#/support'},{label:'About',href:'#/about'},{label:'FAQs',href:'#/faq'},{label:'Contact',href:'#/contact'}],
+    nav:[{label:'Features',href:'#/features'},{label:'Plans',href:'#/plans'},{label:'Security',href:'#/security'},{label:'Support',href:'#/support'},{label:'About Us',href:'#/about'},{label:'FAQs',href:'#/faq'},{label:'Contact Us',href:'#/contact'}],
     footerNote:'© 2026 Vaulmo. All rights reserved.',
-    footerLinks:[{label:'Features',href:'#/features'},{label:'Security',href:'#/security'},{label:'Support',href:'#/support'},{label:'About',href:'#/about'},{label:'Contact',href:'#/contact'},{label:'Privacy Policy',href:'#/privacy'},{label:'Terms & Conditions',href:'#/terms'}],
+    footerLinks:[{label:'Features',href:'#/features'},{label:'Security',href:'#/security'},{label:'Support',href:'#/support'},{label:'About Us',href:'#/about'},{label:'Contact Us',href:'#/contact'},{label:'Privacy Policy',href:'#/privacy'},{label:'Terms & Conditions',href:'#/terms'}],
+    showSocials:true,
     socials:{instagram:'',twitter:'',facebook:''},
     subscribe:{title:'Be first to know',subtitle:'Join the waitlist and we’ll tell you the moment Vaulmo launches.',namePlaceholder:'Your name',emailPlaceholder:'you@example.com',notifyLabel:'Notify me when you launch',button:'Join the waitlist',success:'You’re on the list — thank you! We’ll be in touch at launch.'},
     popup:{title:'Vaulmo isn’t live just yet',body:'We’re putting the finishing touches to the app. Leave your details and we’ll email you the moment it’s ready to download.'}
@@ -254,11 +272,11 @@ var DEFAULTS = {
   security:{title:'Security you can trust',intro:'Vaulmo is built security-first, because it holds the documents that matter most.',points:['Encryption at rest for your most sensitive data','Two-factor authentication and device management','Biometric app lock on mobile','You decide who sees what — nothing is shared by default','A full activity log of every action'],sections:[]},
   privacy:{title:'Privacy policy',updated:'Last updated: August 2026',intro:'Your documents are yours. This summary explains what we collect and the control you have.',sections:[{heading:'What we store',body:'The documents and details you add, plus the account information needed to run the service. We do not sell your data.'},{heading:'Who can see it',body:'Only you, and the people you explicitly grant access to.'},{heading:'Your rights',body:'Export or delete your data at any time from within the app.'}]},
   support:{title:'Help & support',intro:'We’re here to help you get the most out of Vaulmo.',channels:[{name:'Email support',detail:'support@vaulmo.com'},{name:'In-app help',detail:'Open the app and visit Help & FAQ.'}],note:''},
-  about:{title:'About Vaulmo',intro:'A secure digital vault for your family’s most important documents.',sections:[{heading:'Why we built it',body:'Life’s paperwork is scattered and easy to lose. Vaulmo brings it into one secure place.'}]},
-  contact:{title:'Contact us',intro:'We’d love to hear from you.',email:'hello@vaulmo.com',supportEmail:'support@vaulmo.com',phone:'',address:'',hours:'Monday to Friday, 9am–5pm'},
+  about:{title:'About Us',intro:'We’re a small, security-obsessed team on a mission to take the stress out of family admin — one calm, trusted place for the documents, dates and details that matter most.',image:'about',sections:[{heading:'About Us',body:'We’re the team behind Vaulmo. We started this because we kept living the same frustration: important paperwork scattered across drawers, inboxes and cloud folders, and renewals quietly slipping past. We believe your documents are yours and should stay that way, and that good software should reduce mental load rather than add to it.'},{heading:'About Vaulmo',body:'Vaulmo is a personal life operating system — a secure digital vault for your family’s most important documents, dates and details. Scan a document and Vaulmo reads the key details, files it, tracks the dates that matter, and reminds you in good time. It works across web, iOS and Android, all signed in to the same account.'}]},
+  contact:{title:'Contact us',intro:'Questions, feedback or press enquiries — fill in the form below and we’ll get back to you.',image:'contact',namePlaceholder:'Your name',emailPlaceholder:'you@example.com',subjectPlaceholder:'What’s it about?',messagePlaceholder:'How can we help?',button:'Send message',success:'Thanks — your message has been sent. We’ll be in touch soon.'},
   faq:{title:'Frequently asked questions',intro:'The short answers to the questions we hear most.',items:[{q:'Is my data secure?',a:'Yes — encrypted, protected by two-factor authentication and an optional biometric lock.'},{q:'What does it cost?',a:'Vaulmo is free to download; plans unlock more features.'}]},
   terms:{title:'Terms & Conditions',updated:'Last updated: August 2026',intro:'These terms govern your use of Vaulmo. By using the service you agree to them.',sections:[{heading:'The service',body:'Vaulmo provides a secure digital vault to store, organise and be reminded about your documents.'},{heading:'Your content',body:'The documents you add remain yours; you grant us only the permissions needed to provide the service.'},{heading:'Contact',body:'Questions about these terms? Email legal@vaulmo.com.'}]},
-  plans:{title:'Simple plans for every household',intro:'Start free and upgrade any time. Every plan includes bank-grade security.',freeText:'Free',perYear:'/year',perMonth:'/month',ctaLabel:'Get started',note:'You’ll always see the price and what’s included before you subscribe.',emptyText:'Plans are coming soon — join the waitlist and we’ll let you know.'}
+  plans:{title:'Simple plans for every household',intro:'Start free and upgrade any time. Every plan includes bank-grade security.',image:'plans',freeText:'Free',perYear:'/year',perMonth:'/month',ctaLabel:'Get started',note:'You’ll always see the price and what’s included before you subscribe.',emptyText:'Plans are coming soon — join the waitlist and we’ll let you know.'}
 };
 
 var CONTENT = JSON.parse(JSON.stringify(DEFAULTS));
@@ -294,7 +312,9 @@ function subForm(dark){
     + '</form></div>';
 }
 function socialIcons(){
-  var s=(page('global').socials)||{};
+  var g=page('global');
+  if(g.showSocials===false) return '';
+  var s=g.socials||{};
   var ic={ instagram:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>',
     twitter:'<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.24 2H21l-6.5 7.43L22 22h-6.28l-4.9-6.4L5.2 22H2.4l6.95-7.94L2 2h6.44l4.43 5.86L18.24 2Zm-2.2 18h1.55L7.03 3.94H5.36L16.04 20Z"/></svg>',
     facebook:'<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 10-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0022 12Z"/></svg>' };
@@ -303,8 +323,24 @@ function socialIcons(){
   return out;
 }
 
+function applyBrand(g){
+  var brand=esc(g.brand||'Vaulmo');
+  // Favicon — a CMS value (URL or data URL) overrides the built-in default.
+  if(g.favicon){ var fav=document.getElementById('favicon'); if(fav) fav.setAttribute('href', g.favicon); }
+  // Website logo — replaces the built-in mark + wordmark in the header and footer when set.
+  var nb=document.getElementById('navBrand'), fb=document.getElementById('footBrand');
+  if(g.brandLogo){
+    if(nb) nb.innerHTML='<img class="brand-logo" src="'+esc(g.brandLogo)+'" alt="'+brand+'">';
+    if(fb) fb.innerHTML='<img class="brand-logo" src="'+esc(g.brandLogo)+'" alt="'+brand+'">';
+  } else if(nb){
+    // No custom logo: keep the built-in mark, just sync the wordmark text.
+    var nSpan=nb.querySelector('span'); if(nSpan) nSpan.textContent=brand;
+    var fSpan=fb&&fb.querySelector('span'); if(fSpan) fSpan.textContent=brand;
+  }
+}
 function renderChrome(){
   var g=page('global');
+  applyBrand(g);
   var links=(g.nav||[]).map(function(n){return '<a href="'+esc(n.href)+'">'+esc(n.label)+'</a>';}).join('');
   document.getElementById('navLinks').innerHTML = links + '<a class="btn" data-download href="#/download">Download</a>';
   document.getElementById('footLinks').innerHTML = (g.footerLinks||[]).map(function(n){return '<a href="'+esc(n.href)+'">'+esc(n.label)+'</a>';}).join('');
@@ -330,7 +366,7 @@ function submitSub(form){
 function openPopup(){ document.getElementById('popup').classList.add('open'); }
 function closePopup(){ document.getElementById('popup').classList.remove('open'); }
 
-document.addEventListener('submit', function(e){ var f=e.target; if(f&&f.matches&&f.matches('form[data-sub]')){ e.preventDefault(); submitSub(f); } });
+document.addEventListener('submit', function(e){ var f=e.target; if(f&&f.matches){ if(f.matches('form[data-sub]')){ e.preventDefault(); submitSub(f); } else if(f.matches('form[data-contact]')){ e.preventDefault(); submitContact(f); } } });
 document.addEventListener('click', function(e){
   var dl=e.target.closest && e.target.closest('[data-download]');
   if(dl && !launched()){ e.preventDefault(); openPopup(); return; }
@@ -364,10 +400,24 @@ function viewHome(){
   + '<section class="cta" style="padding-top:0"><div class="wrap"><div class="eyebrow">'+esc(h.ctaEyebrow)+'</div><h2>'+esc(h.ctaTitle)+'</h2><p class="sub2">'+esc(h.ctaIntro)+'</p>'+stores()+'<div class="subwrap">'+subForm(false)+'</div></div></section>';
 }
 function blocks(sections){ return '<div class="blocks">'+(sections||[]).map(function(s){return '<div class="block"><h3>'+esc(s.heading)+'</h3><p>'+esc(s.body)+'</p></div>';}).join('')+'</div>'; }
-/* Built-in illustrations for the Features page (self-contained — no external images).
-   A section's `image` field picks one of these keys, or can be a real image URL. */
-var ILLUS={ scan:['#2563EB','#22D3EE','📄'], reminders:['#0f9d58','#7be3a9','🔔'], assistant:['#6d28d9','#a78bfa','💬'], family:['#e08600','#ffd27a','👪'], vault:['#0891b2','#67e8f9','🔒'], passport:['#1E3A8A','#60a5fa','🪪'], connect:['#db2777','#f9a8d4','✉️'], security:['#0F172A','#334155','🛡️'] };
-function illus(key){ var t=ILLUS[key]||ILLUS.scan; return '<div class="illus" style="background:linear-gradient(140deg,'+t[0]+','+t[1]+')"><span class="illus-g">'+t[2]+'</span></div>'; }
+/* Built-in illustrations (self-contained inline SVG — no external images).
+   A section/page `image` field picks one of these keys, or can be a real image URL. */
+var ILLUS={
+  scan:['#2563EB','#22D3EE','<rect x="60" y="22" width="80" height="96" rx="9" fill="#fff"/><rect x="74" y="40" width="52" height="7" rx="3.5" fill="#cbd5e1"/><rect x="74" y="56" width="52" height="7" rx="3.5" fill="#e2e8f0"/><rect x="74" y="72" width="36" height="7" rx="3.5" fill="#e2e8f0"/><rect x="74" y="92" width="22" height="15" rx="3" fill="#22D3EE"/><rect x="46" y="65" width="108" height="6" rx="3" fill="rgba(255,255,255,.92)"/>'],
+  reminders:['#0f9d58','#7be3a9','<path d="M100 28a26 26 0 0 1 26 26v20l8 12H66l8-12V54a26 26 0 0 1 26-26Z" fill="#fff"/><circle cx="100" cy="100" r="8" fill="#fff"/><circle cx="128" cy="40" r="12" fill="#22c55e"/>'],
+  assistant:['#6d28d9','#a78bfa','<rect x="42" y="32" width="88" height="56" rx="15" fill="#fff"/><path d="M62 88v18l20-18Z" fill="#fff"/><circle cx="70" cy="60" r="5" fill="#94a3b8"/><circle cx="88" cy="60" r="5" fill="#94a3b8"/><circle cx="106" cy="60" r="5" fill="#94a3b8"/><rect x="122" y="58" width="44" height="42" rx="13" fill="#a78bfa"/>'],
+  family:['#e08600','#ffd27a','<circle cx="76" cy="50" r="17" fill="#fff"/><path d="M46 106a30 30 0 0 1 60 0Z" fill="#fff"/><circle cx="128" cy="58" r="12" fill="#fbbf24"/><path d="M106 102a22 22 0 0 1 44 0Z" fill="#fbbf24"/>'],
+  vault:['#0891b2','#67e8f9','<rect x="56" y="28" width="88" height="74" rx="11" fill="#fff"/><circle cx="100" cy="65" r="21" fill="none" stroke="#94a3b8" stroke-width="5"/><circle cx="100" cy="65" r="6" fill="#0891b2"/><rect x="97.5" y="65" width="5" height="17" rx="2" fill="#0891b2"/>'],
+  passport:['#1E3A8A','#60a5fa','<rect x="64" y="24" width="72" height="94" rx="9" fill="#fff"/><rect x="64" y="24" width="11" height="94" rx="4" fill="#60a5fa"/><circle cx="104" cy="56" r="15" fill="#cbd5e1"/><rect x="84" y="82" width="42" height="6" rx="3" fill="#e2e8f0"/><rect x="84" y="94" width="30" height="6" rx="3" fill="#e2e8f0"/>'],
+  connect:['#db2777','#f9a8d4','<rect x="50" y="38" width="100" height="66" rx="11" fill="#fff"/><path d="M55 46l45 34 45-34" fill="none" stroke="#94a3b8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>'],
+  security:['#0F172A','#334155','<path d="M100 24l35 13v27c0 27-17 41-35 47-18-6-35-20-35-47V37Z" fill="#fff"/><path d="M85 66l11 11 21-24" fill="none" stroke="#0f9d58" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>'],
+  plans:['#7c3aed','#c4b5fd','<rect x="52" y="74" width="27" height="34" rx="5" fill="rgba(255,255,255,.82)"/><rect x="86" y="54" width="27" height="54" rx="5" fill="#fff"/><rect x="120" y="38" width="27" height="70" rx="5" fill="#fff"/><path d="M133 20l4 9 10 1-7.5 7 2 10-8.5-5-8.5 5 2-10-7.5-7 10-1Z" fill="#facc15"/>'],
+  contact:['#0ea5e9','#67e8f9','<path d="M150 40 52 74l32 12 7 26 16-20 25 14z" fill="#fff"/><path d="M150 40 91 92" fill="none" stroke="rgba(15,23,42,.15)" stroke-width="4"/>'],
+  about:['#2563EB','#60a5fa','<circle cx="100" cy="66" r="35" fill="#fff"/><circle cx="100" cy="51" r="5.5" fill="#2563EB"/><rect x="94.5" y="61" width="11" height="26" rx="4.5" fill="#2563EB"/>']
+};
+function illus(key){ var t=ILLUS[key]||ILLUS.scan; return '<div class="illus" style="background:linear-gradient(140deg,'+t[0]+','+t[1]+')"><svg viewBox="0 0 200 130" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">'+t[2]+'</svg></div>'; }
+/* A header illustration for a content page (contact/about/plans). */
+function pageIllus(key){ if(!key) return ''; if(/^(https?:|\/)/.test(key)) return '<div class="page-illus"><img src="'+esc(key)+'" alt=""></div>'; return '<div class="page-illus">'+illus(key)+'</div>'; }
 function viewFeatures(){
   var p=page('features');
   var rows=(p.sections||[]).map(function(s,i){
@@ -381,7 +431,28 @@ function pageShell(inner){ return '<section class="page"><div class="wrap">'+inn
 function viewSimple(slug){ var p=page(slug); return pageShell('<h1 class="ph">'+esc(p.title)+'</h1>'+(p.updated?'<div class="updated">'+esc(p.updated)+'</div>':'')+'<p class="pintro">'+esc(p.intro)+'</p>'+blocks(p.sections)); }
 function viewSecurity(){ var p=page('security'); var pts=(p.points||[]).map(function(x){return '<li>'+CHECKB+' '+esc(x)+'</li>';}).join(''); return pageShell('<h1 class="ph">'+esc(p.title)+'</h1><p class="pintro">'+esc(p.intro)+'</p><ul class="checklist">'+pts+'</ul>'+blocks(p.sections)); }
 function viewSupport(){ var p=page('support'); var ch=(p.channels||[]).map(function(c){return '<div class="block"><h3>'+esc(c.name)+'</h3><p>'+esc(c.detail)+'</p></div>';}).join(''); var secs=(p.sections&&p.sections.length)?blocks(p.sections):''; return pageShell('<h1 class="ph">'+esc(p.title)+'</h1><p class="pintro">'+esc(p.intro)+'</p><div class="blocks">'+ch+'</div>'+secs+(p.note?'<p class="pintro" style="margin-top:22px">'+esc(p.note)+'</p>':'')); }
-function viewContact(){ var p=page('contact'); var cells=[]; if(p.email)cells.push({h:'General enquiries',b:p.email}); if(p.supportEmail)cells.push({h:'Support',b:p.supportEmail}); if(p.phone)cells.push({h:'Phone',b:p.phone}); if(p.hours)cells.push({h:'Hours',b:p.hours}); if(p.address)cells.push({h:'Address',b:p.address}); var grid=cells.map(function(c){return '<div class="block"><h3>'+esc(c.h)+'</h3><p>'+esc(c.b)+'</p></div>';}).join(''); return pageShell('<h1 class="ph">'+esc(p.title)+'</h1><p class="pintro">'+esc(p.intro)+'</p><div class="contact-grid">'+grid+'</div>'); }
+function contactForm(){
+  var p=page('contact');
+  return '<form class="contact-form" data-contact novalidate>'
+    + '<div class="cf-row"><input type="text" name="name" required placeholder="'+esc(p.namePlaceholder||'Your name')+'" autocomplete="name"><input type="email" name="email" required placeholder="'+esc(p.emailPlaceholder||'you@example.com')+'" autocomplete="email"></div>'
+    + '<input type="text" name="subject" placeholder="'+esc(p.subjectPlaceholder||'Subject (optional)')+'">'
+    + '<textarea name="message" required placeholder="'+esc(p.messagePlaceholder||'How can we help?')+'"></textarea>'
+    + '<div class="cf-err" hidden></div>'
+    + '<button class="btn" type="submit">'+esc(p.button||'Send message')+'</button>'
+    + '</form>';
+}
+function viewContact(){ var p=page('contact'); return pageShell('<h1 class="ph">'+esc(p.title)+'</h1>'+pageIllus(p.image)+'<p class="pintro">'+esc(p.intro)+'</p>'+contactForm()); }
+function viewAbout(){ var p=page('about'); return pageShell('<h1 class="ph">'+esc(p.title)+'</h1>'+pageIllus(p.image)+'<p class="pintro">'+esc(p.intro)+'</p>'+blocks(p.sections)); }
+function submitContact(form){
+  var err=form.querySelector('.cf-err'); err.hidden=true;
+  var name=(form.name.value||'').trim(), email=(form.email.value||'').trim(), subject=(form.subject.value||'').trim(), message=(form.message.value||'').trim();
+  if(!name||!email||!message){ err.textContent='Please add your name, email and a message.'; err.hidden=false; return; }
+  var btn=form.querySelector('button'); btn.disabled=true; btn.textContent='Sending…';
+  fetch(API+'/site/contact',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:name,email:email,subject:subject,message:message,source:'website'})})
+    .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+    .then(function(){ var p=page('contact'); form.outerHTML='<div class="cf-ok">✓ '+esc(p.success||'Thanks — your message has been sent.')+'</div>'; })
+    .catch(function(){ btn.disabled=false; btn.textContent=(page('contact').button)||'Send message'; err.textContent='Something went wrong — please try again.'; err.hidden=false; });
+}
 function viewFaq(){ var p=page('faq'); var items=(p.items||[]).map(function(i){return '<details class="faq"><summary>'+esc(i.q)+'</summary><p>'+esc(i.a)+'</p></details>';}).join(''); return pageShell('<h1 class="ph">'+esc(p.title)+'</h1><p class="pintro">'+esc(p.intro)+'</p><div class="faq-list">'+items+'</div>'); }
 function viewDownload(){ var h=page('home'); return pageShell('<h1 class="ph">Download Vaulmo</h1><p class="pintro">'+esc(h.ctaIntro)+'</p><div style="display:flex;justify-content:center;margin-top:24px">'+stores()+'</div>'); }
 
@@ -409,10 +480,10 @@ function fetchPlans(){
 function viewPlans(){
   var p=page('plans');
   setTimeout(fetchPlans,0);
-  return pageShell('<h1 class="ph">'+esc(p.title)+'</h1><p class="pintro">'+esc(p.intro)+'</p><div id="planCards" class="plan-cards"><div class="empty">Loading plans…</div></div>'+(p.note?'<p class="pintro" style="margin-top:24px;font-size:14px">'+esc(p.note)+'</p>':''));
+  return pageShell('<h1 class="ph">'+esc(p.title)+'</h1>'+pageIllus(p.image)+'<p class="pintro">'+esc(p.intro)+'</p><div id="planCards" class="plan-cards"><div class="empty">Loading plans…</div></div>'+(p.note?'<p class="pintro" style="margin-top:24px;font-size:14px">'+esc(p.note)+'</p>':''));
 }
 
-var ROUTES={ '' :viewHome, '/':viewHome, '/features':viewFeatures, '/plans':viewPlans, '/security':viewSecurity, '/privacy':function(){return viewSimple('privacy');}, '/support':viewSupport, '/about':function(){return viewSimple('about');}, '/contact':viewContact, '/faq':viewFaq, '/terms':function(){return viewSimple('terms');}, '/download':viewDownload };
+var ROUTES={ '' :viewHome, '/':viewHome, '/features':viewFeatures, '/plans':viewPlans, '/security':viewSecurity, '/privacy':function(){return viewSimple('privacy');}, '/support':viewSupport, '/about':viewAbout, '/contact':viewContact, '/faq':viewFaq, '/terms':function(){return viewSimple('terms');}, '/download':viewDownload };
 
 function route(){
   var hash=(location.hash||'#/').replace(/^#/,'');

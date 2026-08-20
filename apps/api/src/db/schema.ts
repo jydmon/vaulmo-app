@@ -288,6 +288,7 @@ export const plans = pgTable('plans', {
   stripePriceId: text('stripe_price_id'),
   entitlements: jsonb('entitlements').notNull().default({}),
   modules: jsonb('modules').notNull().default([]),
+  features: jsonb('features').notNull().default([]),
   discountPercent: integer('discount_percent').notNull().default(0),
   discountLabel: text('discount_label'),
   active: boolean('active').notNull().default(true),
@@ -474,6 +475,18 @@ export const siteSubscribers = pgTable('site_subscribers', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Contact-form submissions from the public site (collected in the admin inbox).
+export const contactMessages = pgTable('contact_messages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  subject: text('subject'),
+  message: text('message').notNull(),
+  status: text('status').notNull().default('new'), // new | read
+  source: text('source').notNull().default('website'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ---- Password / secrets vault (SEC-30) ----
 // Owner-scoped secure items. The sensitive payload (password, notes, card number,
 // PIN) is AES-256-GCM encrypted at rest in `secretCipher`; only non-sensitive labels
@@ -563,9 +576,12 @@ export const emailCampaigns = pgTable('email_campaigns', {
   name: text('name').notNull(),
   subject: text('subject').notNull(),
   body: text('body').notNull(),
+  format: text('format').notNull().default('html'), // html | text
   segment: text('segment').notNull().default('all'),
+  audiences: jsonb('audiences').notNull().default([]), // ['waitlist','contacts','users',...]
   tag: text('tag'),
-  status: text('status').notNull().default('draft'),
+  status: text('status').notNull().default('draft'), // draft | scheduled | sent
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
   recipientCount: integer('recipient_count').notNull().default(0),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),

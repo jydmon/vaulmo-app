@@ -25,13 +25,20 @@ async function adminSession(): Promise<string> {
 }
 async function main() {
   const app = createApp(); const server = app.listen(PORT); await new Promise((r) => setTimeout(r, 300));
+  const stamp = Date.now();
 
-  // Seed a couple of prospect + subscriber tenants so the audience is non-empty.
-  const p1 = `prospect+${Date.now()}@example.com`;
-  await api('POST', '/api/v1/auth/register', undefined, { email: p1, password: 'Prospect123!', fullName: 'Pat Prospect' });
+  // Seed an app user (prospect), a website waitlist sign-up, and a contact-form sender
+  // so each audience group resolves to at least one recipient.
+  await api('POST', '/api/v1/auth/register', undefined, { email: `prospect+${stamp}@example.com`, password: 'Prospect123!', fullName: 'Pat Prospect' });
+  await api('POST', '/api/v1/site/subscribe', undefined, { name: 'Wendy Waitlist', email: `wait+${stamp}@example.com`, notifyAtLaunch: true });
+  await api('POST', '/api/v1/site/contact', undefined, { name: 'Connie Contact', email: `contact+${stamp}@example.com`, message: 'Hello there' });
 
   const tok = await adminSession();
   ok('admin session obtained', !!tok);
+
+  // Audience catalogue is exposed for the UI.
+  const meta = await api('GET', '/api/v1/admin/campaigns-meta', tok);
+  ok('audience catalogue lists the groups', (meta.j?.audiences ?? []).some((a: any) => a.key === 'waitlist') && meta.j.audiences.some((a: any) => a.key === 'contacts') && meta.j.audiences.some((a: any) => a.key === 'users'));
 
   // Automations seed on first read.
   const autos = await api('GET', '/api/v1/admin/automations', tok);
@@ -39,32 +46,54 @@ async function main() {
   const toggle = await api('PUT', '/api/v1/admin/automations/inactivity', tok, { enabled: true });
   ok('automation can be toggled on', toggle.j?.automation?.enabled === true);
 
-  // Create a campaign to prospects.
-  const create = await api('POST', '/api/v1/admin/campaigns', tok, { name: 'August newsletter', subject: 'What’s new in Vaulmo', body: 'Hello from Vaulmo!', segment: 'prospects' });
-  const id = create.j?.campaign?.id; ok('campaign created (draft)', !!id && create.j.campaign.status === 'draft');
+  // Validation: at least one audience group is required.
+  const noAud = await api('POST', '/api/v1/admin/campaigns', tok, { name: 'x', subject: 's', body: 'b', audiences: [] });
+  ok('empty audience rejected (422)', noAud.status === 422, `→ ${noAud.status}`);
 
-  // Audience preview.
+  // Ad-hoc audience preview across multiple groups (de-duplicated union).
+  const pre = await api('POST', '/api/v1/admin/campaigns/preview/audience', tok, { audiences: ['prospects', 'waitlist', 'contacts'] });
+  ok('multi-group audience preview counts recipients', typeof pre.j?.count === 'number' && pre.j.count >= 3, JSON.stringify(pre.j).slice(0, 100));
+
+  // Create a rich-HTML campaign to three groups.
+  const html = '<h1 style="color:#2563EB">Hi {{name}}</h1><p>Rich <b>HTML</b> email.</p>';
+  const create = await api('POST', '/api/v1/admin/campaigns', tok, { name: 'August newsletter', subject: 'What’s new in Vaulmo', body: html, format: 'html', audiences: ['prospects', 'waitlist', 'contacts'] });
+  const id = create.j?.campaign?.id;
+  ok('HTML campaign created (draft)', !!id && create.j.campaign.status === 'draft' && create.j.campaign.format === 'html' && (create.j.campaign.audiences ?? []).length === 3);
+
+  // Saved-campaign audience preview.
   const aud = await api('POST', `/api/v1/admin/campaigns/${id}/audience`, tok, {});
-  ok('audience preview returns a count', typeof aud.j?.count === 'number' && aud.j.count >= 1, JSON.stringify(aud.j).slice(0, 80));
+  ok('saved-campaign audience preview returns a count', typeof aud.j?.count === 'number' && aud.j.count >= 3, JSON.stringify(aud.j).slice(0, 80));
 
-  // Send.
+  // Edit is allowed before sending.
+  const edit = await api('PUT', `/api/v1/admin/campaigns/${id}`, tok, { subject: 'Edited subject' });
+  ok('draft campaign can be edited', edit.status === 200 && edit.j?.campaign?.subject === 'Edited subject');
+
+  // Send now.
   const send = await api('POST', `/api/v1/admin/campaigns/${id}/send`, tok, {});
-  ok('campaign sends to the audience', send.j?.sent >= 1 && send.j?.campaign?.status === 'sent', JSON.stringify(send.j).slice(0, 100));
-
-  // Re-send is blocked.
+  ok('HTML campaign sends to the union', send.j?.sent >= 3 && send.j?.campaign?.status === 'sent', JSON.stringify(send.j).slice(0, 100));
   const resend = await api('POST', `/api/v1/admin/campaigns/${id}/send`, tok, {});
   ok('already-sent campaign cannot be re-sent (409)', resend.status === 409);
+  const editSent = await api('PUT', `/api/v1/admin/campaigns/${id}`, tok, { subject: 'no' });
+  ok('a sent campaign cannot be edited (409)', editSent.status === 409);
 
-  // Detail shows recipients.
+  // Schedule a campaign in the past → it is 'scheduled', then process-due sends it.
+  const past = new Date(stamp - 60_000).toISOString();
+  const sched = await api('POST', '/api/v1/admin/campaigns', tok, { name: 'Scheduled blast', subject: 'Later', body: 'Scheduled body', format: 'text', audiences: ['waitlist'], scheduledAt: past });
+  const sid = sched.j?.campaign?.id;
+  ok('campaign can be scheduled', sched.j?.campaign?.status === 'scheduled' && !!sched.j?.campaign?.scheduledAt, JSON.stringify(sched.j?.campaign).slice(0, 80));
+  const due = await api('POST', '/api/v1/admin/campaigns/process-due', tok, {});
+  ok('due scheduled campaigns are processed', (due.j?.sent ?? 0) >= 1, JSON.stringify(due.j));
+  const after = await api('GET', `/api/v1/admin/campaigns/${sid}`, tok);
+  ok('scheduled campaign becomes sent after processing', after.j?.campaign?.status === 'sent');
+
+  // Detail shows recipients; list includes it.
   const detail = await api('GET', `/api/v1/admin/campaigns/${id}`, tok);
   ok('campaign detail lists recipients', (detail.j?.recipients ?? []).length >= 1);
-
-  // List includes it.
   const list = await api('GET', '/api/v1/admin/campaigns', tok);
   ok('campaign appears in the list', (list.j?.campaigns ?? []).some((c: any) => c.id === id));
 
   // A regular user cannot access campaigns.
-  const reg = await api('POST', '/api/v1/auth/register', undefined, { email: `u+${Date.now()}@example.com`, password: 'RegUser1234!', fullName: 'Reg User' });
+  const reg = await api('POST', '/api/v1/auth/register', undefined, { email: `u+${stamp}@example.com`, password: 'RegUser1234!', fullName: 'Reg User' });
   const denied = await api('GET', '/api/v1/admin/campaigns', reg.j?.accessToken);
   ok('non-admin is denied (403)', denied.status === 403, `→ ${denied.status}`);
 

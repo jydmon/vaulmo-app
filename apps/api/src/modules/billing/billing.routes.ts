@@ -156,6 +156,7 @@ const planSchema = z.object({
   interval: z.string().default('year'),
   entitlements: z.record(z.any()).default({}),
   modules: z.array(z.string()).optional(),
+  features: z.array(z.string().max(160)).max(30).optional(),
   discountPercent: z.number().int().min(0).max(100).optional(),
   discountLabel: z.string().max(60).nullable().optional(),
   sort: z.number().int().optional(),

@@ -95,18 +95,24 @@ async function main() {
   // --- Phase 6: seed annual subscription plans + provision into Stripe (fake driver in dev) ---
   const { plans } = await import('./schema');
   const { provisionPlan } = await import('../lib/billing/service');
+  // Two-tier model: a free Starter and a single all-inclusive paid Family plan.
+  // (Premium was retired — see migration 0030 — so it is deactivated below.)
+  const ALL_MODULES = ['vault', 'reminders', 'assistant', 'life', 'assets', 'family', 'integrations', 'passwords'];
   const PLAN_SEED = [
-    { key: 'starter', name: 'Starter', amount: 0, entitlements: { documents: 50, members: 1, aiAssistant: false, connectedServices: false }, sort: 10 },
-    { key: 'family', name: 'Family', amount: 5900, entitlements: { documents: -1, members: 6, aiAssistant: true, connectedServices: false }, sort: 20 },
-    { key: 'premium', name: 'Premium', amount: 9900, entitlements: { documents: -1, members: 6, aiAssistant: true, connectedServices: true }, sort: 30 },
+    { key: 'starter', name: 'Starter', amount: 0, entitlements: { documents: 50, members: 1, aiAssistant: false, connectedServices: false }, modules: ['vault', 'reminders'], sort: 10,
+      features: ['Secure document vault (up to 50 documents)', 'Smart scanning & automatic filing', 'Renewal & expiry reminders', 'Bank-level encryption & two-factor login', '1 household member'] },
+    { key: 'family', name: 'Family', amount: 5900, entitlements: { documents: -1, members: 6, aiAssistant: true, connectedServices: true }, modules: ALL_MODULES, sort: 20,
+      features: ['Everything in Starter', 'Unlimited documents', 'Up to 6 household members', 'AI Assistant — ask questions across your vault', 'Password vault (encrypted)', 'Connected Services — automatic email import', 'Family & emergency access', 'Priority support'] },
   ];
   for (const p of PLAN_SEED) {
     const [existing] = await db.select().from(plans).where(eq(plans.key, p.key)).limit(1);
-    if (existing) await db.update(plans).set({ name: p.name, amount: p.amount, entitlements: p.entitlements as any, sort: p.sort }).where(eq(plans.key, p.key));
-    else await db.insert(plans).values({ key: p.key, name: p.name, amount: p.amount, entitlements: p.entitlements as any, sort: p.sort });
+    if (existing) await db.update(plans).set({ name: p.name, amount: p.amount, entitlements: p.entitlements as any, modules: p.modules as any, features: p.features as any, sort: p.sort }).where(eq(plans.key, p.key));
+    else await db.insert(plans).values({ key: p.key, name: p.name, amount: p.amount, entitlements: p.entitlements as any, modules: p.modules as any, features: p.features as any, sort: p.sort });
     await provisionPlan(p.key); // sets stripe product/price ids (fake in dev)
   }
-  console.log(`Seeded ${PLAN_SEED.length} subscription plans.`);
+  // Retire Premium if it exists from an earlier seed.
+  await db.update(plans).set({ active: false }).where(eq(plans.key, 'premium'));
+  console.log(`Seeded ${PLAN_SEED.length} subscription plans (Premium retired).`);
 
   console.log('Seed complete.');
 }

@@ -348,7 +348,7 @@ const TENANT_NAV = [
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
   { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'faq', label: 'FAQ', ic: 'help' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'campaigns', label: 'Campaigns', ic: 'notif' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'website', label: 'Website (CMS)', ic: 'cms' }, { id: 'subscribers', label: 'Waitlist', ic: 'crm' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'campaigns', label: 'Campaigns', ic: 'notif' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'website', label: 'Website (CMS)', ic: 'cms' }, { id: 'subscribers', label: 'Waitlist', ic: 'crm' }, { id: 'messages', label: 'Form submissions', ic: 'support' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
 
 function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; refreshMe: () => Promise<void> }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -370,7 +370,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     reminders: ['Reminders', 'What needs your attention'], expiries: ['Renewals & Expiries', 'Everything coming due, in one place'], passwords: ['Password Vault', 'Passwords, cards & secure notes'], passport: ['Passport Photo', 'A compliant photo from any picture'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], assets: ['Property & Vehicles', 'Your home, car & other assets'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], website: ['Website (CMS)', 'Edit the public vaulmo.com pages'], subscribers: ['Waitlist', 'People who signed up on the website'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], website: ['Website (CMS)', 'Edit the public vaulmo.com pages'], subscribers: ['Waitlist', 'People who signed up on the website'], messages: ['Form submissions', 'Messages sent via the website contact form'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
   const help: Record<string, string> = {
@@ -401,6 +401,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     crm: 'Customer lifecycle, tags, notes and troubleshooting tools.',
     website: 'Edit the text and content of the public marketing website (vaulmo.com) — every page and section. Changes go live on the site immediately.',
     subscribers: 'Everyone who signed up on the website to be notified at launch. Export them as a CSV for your email tool.',
+    messages: 'Messages people send through the website contact form. Read them here, mark them done, and export them as a CSV.',
     campaigns: 'Send email campaigns to segments of your users, and manage automated communication workflows.',
     cms: 'Create and manage the help-centre articles customers see.',
     catalogue: 'The recommended-document list, the metadata fields AI extracts, and reminder rules.',
@@ -414,7 +415,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     health: 'Live status of every platform component.',
     audit: 'A complete, append-only log of platform activity.',
   };
-  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, expiries: <Expiries />, passwords: <Passwords toast={toast} />, passport: <PassportTool toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, website: <AdminSite toast={toast} />, subscribers: <AdminSubscribers toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, expiries: <Expiries />, passwords: <Passwords toast={toast} />, passport: <PassportTool toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, website: <AdminSite toast={toast} />, subscribers: <AdminSubscribers toast={toast} />, messages: <AdminMessages toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
     <a href="#main" className="skip-link">Skip to main content</a>
@@ -1363,16 +1364,19 @@ function Subscriptions({ toast }: any) {
   function startEdit(p?: any) {
     const mods = p?.modules?.length ? p.modules : ALL_MODULES.map((m) => m.key);
     setEdit(p
-      ? { key: p.key, name: p.name, amountPounds: (p.amount ?? 0) / 100, members: p.entitlements?.members ?? 1, aiAssistant: !!p.entitlements?.aiAssistant, connectedServices: !!p.entitlements?.connectedServices, active: p.active !== false, modules: mods, discountPercent: p.discountPercent ?? 0, discountLabel: p.discountLabel ?? '', isNew: false }
-      : { key: '', name: '', amountPounds: 0, members: 1, aiAssistant: false, connectedServices: false, active: true, modules: ALL_MODULES.map((m) => m.key), discountPercent: 0, discountLabel: '', isNew: true });
+      ? { key: p.key, name: p.name, amountPounds: (p.amount ?? 0) / 100, members: p.entitlements?.members ?? 1, aiAssistant: !!p.entitlements?.aiAssistant, connectedServices: !!p.entitlements?.connectedServices, active: p.active !== false, modules: mods, features: Array.isArray(p.features) ? [...p.features] : [], discountPercent: p.discountPercent ?? 0, discountLabel: p.discountLabel ?? '', isNew: false }
+      : { key: '', name: '', amountPounds: 0, members: 1, aiAssistant: false, connectedServices: false, active: true, modules: ALL_MODULES.map((m) => m.key), features: [], discountPercent: 0, discountLabel: '', isNew: true });
   }
   function toggleMod(k: string) { setEdit((e: any) => ({ ...e, modules: e.modules.includes(k) ? e.modules.filter((x: string) => x !== k) : [...e.modules, k] })); }
+  function setFeature(i: number, v: string) { setEdit((e: any) => { const f = [...(e.features ?? [])]; f[i] = v; return { ...e, features: f }; }); }
+  function addFeature() { setEdit((e: any) => ({ ...e, features: [...(e.features ?? []), ''] })); }
+  function removeFeature(i: number) { setEdit((e: any) => ({ ...e, features: (e.features ?? []).filter((_: any, idx: number) => idx !== i) })); }
   async function savePlan() {
     const e = edit;
     if (!e.key || !e.name) { toast('Key and name are required'); return; }
     setBusy('plan');
     try {
-      await api.adminUpsertPlan({ key: e.key, name: e.name, amount: Math.round((Number(e.amountPounds) || 0) * 100), currency: 'gbp', interval: 'year', entitlements: { members: Number(e.members), aiAssistant: !!e.aiAssistant, connectedServices: !!e.connectedServices }, modules: e.modules, discountPercent: Number(e.discountPercent) || 0, discountLabel: e.discountLabel || null, active: !!e.active });
+      await api.adminUpsertPlan({ key: e.key, name: e.name, amount: Math.round((Number(e.amountPounds) || 0) * 100), currency: 'gbp', interval: 'year', entitlements: { members: Number(e.members), aiAssistant: !!e.aiAssistant, connectedServices: !!e.connectedServices }, modules: e.modules, features: (e.features ?? []).map((f: string) => f.trim()).filter(Boolean), discountPercent: Number(e.discountPercent) || 0, discountLabel: e.discountLabel || null, active: !!e.active });
       toast('Plan saved'); setEdit(null); await reload(); await reloadStatus();
     } catch (err) { toast((err as any).message); } finally { setBusy(''); }
   }
@@ -1446,6 +1450,17 @@ function Subscriptions({ toast }: any) {
           {ALL_MODULES.map((m) => <span key={m.key} style={chk} title={m.description}><input type="checkbox" checked={edit.modules.includes(m.key)} onChange={() => toggleMod(m.key)} style={{ width: 'auto', marginTop: 0 }} /> {m.name}</span>)}
         </div>
         {Number(edit.amountPounds) > 0 && Number(edit.discountPercent) > 0 && <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Customers pay £{(Number(edit.amountPounds) * (1 - Number(edit.discountPercent) / 100)).toFixed(2)}/yr after the {edit.discountPercent}% discount.</div>}
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <div className="muted" style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>FEATURES SHOWN ON THE PUBLIC PLANS PAGE</div>
+        <div className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>These bullet points appear exactly as written on vaulmo.com. Leave empty to fall back to the plan’s modules.</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {(edit.features ?? []).map((f: string, i: number) => <div key={i} className="flex" style={{ gap: 8 }}>
+            <input value={f} onChange={(e) => setFeature(i, e.target.value)} placeholder="e.g. Unlimited documents" style={{ marginTop: 0, flex: 1 }} />
+            <button className="btn sm sec" onClick={() => removeFeature(i)} aria-label="Remove feature">✕</button>
+          </div>)}
+          <A onClick={addFeature} style={{ fontSize: 13 }}>+ Add feature</A>
+        </div>
       </div>
       <div className="flex" style={{ marginTop: 12, gap: 20, flexWrap: 'wrap' }}>
         <span style={chk}><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> Active (shown to customers)</span>
@@ -1907,49 +1922,120 @@ function PlanPrice({ p }: { p: any }) {
     {hasDiscount && <div><span className="pill p-good" style={{ fontSize: 11 }}>{p.discountLabel || `${p.discountPercent}% off`}</span></div>}
   </div>;
 }
-const SEGMENT_LABEL: Record<string, string> = { all: 'All users', subscribers: 'Subscribers', prospects: 'Prospects (no active plan)', tag: 'Tagged' };
+const SEGMENT_LABEL: Record<string, string> = { all: 'All users', subscribers: 'Subscribers', prospects: 'Prospects (no active plan)', tag: 'Tagged', users: 'App users (all)', waitlist: 'Website waitlist', contacts: 'Contact-form senders' };
+const AUDIENCE_LABEL: Record<string, string> = { users: 'App users (all)', subscribers: 'App users — paying subscribers', prospects: 'App users — no active plan', waitlist: 'Website waitlist sign-ups', contacts: 'Contact-form senders' };
+const blankCampaign = () => ({ name: '', subject: '', body: '<p>Hi {{name}},</p>\n<p>Write your message here…</p>\n<p>— The Vaulmo team</p>', format: 'html', audiences: [] as string[], scheduleMode: 'now' as 'now' | 'later', scheduledAt: '' });
 function AdminCampaigns({ toast }: any) {
   const { data, reload } = useData(() => api.adminCampaigns());
+  const { data: meta } = useData(() => api.adminCampaignsMeta());
   const { data: autos, reload: reloadAutos } = useData(() => api.adminAutomations());
   const [creating, setCreating] = useState(false);
-  const [f, setF] = useState({ name: '', subject: '', body: '', segment: 'all', tag: '' });
+  const [f, setF] = useState(blankCampaign());
   const [busy, setBusy] = useState('');
   const [audience, setAudience] = useState<Record<string, any>>({});
+  const [previewCount, setPreviewCount] = useState<any>(null);
   const [editAuto, setEditAuto] = useState<any>(null);
+  const audiences = meta?.audiences ?? [{ key: 'users', label: 'App users (all)' }, { key: 'subscribers', label: 'App users — paying subscribers' }, { key: 'prospects', label: 'App users — no active plan' }, { key: 'waitlist', label: 'Website waitlist sign-ups' }, { key: 'contacts', label: 'Contact-form senders' }];
 
-  async function create() {
-    if (!f.name.trim() || !f.subject.trim() || !f.body.trim()) { toast('Fill in name, subject and message'); return; }
+  // Live audience preview as the group selection changes.
+  useEffect(() => {
+    let ok = true;
+    if (!f.audiences.length) { setPreviewCount(null); return; }
+    api.adminPreviewAudience(f.audiences).then((r) => { if (ok) setPreviewCount(r); }).catch(() => {});
+    return () => { ok = false; };
+  }, [f.audiences]);
+
+  function toggleAud(k: string) { setF((s) => ({ ...s, audiences: s.audiences.includes(k) ? s.audiences.filter((x) => x !== k) : [...s.audiences, k] })); }
+  function payload() {
+    const p: any = { name: f.name.trim(), subject: f.subject.trim(), body: f.body, format: f.format, audiences: f.audiences };
+    if (f.scheduleMode === 'later' && f.scheduledAt) p.scheduledAt = new Date(f.scheduledAt).toISOString();
+    return p;
+  }
+  function validate() {
+    if (!f.name.trim() || !f.subject.trim() || !f.body.trim()) { toast('Fill in name, subject and message'); return false; }
+    if (!f.audiences.length) { toast('Pick at least one audience'); return false; }
+    if (f.scheduleMode === 'later' && !f.scheduledAt) { toast('Pick a date & time to schedule'); return false; }
+    return true;
+  }
+  async function saveDraft() {
+    if (!validate()) return; setBusy('create');
+    try { await api.adminCreateCampaign({ ...payload(), scheduledAt: undefined }); setF(blankCampaign()); setCreating(false); reload(); toast('Draft saved'); }
+    catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
+  async function schedule() {
+    if (!validate()) return; setBusy('create');
+    try { await api.adminCreateCampaign(payload()); setF(blankCampaign()); setCreating(false); reload(); toast('Campaign scheduled'); }
+    catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
+  async function createAndSend() {
+    if (!validate()) return;
+    if (!window.confirm(`Send "${f.name}" now to ${previewCount?.count ?? 'the selected'} recipient(s)?`)) return;
     setBusy('create');
-    try { await api.adminCreateCampaign({ ...f, name: f.name.trim(), subject: f.subject.trim(), body: f.body.trim() }); setF({ name: '', subject: '', body: '', segment: 'all', tag: '' }); setCreating(false); reload(); toast('Campaign created'); }
+    try { const r = await api.adminCreateCampaign({ ...payload(), scheduledAt: undefined }); await api.adminSendCampaign(r.campaign.id); setF(blankCampaign()); setCreating(false); reload(); toast('Campaign sent'); }
     catch (e) { toast((e as any).message); } finally { setBusy(''); }
   }
   async function preview(id: string) { try { const r = await api.adminCampaignAudience(id); setAudience((s) => ({ ...s, [id]: r })); } catch (e) { toast((e as any).message); } }
   async function send(c: any) {
-    if (!window.confirm(`Send "${c.name}" now? This will email everyone in the selected segment.`)) return;
+    if (!window.confirm(`Send "${c.name}" now? This will email everyone in the selected audience.`)) return;
     setBusy(c.id);
     try { const r = await api.adminSendCampaign(c.id); toast(`Sent to ${r.sent} recipient${r.sent === 1 ? '' : 's'}`); reload(); }
     catch (e) { toast((e as any).message); } finally { setBusy(''); }
   }
+  async function processDue() { setBusy('due'); try { const r = await api.adminProcessDueCampaigns(); toast(r.sent ? `Sent ${r.sent} due campaign(s)` : 'Nothing due right now'); reload(); } catch (e) { toast((e as any).message); } finally { setBusy(''); } }
   async function del(id: string) { if (!window.confirm('Delete this campaign?')) return; try { await api.adminDeleteCampaign(id); reload(); } catch (e) { toast((e as any).message); } }
   async function saveAuto() { setBusy('auto'); try { await api.adminUpdateAutomation(editAuto.key, { subject: editAuto.subject, body: editAuto.body }); setEditAuto(null); reloadAutos(); toast('Saved'); } catch (e) { toast((e as any).message); } finally { setBusy(''); } }
   async function toggleAuto(a: any) { try { await api.adminUpdateAutomation(a.key, { enabled: !a.enabled }); reloadAutos(); } catch (e) { toast((e as any).message); } }
 
+  const chk = { display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14 } as const;
+  const audLabels = (c: any) => (c.audiences?.length ? c.audiences : [c.segment]).map((k: string) => AUDIENCE_LABEL[k] ?? SEGMENT_LABEL[k] ?? k).join(', ');
   return <>
     <div className="spread" style={{ marginBottom: 12 }}>
       <div className="section" style={{ margin: 0 }}>Email campaigns</div>
-      <button className="btn sm" onClick={() => setCreating(!creating)}>{creating ? 'Close' : '+ New campaign'}</button>
+      <div className="flex" style={{ gap: 8 }}>
+        <button className="btn sm sec" disabled={busy === 'due'} onClick={processDue} title="Send any scheduled campaigns that are now due">{busy === 'due' ? 'Checking…' : 'Process due now'}</button>
+        <button className="btn sm" onClick={() => setCreating(!creating)}>{creating ? 'Close' : '+ New campaign'}</button>
+      </div>
     </div>
     {creating && <Card title="New campaign">
       <label>Campaign name<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="August newsletter" /></label>
-      <label>Audience<select value={f.segment} onChange={(e) => setF({ ...f, segment: e.target.value })}>{Object.entries(SEGMENT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-      {f.segment === 'tag' && <label>Tag<input value={f.tag} onChange={(e) => setF({ ...f, tag: e.target.value })} placeholder="e.g. vip" /></label>}
+      <div style={{ margin: '4px 0 2px' }}>
+        <div className="muted" style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>AUDIENCE — send to one or more groups</div>
+        <div className="flex" style={{ gap: 16, flexWrap: 'wrap' }}>
+          {audiences.map((a: any) => <span key={a.key} style={chk} title={a.desc || ''}><input type="checkbox" checked={f.audiences.includes(a.key)} onChange={() => toggleAud(a.key)} style={{ width: 'auto', marginTop: 0 }} /> {a.label}</span>)}
+        </div>
+        <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>{f.audiences.length ? (previewCount ? `≈ ${previewCount.count} recipient${previewCount.count === 1 ? '' : 's'}${previewCount.sample?.length ? ` · e.g. ${previewCount.sample.slice(0, 2).join(', ')}` : ''} (de-duplicated across groups)` : 'Counting…') : 'Pick at least one group.'}</div>
+      </div>
       <label>Subject<input value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder="What's new in Vaulmo" /></label>
-      <label>Message<textarea rows={5} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} placeholder="Write your email…" /></label>
-      <button className="btn" disabled={busy === 'create'} onClick={create}>{busy === 'create' ? 'Creating…' : 'Create draft'}</button>
+      <label style={{ display: 'block', marginTop: 6 }}>Format
+        <select value={f.format} onChange={(e) => setF({ ...f, format: e.target.value })} style={{ maxWidth: 220 }}>
+          <option value="html">Rich HTML</option>
+          <option value="text">Plain text</option>
+        </select>
+      </label>
+      <label>{f.format === 'html' ? 'HTML body' : 'Message'}<textarea rows={f.format === 'html' ? 10 : 6} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} placeholder={f.format === 'html' ? '<h1>Hello</h1><p>…</p>' : 'Write your email…'} style={{ fontFamily: f.format === 'html' ? 'ui-monospace, Menlo, monospace' : 'inherit', fontSize: 13 }} /></label>
+      {f.format === 'html' && <div style={{ marginTop: 6 }}>
+        <div className="muted" style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>LIVE PREVIEW</div>
+        <iframe title="Email preview" srcDoc={f.body} style={{ width: '100%', height: 260, border: '1px solid var(--line)', borderRadius: 10, background: '#fff' }} />
+        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Tip: <code>{'{{name}}'}</code> is available; recipients see their own name where supported. Use inline styles for best results in email clients.</div>
+      </div>}
+      <div className="flex" style={{ gap: 20, marginTop: 12, flexWrap: 'wrap' }}>
+        <label style={chk}><input type="radio" name="when" checked={f.scheduleMode === 'now'} onChange={() => setF({ ...f, scheduleMode: 'now' })} style={{ width: 'auto', marginTop: 0 }} /> Send now</label>
+        <label style={chk}><input type="radio" name="when" checked={f.scheduleMode === 'later'} onChange={() => setF({ ...f, scheduleMode: 'later' })} style={{ width: 'auto', marginTop: 0 }} /> Schedule for later</label>
+        {f.scheduleMode === 'later' && <input type="datetime-local" value={f.scheduledAt} onChange={(e) => setF({ ...f, scheduledAt: e.target.value })} style={{ maxWidth: 240, marginTop: 0 }} />}
+      </div>
+      <div className="flex" style={{ gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+        {f.scheduleMode === 'now'
+          ? <button className="btn" disabled={busy === 'create'} onClick={createAndSend}>{busy === 'create' ? 'Sending…' : 'Send now'}</button>
+          : <button className="btn" disabled={busy === 'create'} onClick={schedule}>{busy === 'create' ? 'Scheduling…' : 'Schedule campaign'}</button>}
+        <button className="btn sec" disabled={busy === 'create'} onClick={saveDraft}>Save as draft</button>
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Scheduled campaigns send automatically on the next hourly run at or after the chosen time. Email goes out live only when SMTP is configured on the server; otherwise it’s logged to the dev outbox.</p>
     </Card>}
-    {(data?.campaigns ?? []).map((c: any) => <Card key={c.id} title={c.name} right={<span className={`pill ${c.status === 'sent' ? 'p-good' : 'p-neutral'}`}>{c.status}</span>}>
-      <div className="muted" style={{ fontSize: 13 }}><b>{c.subject}</b> · to {SEGMENT_LABEL[c.segment] ?? c.segment}{c.tag ? ` (${c.tag})` : ''}{c.status === 'sent' ? ` · ${c.recipientCount} sent ${fmt(c.sentAt)}` : ''}</div>
-      <p style={{ fontSize: 13.5, whiteSpace: 'pre-wrap', margin: '8px 0' }}>{c.body}</p>
+    {(data?.campaigns ?? []).map((c: any) => <Card key={c.id} title={c.name} right={<span className={`pill ${c.status === 'sent' ? 'p-good' : c.status === 'scheduled' ? 'p-warn' : 'p-neutral'}`}>{c.status}</span>}>
+      <div className="muted" style={{ fontSize: 13 }}><b>{c.subject}</b> · to {audLabels(c)}{c.status === 'scheduled' && c.scheduledAt ? ` · scheduled for ${fmt(c.scheduledAt)}` : ''}{c.status === 'sent' ? ` · ${c.recipientCount} sent ${fmt(c.sentAt)}` : ''}</div>
+      {c.format === 'html'
+        ? <iframe title={`preview-${c.id}`} srcDoc={c.body} style={{ width: '100%', height: 180, border: '1px solid var(--line)', borderRadius: 10, background: '#fff', margin: '8px 0' }} />
+        : <p style={{ fontSize: 13.5, whiteSpace: 'pre-wrap', margin: '8px 0' }}>{c.body}</p>}
       {c.status !== 'sent' && <div className="flex" style={{ gap: 8 }}>
         <button className="btn sm sec" onClick={() => preview(c.id)}>Preview audience</button>
         {audience[c.id] && <span className="muted" style={{ fontSize: 13 }}>{audience[c.id].count} recipients{audience[c.id].sample?.length ? ` · e.g. ${audience[c.id].sample.slice(0, 2).join(', ')}` : ''}</span>}
@@ -2043,8 +2129,39 @@ function AdminCRM({ toast }: any) {
 // Generic recursive editor for the site-content JSON: strings → inputs, arrays →
 // add/remove item lists, objects → labelled nested fields. This makes every text
 // block on the marketing site editable without per-page code.
-function ContentEditor({ value, onChange }: { value: any; onChange: (v: any) => void }) {
+const IMAGE_KEY = /^(brandLogo|logo|favicon|image|icon|photo|avatar)$/i;
+function ImageField({ value, onChange, kind }: { value: string; onChange: (v: string) => void; kind: string }) {
+  const [busy, setBusy] = useState(false);
+  const isFav = /favicon|icon/i.test(kind);
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    if (file.size > 512 * 1024) { onChange(value); alert('Please choose an image under 512 KB (it is stored inline). For larger images, host it and paste the URL instead.'); e.target.value = ''; return; }
+    setBusy(true);
+    const r = new FileReader();
+    r.onload = () => { onChange(String(r.result || '')); setBusy(false); };
+    r.onerror = () => { setBusy(false); alert('Could not read that file.'); };
+    r.readAsDataURL(file);
+    e.target.value = '';
+  }
+  return <div style={{ display: 'grid', gap: 8 }}>
+    <div className="flex" style={{ gap: 12, alignItems: 'center' }}>
+      {value ? <img src={value} alt="" style={{ height: isFav ? 32 : 40, width: 'auto', maxWidth: 160, objectFit: 'contain', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', padding: 4 }} />
+        : <span className="muted" style={{ fontSize: 13 }}>Using the built-in Vaulmo {isFav ? 'favicon' : 'logo'}</span>}
+      <label className="btn sm sec" style={{ cursor: 'pointer', marginTop: 0 }}>{busy ? 'Reading…' : value ? 'Replace…' : 'Upload…'}<input type="file" accept="image/*" onChange={pick} style={{ display: 'none' }} /></label>
+      {value && <A onClick={() => onChange('')} style={{ color: 'var(--crit)', fontSize: 13 }}>Remove</A>}
+    </div>
+    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="…or paste an image URL (https://…)" />
+  </div>;
+}
+function ContentEditor({ value, onChange, fieldKey }: { value: any; onChange: (v: any) => void; fieldKey?: string }) {
+  if (typeof value === 'boolean') {
+    return <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} style={{ width: 'auto', marginTop: 0 }} />
+      {value ? 'On' : 'Off'}
+    </label>;
+  }
   if (typeof value === 'string' || typeof value === 'number') {
+    if (typeof value === 'string' && fieldKey && IMAGE_KEY.test(fieldKey)) return <ImageField value={value} onChange={onChange} kind={fieldKey} />;
     const long = String(value).length > 58;
     return long
       ? <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={Math.min(6, Math.ceil(String(value).length / 60) + 1)} />
@@ -2065,7 +2182,7 @@ function ContentEditor({ value, onChange }: { value: any; onChange: (v: any) => 
     {Object.keys(value ?? {}).map((key) => (
       <div key={key}>
         <label style={{ textTransform: 'capitalize', fontSize: 12.5, fontWeight: 700, color: 'var(--soft)', marginBottom: 4, display: 'block' }}>{key.replace(/([A-Z])/g, ' $1')}</label>
-        <ContentEditor value={value[key]} onChange={(v) => onChange({ ...value, [key]: v })} />
+        <ContentEditor value={value[key]} fieldKey={key} onChange={(v) => onChange({ ...value, [key]: v })} />
       </div>
     ))}
   </div>;
@@ -2110,6 +2227,53 @@ function AdminSubscribers({ toast }: any) {
         <tbody>{subs.map((s: any) => <tr key={s.id}><td>{s.name}</td><td>{s.email}</td><td>{s.notifyAtLaunch ? <span className="pill p-good">yes</span> : <span className="pill p-neutral">no</span>}</td><td>{fmt(s.createdAt)}</td></tr>)}</tbody></table>
         : <div className="empty">No signups yet. They’ll appear here as people join from the website.</div>}
     </Card>
+  </div>;
+}
+function AdminMessages({ toast }: any) {
+  const { data, reload } = useData(() => api.adminContactMessages());
+  const [open, setOpen] = useState<any>(null);
+  const msgs = data?.messages ?? [];
+  async function markRead(m: any) {
+    if (m.status === 'read') return;
+    try { await api.adminMarkMessageRead(m.id); await reload(); } catch (e) { toast((e as any).message); }
+  }
+  function view(m: any) { setOpen(m); markRead(m); }
+  function exportCsv() {
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = [['Name', 'Email', 'Subject', 'Message', 'Status', 'Source', 'Received'].map(esc).join(',')]
+      .concat(msgs.map((m: any) => [m.name, m.email, m.subject, m.message, m.status, m.source, fmt(m.createdAt)].map(esc).join(',')));
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'vaulmo-contact-messages.csv'; a.click();
+    toast('Exported CSV');
+  }
+  return <div>
+    <div className="tiles" style={{ gridTemplateColumns: 'repeat(2,1fr)', maxWidth: 460 }}>
+      <Tile ic="✉️" bg="var(--brand-soft)" lab="Total messages" val={data?.total ?? 0} />
+      <Tile ic="🆕" bg="var(--good-bg)" lab="Unread" val={data?.unread ?? 0} />
+    </div>
+    <Card title="Contact form submissions" help="Every message sent through the contact form on vaulmo.com. Open one to read it in full — that marks it as read." right={msgs.length ? <A onClick={exportCsv}>Export CSV</A> : null}>
+      {msgs.length ? <table><thead><tr><th></th><th>Name</th><th>Email</th><th>Subject</th><th>Received</th></tr></thead>
+        <tbody>{msgs.map((m: any) => <tr key={m.id} style={{ cursor: 'pointer', fontWeight: m.status === 'new' ? 700 : 400 }} onClick={() => view(m)}>
+          <td>{m.status === 'new' ? <span className="pill p-good">new</span> : <span className="pill p-neutral">read</span>}</td>
+          <td>{m.name}</td><td>{m.email}</td><td>{m.subject || <span style={{ color: 'var(--soft)' }}>—</span>}</td><td>{fmt(m.createdAt)}</td>
+        </tr>)}</tbody></table>
+        : <div className="empty">No messages yet. They’ll appear here when someone uses the website contact form.</div>}
+    </Card>
+    {open && <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,22,35,.55)', zIndex: 100, display: 'grid', placeItems: 'center', padding: 16 }} onClick={() => setOpen(null)}>
+      <div className="card" style={{ width: 560, maxWidth: '94vw', margin: 0 }} onClick={(e) => e.stopPropagation()}><div className="card-b">
+        <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><h3 style={{ margin: 0 }}>Message</h3><A onClick={() => setOpen(null)} aria-label="Close" style={{ cursor: 'pointer', fontSize: 20, lineHeight: 1, color: 'var(--soft)' }}>×</A></div>
+        <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+          <div><div className="muted" style={{ fontSize: 12.5 }}>From</div><div><b>{open.name}</b> · <a href={`mailto:${open.email}`}>{open.email}</a></div></div>
+          {open.subject && <div><div className="muted" style={{ fontSize: 12.5 }}>Subject</div><div>{open.subject}</div></div>}
+          <div><div className="muted" style={{ fontSize: 12.5 }}>Received</div><div>{fmt(open.createdAt)}</div></div>
+          <div><div className="muted" style={{ fontSize: 12.5 }}>Message</div><div style={{ whiteSpace: 'pre-wrap', background: 'var(--brand-soft)', borderRadius: 10, padding: 14, marginTop: 4 }}>{open.message}</div></div>
+          <div className="flex" style={{ gap: 8, justifyContent: 'flex-end' }}>
+            <a className="btn sec sm" href={`mailto:${open.email}?subject=${encodeURIComponent('Re: ' + (open.subject || 'Your message to Vaulmo'))}`}>Reply by email</a>
+            <button className="btn sm" onClick={() => setOpen(null)}>Close</button>
+          </div>
+        </div>
+      </div></div>
+    </div>}
   </div>;
 }
 function AdminCMS({ toast }: any) {
