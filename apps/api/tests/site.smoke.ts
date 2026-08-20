@@ -65,6 +65,16 @@ async function main() {
   const reset = await api('POST', '/api/v1/site/admin/pages/home/reset', tok, {});
   ok('reset restores default', reset.status === 200 && reset.j?.content?.heroTitle && reset.j.content.heroTitle !== newTitle, reset.j?.content?.heroTitle);
 
+  // Content depth: 20+ FAQs, a Terms page, and images on the Features page.
+  const faqPage = await api('GET', '/api/v1/site/pages/faq');
+  ok('FAQ has at least 20 questions', (faqPage.j?.content?.items ?? []).length >= 20, `→ ${(faqPage.j?.content?.items ?? []).length}`);
+  const terms = await api('GET', '/api/v1/site/pages/terms');
+  ok('Terms & Conditions page exists with sections', terms.status === 200 && (terms.j?.content?.sections ?? []).length >= 5);
+  const feats = await api('GET', '/api/v1/site/pages/features');
+  ok('Features sections carry images', (feats.j?.content?.sections ?? []).every((s: any) => !!s.image) && (feats.j?.content?.sections ?? []).length >= 6);
+  const footerLinks = (await api('GET', '/api/v1/site/pages/global')).j?.content?.footerLinks ?? [];
+  ok('footer has Privacy + Terms links', footerLinks.some((l: any) => /privacy/i.test(l.label)) && footerLinks.some((l: any) => /terms/i.test(l.label)));
+
   // Global content exposes the socials + subscribe + popup blocks (editable in CMS).
   const global = await api('GET', '/api/v1/site/pages/global');
   ok('global content has socials + subscribe + popup', !!global.j?.content?.socials && !!global.j?.content?.subscribe && !!global.j?.content?.popup);

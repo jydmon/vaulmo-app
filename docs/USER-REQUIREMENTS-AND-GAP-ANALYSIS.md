@@ -474,3 +474,17 @@ Turning the marketing site into a lead-capture funnel, all CMS/CRM-driven. Migra
 5. ✅ **CRM-driven** — a new **Waitlist** area in the admin console shows every signup with totals, and a one-click **CSV export** for your email tool. Reading the list requires platform-admin; the public can only add themselves.
 
 **Remaining backlog**: optional billing proration once Stripe is live; social sign-in / live email / push just need your provider credentials to activate.
+
+## Build plan — Richer site content, images & legal pages (this increment: ✅ done & tested)
+
+Deepening the marketing site's content, all still CMS-editable. No migration (content only); verified (site smoke extended to 18 checks):
+
+1. ✅ **In-depth Security, Privacy & Support** — Security now covers encryption in transit and at rest, AES-256 for secrets, 2FA, biometric lock, device management, least-privilege/audited access and responsible disclosure. Privacy is a full, readable policy (what we collect, lawful basis, third parties, transfers, retention, your rights, cookies, children, contact). Support adds getting-started, common fixes, response times and data sections.
+2. ✅ **20+ FAQs** — the FAQ page now answers 22 real questions spanning security, cost, scanning, family, emergencies, devices, data export/deletion, passwords, passport photos, email import, 2FA, lost phone, cancellation and more.
+3. ✅ **Lengthy About Us** — a proper narrative: the problem, what Vaulmo does, security-as-foundation, built-for-households, what we believe, and where we’re headed.
+4. ✅ **Images on Features** — the Features page is now an alternating image-and-text layout with self-contained illustrations per feature (no external hosting). Each section’s image is CMS-editable — pick a built-in illustration key or paste a real image URL (e.g. a product screenshot) later.
+5. ✅ **Terms & Conditions + Privacy Policy** — a new **Terms & Conditions** page (14 sections) plus the existing Privacy Policy, both linked in the footer of every page. Both are editable from the Website (CMS) admin area.
+
+Everything above is served from the CMS defaults, so it appears automatically on deploy; anything an admin has already edited is preserved.
+
+**Remaining backlog**: optional billing proration once Stripe is live; social sign-in / live email / push just need your provider credentials.
