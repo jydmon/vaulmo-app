@@ -488,3 +488,12 @@ Deepening the marketing site's content, all still CMS-editable. No migration (co
 Everything above is served from the CMS defaults, so it appears automatically on deploy; anything an admin has already edited is preserved.
 
 **Remaining backlog**: optional billing proration once Stripe is live; social sign-in / live email / push just need your provider credentials.
+
+## Build plan — Public pricing page, live from the plans admin (this increment: ✅ done & tested)
+
+A pricing page on vaulmo.com that mirrors what the super-admin creates and activates. No migration; verified (site smoke extended to 22 checks, including activation visibility):
+
+1. ✅ **Live from the plans admin** — a public, CORS-open `GET /site/plans` returns only ACTIVE plans, in configured order, with price, currency, interval, any discount (net price), and the features each plan unlocks (its modules plus household-member allowance). Any plan a super-admin creates and marks active appears automatically; deactivating hides it.
+2. ✅ **Pricing page** — a new Plans page and nav item on the marketing site render plan cards (name, price, discount badge with struck-through original, feature list, call-to-action). Free plans show "Free"; the middle plan is highlighted.
+3. ✅ **CMS-editable surround** — the page heading, intro, CTA label and small print live in the CMS (the "plans" page in the Website editor); the plan data itself always comes from the admin.
+4. ✅ **CORS fix** — the global CORS now declines unknown origins without erroring, so public /api/v1/site/* endpoints can serve the separate vaulmo.com origin. Verified cross-origin (Origin: https://vaulmo.com -> 200, Access-Control-Allow-Origin: *).

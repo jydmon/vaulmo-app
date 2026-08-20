@@ -152,6 +152,20 @@
   .socials a{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:.15s}
   .socials a:hover{color:#fff;background:var(--blue);border-color:var(--blue)}
 
+  /* pricing */
+  .plan-cards{max-width:1000px;margin:34px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;align-items:stretch}
+  .plan-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px 22px;box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative}
+  .plan-card.pop{border-color:var(--blue);box-shadow:0 0 0 3px var(--brand-soft),var(--shadow)}
+  .pl-name{font-weight:800;font-size:18px;letter-spacing:-.3px}
+  .pl-badge{display:inline-block;background:var(--brand-soft);color:var(--blue);font-weight:700;font-size:12px;padding:3px 10px;border-radius:999px;margin-top:8px;width:fit-content}
+  .pl-price{font-size:34px;font-weight:850;letter-spacing:-1px;margin:12px 0 4px;line-height:1}
+  .pl-price .per{font-size:14px;font-weight:600;color:var(--muted);letter-spacing:0}
+  .pl-price .was{font-size:17px;color:var(--muted);text-decoration:line-through;font-weight:600;margin-right:8px}
+  .pl-feats{list-style:none;display:grid;gap:9px;margin:16px 0 20px;flex:1}
+  .pl-feats li{display:flex;gap:9px;align-items:flex-start;font-size:14.5px;color:var(--ink)}
+  .pl-feats li svg{flex:none;margin-top:3px}
+  .plan-card .btn{margin-top:auto;width:100%;justify-content:center}
+
   /* launch popup */
   .modal-back{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
   .modal-back.open{display:flex}
@@ -218,7 +232,8 @@ var DEFAULTS = {
   global: {
     brand:'Vaulmo',
     appStoreUrl:'#', googlePlayUrl:'#',
-    nav:[{label:'Features',href:'#/features'},{label:'Security',href:'#/security'},{label:'Privacy',href:'#/privacy'},{label:'Support',href:'#/support'},{label:'About',href:'#/about'},{label:'FAQs',href:'#/faq'},{label:'Contact',href:'#/contact'}],
+    appUrl:'https://app.vaulmo.com',
+    nav:[{label:'Features',href:'#/features'},{label:'Plans',href:'#/plans'},{label:'Security',href:'#/security'},{label:'Support',href:'#/support'},{label:'About',href:'#/about'},{label:'FAQs',href:'#/faq'},{label:'Contact',href:'#/contact'}],
     footerNote:'© 2026 Vaulmo. All rights reserved.',
     footerLinks:[{label:'Features',href:'#/features'},{label:'Security',href:'#/security'},{label:'Support',href:'#/support'},{label:'About',href:'#/about'},{label:'Contact',href:'#/contact'},{label:'Privacy Policy',href:'#/privacy'},{label:'Terms & Conditions',href:'#/terms'}],
     socials:{instagram:'',twitter:'',facebook:''},
@@ -242,7 +257,8 @@ var DEFAULTS = {
   about:{title:'About Vaulmo',intro:'A secure digital vault for your family’s most important documents.',sections:[{heading:'Why we built it',body:'Life’s paperwork is scattered and easy to lose. Vaulmo brings it into one secure place.'}]},
   contact:{title:'Contact us',intro:'We’d love to hear from you.',email:'hello@vaulmo.com',supportEmail:'support@vaulmo.com',phone:'',address:'',hours:'Monday to Friday, 9am–5pm'},
   faq:{title:'Frequently asked questions',intro:'The short answers to the questions we hear most.',items:[{q:'Is my data secure?',a:'Yes — encrypted, protected by two-factor authentication and an optional biometric lock.'},{q:'What does it cost?',a:'Vaulmo is free to download; plans unlock more features.'}]},
-  terms:{title:'Terms & Conditions',updated:'Last updated: August 2026',intro:'These terms govern your use of Vaulmo. By using the service you agree to them.',sections:[{heading:'The service',body:'Vaulmo provides a secure digital vault to store, organise and be reminded about your documents.'},{heading:'Your content',body:'The documents you add remain yours; you grant us only the permissions needed to provide the service.'},{heading:'Contact',body:'Questions about these terms? Email legal@vaulmo.com.'}]}
+  terms:{title:'Terms & Conditions',updated:'Last updated: August 2026',intro:'These terms govern your use of Vaulmo. By using the service you agree to them.',sections:[{heading:'The service',body:'Vaulmo provides a secure digital vault to store, organise and be reminded about your documents.'},{heading:'Your content',body:'The documents you add remain yours; you grant us only the permissions needed to provide the service.'},{heading:'Contact',body:'Questions about these terms? Email legal@vaulmo.com.'}]},
+  plans:{title:'Simple plans for every household',intro:'Start free and upgrade any time. Every plan includes bank-grade security.',freeText:'Free',perYear:'/year',perMonth:'/month',ctaLabel:'Get started',note:'You’ll always see the price and what’s included before you subscribe.',emptyText:'Plans are coming soon — join the waitlist and we’ll let you know.'}
 };
 
 var CONTENT = JSON.parse(JSON.stringify(DEFAULTS));
@@ -369,7 +385,34 @@ function viewContact(){ var p=page('contact'); var cells=[]; if(p.email)cells.pu
 function viewFaq(){ var p=page('faq'); var items=(p.items||[]).map(function(i){return '<details class="faq"><summary>'+esc(i.q)+'</summary><p>'+esc(i.a)+'</p></details>';}).join(''); return pageShell('<h1 class="ph">'+esc(p.title)+'</h1><p class="pintro">'+esc(p.intro)+'</p><div class="faq-list">'+items+'</div>'); }
 function viewDownload(){ var h=page('home'); return pageShell('<h1 class="ph">Download Vaulmo</h1><p class="pintro">'+esc(h.ctaIntro)+'</p><div style="display:flex;justify-content:center;margin-top:24px">'+stores()+'</div>'); }
 
-var ROUTES={ '' :viewHome, '/':viewHome, '/features':viewFeatures, '/security':viewSecurity, '/privacy':function(){return viewSimple('privacy');}, '/support':viewSupport, '/about':function(){return viewSimple('about');}, '/contact':viewContact, '/faq':viewFaq, '/terms':function(){return viewSimple('terms');}, '/download':viewDownload };
+/* Pricing page — the plan cards come LIVE from the admin-managed plans (only active
+   plans show), while the surrounding copy is CMS-editable via the "plans" page. */
+function money(amount,currency){ var sym=currency==='usd'?'$':currency==='eur'?'€':'£'; var whole=(amount%100)===0; return sym+(amount/100).toFixed(whole?0:2); }
+function fetchPlans(){
+  var host=document.getElementById('planCards'); if(!host) return;
+  var pc=page('plans'), g=page('global');
+  fetch(API+'/site/plans').then(function(r){return r.ok?r.json():null;}).then(function(d){
+    var plans=(d&&d.plans)||[];
+    if(!plans.length){ host.innerHTML='<div class="empty">'+esc(pc.emptyText||'Plans coming soon.')+'</div>'; return; }
+    var mid=Math.floor(plans.length/2);
+    host.innerHTML=plans.map(function(pl,idx){
+      var free=(pl.netAmount||0)===0;
+      var per=pl.interval==='month'?(pc.perMonth||'/month'):(pc.perYear||'/year');
+      var priceInner=free?esc(pc.freeText||'Free'):(((pl.discountPercent>0)?'<span class="was">'+money(pl.amount,pl.currency)+'</span>':'')+money(pl.netAmount,pl.currency)+'<span class="per">'+esc(per)+'</span>');
+      var badge=pl.discountLabel?'<span class="pl-badge">'+esc(pl.discountLabel)+'</span>':'';
+      var feats=(pl.features||[]).map(function(f){return '<li>'+CHECKB+' '+esc(f)+'</li>';}).join('');
+      var pop=(plans.length>2 && idx===mid)?' pop':'';
+      return '<div class="plan-card'+pop+'"><div class="pl-name">'+esc(pl.name)+'</div>'+badge+'<div class="pl-price">'+priceInner+'</div><ul class="pl-feats">'+feats+'</ul><a class="btn" data-download href="'+esc(g.appUrl||'#')+'">'+esc(pc.ctaLabel||'Get started')+'</a></div>';
+    }).join('');
+  }).catch(function(){ host.innerHTML='<div class="empty">'+esc(pc.emptyText||'Plans coming soon.')+'</div>'; });
+}
+function viewPlans(){
+  var p=page('plans');
+  setTimeout(fetchPlans,0);
+  return pageShell('<h1 class="ph">'+esc(p.title)+'</h1><p class="pintro">'+esc(p.intro)+'</p><div id="planCards" class="plan-cards"><div class="empty">Loading plans…</div></div>'+(p.note?'<p class="pintro" style="margin-top:24px;font-size:14px">'+esc(p.note)+'</p>':''));
+}
+
+var ROUTES={ '' :viewHome, '/':viewHome, '/features':viewFeatures, '/plans':viewPlans, '/security':viewSecurity, '/privacy':function(){return viewSimple('privacy');}, '/support':viewSupport, '/about':function(){return viewSimple('about');}, '/contact':viewContact, '/faq':viewFaq, '/terms':function(){return viewSimple('terms');}, '/download':viewDownload };
 
 function route(){
   var hash=(location.hash||'#/').replace(/^#/,'');

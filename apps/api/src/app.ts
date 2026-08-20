@@ -42,10 +42,14 @@ export function createApp() {
   app.use(
     cors({
       origin: (origin, cb) => {
-        // No public exposure in Phase 1: allow same-process/no-origin (mobile, curl)
-        // and the explicit internal dev origins only.
+        // Allow same-process/no-origin (mobile, curl) and the configured app origins.
+        // Unknown origins are simply not granted CORS headers here (cb(null, false))
+        // rather than erroring — that lets the PUBLIC marketing endpoints under
+        // /api/v1/site set their own permissive CORS (they serve vaulmo.com, a
+        // different origin), while the authenticated app API stays locked down for
+        // any origin not in CORS_ORIGINS.
         if (!origin || corsOrigins.includes(origin)) return cb(null, true);
-        return cb(new Error('Not allowed by CORS'));
+        return cb(null, false);
       },
       credentials: true,
     }),

@@ -75,6 +75,19 @@ async function main() {
   const footerLinks = (await api('GET', '/api/v1/site/pages/global')).j?.content?.footerLinks ?? [];
   ok('footer has Privacy + Terms links', footerLinks.some((l: any) => /privacy/i.test(l.label)) && footerLinks.some((l: any) => /terms/i.test(l.label)));
 
+  // Public pricing: live from the admin-managed plans; only ACTIVE plans show.
+  const pricing = await api('GET', '/api/v1/site/plans');
+  ok('public plans list is served (CORS-open)', pricing.status === 200 && Array.isArray(pricing.j?.plans) && pricing.headers.get('access-control-allow-origin') === '*');
+  ok('plans carry price + features', (pricing.j?.plans ?? []).every((p: any) => typeof p.netAmount === 'number' && Array.isArray(p.features)));
+  // Admin creates an INACTIVE plan → it must NOT appear publicly; activate → it appears.
+  const pkey = `sitetest${Date.now()}`;
+  await api('POST', '/api/v1/billing/admin/plans', tok, { key: pkey, name: 'Site Test Plan', amount: 1234, active: false, modules: ['vault'] });
+  const hidden = await api('GET', '/api/v1/site/plans');
+  ok('inactive plan is hidden from the pricing page', !(hidden.j?.plans ?? []).some((p: any) => p.key === pkey));
+  await api('POST', '/api/v1/billing/admin/plans', tok, { key: pkey, name: 'Site Test Plan', amount: 1234, active: true, modules: ['vault'] });
+  const shown = await api('GET', '/api/v1/site/plans');
+  ok('activated plan appears on the pricing page', (shown.j?.plans ?? []).some((p: any) => p.key === pkey && p.netAmount === 1234));
+
   // Global content exposes the socials + subscribe + popup blocks (editable in CMS).
   const global = await api('GET', '/api/v1/site/pages/global');
   ok('global content has socials + subscribe + popup', !!global.j?.content?.socials && !!global.j?.content?.subscribe && !!global.j?.content?.popup);

@@ -5,7 +5,7 @@
 
 export interface SitePageSeed { slug: string; title: string; content: any }
 
-export const SITE_PAGE_SLUGS = ['global', 'home', 'features', 'security', 'privacy', 'support', 'about', 'contact', 'faq', 'terms'] as const;
+export const SITE_PAGE_SLUGS = ['global', 'home', 'features', 'plans', 'security', 'privacy', 'support', 'about', 'contact', 'faq', 'terms'] as const;
 
 export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
   {
@@ -19,8 +19,8 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
       googlePlayUrl: '#',
       nav: [
         { label: 'Features', href: '#/features' },
+        { label: 'Plans', href: '#/plans' },
         { label: 'Security', href: '#/security' },
-        { label: 'Privacy', href: '#/privacy' },
         { label: 'Support', href: '#/support' },
         { label: 'About', href: '#/about' },
         { label: 'FAQs', href: '#/faq' },
@@ -94,6 +94,20 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
         { image: 'connect', heading: 'Smart capture from email', body: 'Connect your inbox (with your permission, read-only) and Vaulmo can spot travel bookings, receipts, warranties and subscriptions automatically — surfacing them for you to confirm before anything is saved. Less manual entry, nothing added behind your back.' },
         { image: 'security', heading: 'Secure by design', body: 'Bank-grade encryption, two-factor authentication, a biometric app lock and a full activity log come as standard — because Vaulmo holds the documents that matter most. Read more on the Security page.' },
       ],
+    },
+  },
+  {
+    slug: 'plans',
+    title: 'Plans',
+    content: {
+      title: 'Simple plans for every household',
+      intro: 'Start free and upgrade any time. Every plan includes bank-grade security — you only pay for the extra features and capacity you need.',
+      freeText: 'Free',
+      perYear: '/year',
+      perMonth: '/month',
+      ctaLabel: 'Get started',
+      note: 'Prices shown are managed by our team and may change. You’ll always see the price and what’s included before you subscribe, and you can cancel any time.',
+      emptyText: 'Plans are coming soon — join the waitlist and we’ll let you know the moment they’re available.',
     },
   },
   {

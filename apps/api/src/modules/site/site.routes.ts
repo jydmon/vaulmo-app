@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
-import { desc, sql } from 'drizzle-orm';
+import { desc, sql, eq as eqOp } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { sitePages, siteSubscribers } from '../../db/schema';
+import { sitePages, siteSubscribers, plans } from '../../db/schema';
+import { MODULES, effectiveModules, netAmount } from '../../lib/modules';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
@@ -43,6 +44,28 @@ siteRouter.get('/pages/:slug', async (req, res) => {
   const def = defaultForSlug(req.params.slug);
   if (!rows[0] && !def) throw new AppError(404, 'not_found', 'Unknown page');
   res.json(rows[0] ?? { slug: def!.slug, title: def!.title, content: def!.content, updatedAt: null });
+});
+
+// ---- Public: subscription plans for the marketing pricing page ----
+// Mirrors what a super-admin creates/activates in the console: only ACTIVE plans are
+// shown, ordered as configured, with their price, any discount, and the features
+// (modules) each plan unlocks. Public + CORS-open so vaulmo.com can render pricing.
+const MODULE_NAME: Record<string, string> = Object.fromEntries(MODULES.map((m) => [m.key, m.name]));
+siteRouter.get('/plans', async (_req, res) => {
+  const rows = await db.select().from(plans).where(eqOp(plans.active, true)).orderBy(plans.sort);
+  const list = rows.map((p) => {
+    const mods = effectiveModules((p as any).modules);
+    const features = mods.map((k) => MODULE_NAME[k] ?? k);
+    const members = (p.entitlements as any)?.members;
+    if (typeof members === 'number') features.unshift(members >= 999 ? 'Unlimited household members' : `Up to ${members} household member${members === 1 ? '' : 's'}`);
+    return {
+      key: p.key, name: p.name, amount: p.amount, currency: p.currency, interval: p.interval,
+      discountPercent: (p as any).discountPercent ?? 0, discountLabel: (p as any).discountLabel ?? null,
+      netAmount: netAmount(p.amount, (p as any).discountPercent ?? 0),
+      features,
+    };
+  });
+  res.json({ modules: MODULES, plans: list });
 });
 
 // ---- Public: waitlist sign-up (captured to the CRM) ----
