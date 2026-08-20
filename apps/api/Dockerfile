@@ -6,9 +6,11 @@ ENV NODE_ENV=production
 # System dependencies:
 #  - tesseract-ocr: real OCR for scanned documents (the app falls back to a text
 #    driver when it's absent, so images build without it too, but production wants it).
+#  - poppler-utils: pdftotext (pull embedded text from digital PDFs) and pdftoppm
+#    (rasterise scanned PDF pages to PNG so Tesseract can OCR them). AIX-02.
 #  - ca-certificates: TLS to Postgres / S3 / Stripe.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends tesseract-ocr ca-certificates \
+  && apt-get install -y --no-install-recommends tesseract-ocr poppler-utils ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 # Install ALL deps — the tsx runtime is used to run migrations, the worker and the

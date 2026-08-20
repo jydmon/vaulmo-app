@@ -133,6 +133,16 @@ authRouter.post('/login', authLimiter, async (req, res) => {
     throw new AppError(401, 'invalid_credentials', 'Invalid email or password');
   }
 
+  // Mandatory email verification (when enabled) — staff/super-admin accounts and
+  // already-verified users pass; everyone else must verify first.
+  if (env.REQUIRE_EMAIL_VERIFICATION && !user.emailVerified) {
+    const { roles: rKeys0 } = await loadUserAuthz(user.id);
+    if (!rKeys0.includes('super_admin')) {
+      await audit({ action: 'auth.login', actorId: user.id, outcome: 'failure', metadata: { reason: 'email_not_verified' }, req });
+      throw new AppError(403, 'email_not_verified', 'Please verify your email address before signing in.');
+    }
+  }
+
   await db
     .update(users)
     .set({ failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() })

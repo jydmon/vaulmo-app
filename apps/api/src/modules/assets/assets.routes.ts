@@ -4,13 +4,14 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { assets, documents, reminders } from '../../db/schema';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
+import { requireModule } from '../../middleware/requireModule';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
 
 export const assetsRouter = Router();
-assetsRouter.use(requireAuth, requireMfaSatisfied);
+assetsRouter.use(requireAuth, requireMfaSatisfied, requireModule('assets'));
 const tid = (req: any): string => {
   if (!req.auth?.tid) throw new AppError(400, 'no_tenant', 'Only tenant accounts have assets');
   return req.auth.tid;

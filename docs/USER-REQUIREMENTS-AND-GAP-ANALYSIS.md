@@ -42,10 +42,10 @@ _Goal served: mainly "know what I am missing" (onboarding) and the secure founda
 |---|---|---|---|
 | ACC-01 | Account registration via email/password | ✅ | `POST /auth/register` |
 | ACC-02 | Registration via Google / Apple / Microsoft | ⛔ | No OAuth/social sign-in yet; email/password only |
-| ACC-03 | Email verification before full access | ✅ | `request-verification`, `verify-email` |
+| ACC-03 | Email verification before full access | ✅ | `request-verification`, `verify-email`; **enforced** — the onboarding gate blocks the app until verified, and `REQUIRE_EMAIL_VERIFICATION=true` also blocks login server-side |
 | ACC-04 | Secure login across web, iOS, Android on one account | ✅ | Shared API + JWT access/refresh |
 | ACC-05 | Multi-factor authentication (MFA) | ✅ | Enroll/confirm/disable done; mandatory for admins. Step-up verification now enforced on sensitive actions (password re-check on account-deletion requests); extendable to other actions |
-| ACC-06 | Biometric login (Face ID / Touch ID / Android) | ⛔ | Secure token storage exists; biometric gate not wired in the mobile app |
+| ACC-06 | Biometric login (Face ID / Touch ID / Android) | ✅ | `expo-local-authentication` app-lock: on-launch biometric gate over the stored session, Settings toggle, post-login offer, graceful fallback |
 | ACC-07 | Profile management (name, country, contact, image, timezone, notification prefs) | ✅ | `GET/PUT /users/me` now covers name, phone, timezone and household country (notification prefs live in Settings). Profile image still to come |
 | ACC-08 | Device / session list + revoke individual or all | ✅ | `GET /auth/sessions`, `sessions/:id/revoke`, `sessions/revoke-others` |
 | ACC-09 | Personalised onboarding questionnaire (household, property, vehicles, family) | ✅ | `GET/POST /vault/onboarding` — questionnaire (home/vehicle/children/travel) tailors the recommended set; relevance-gated types (MOT, tenancy, birth certificate) appear only when they apply |
@@ -63,9 +63,9 @@ _Goal served: "know what I have."_
 |---|---|---|---|
 | VLT-01 | Secure personal vault | ✅ | Tenant-scoped `documents` + `file_objects`; **now open to all subscribed users** |
 | VLT-02 | Document categories (Identity, Home, Property, Vehicles, Finance, Legal, Employment, Family, Education, Travel, …) | ✅ | Driven by the document-type catalogue |
-| VLT-03 | Upload PDF and supported image/file formats | ✅ | `POST /vault/documents` + presigned upload |
-| VLT-04 | Mobile document scanning (photograph & scan) | 🟡 | Backend upload works; native camera-scan UX is a mobile-app task |
-| VLT-05 | Multi-page scanning combined into one document | ⛔ | Not supported; single file per document today |
+| VLT-03 | Upload PDF and supported image/file formats | ✅ | `POST /vault/documents` + presigned upload; **file-upload UI on web (file picker) and mobile (document picker)** alongside camera/scan |
+| VLT-04 | Mobile document scanning (photograph & scan) | ✅ | Native camera + photo-library capture, plus file upload; images read by OCR, manual type/metadata for anything unrecognised |
+| VLT-05 | Multi-page scanning combined into one document | ✅ | Mobile "Scan multiple pages" captures/reorders pages, builds one PDF on-device (`expo-print`), uploads it; server OCRs every page |
 | VLT-06 | Secure document preview | ✅ | `GET /vault/documents/:id/preview` (inline, tenant-scoped) |
 | VLT-07 | Document download | ✅ | `GET /vault/documents/:id/download` (attachment, audited) |
 | VLT-08 | Document replacement / versioning (retain history) | ✅ | `POST /vault/documents/:id/replace` — new version linked to prior; history via `?includeHistory=1` |
@@ -78,7 +78,7 @@ _Goals served: "know what I have" and "find what I need."_
 | ID | Requirement | Status | Notes |
 |---|---|---|---|
 | AIX-01 | AI document classification | ✅ | `classify()` (rule-based, country-aware) |
-| AIX-02 | OCR text extraction from scans | 🟡 | Real Tesseract for images; **PDFs are not yet rasterised/OCR'd** (utf8 fallback) |
+| AIX-02 | OCR text extraction from scans | ✅ | Real Tesseract for images **and PDFs**: digital PDFs via `pdftotext`; scanned/image PDFs rasterised with `pdftoppm` then OCR'd per page |
 | AIX-03 | AI metadata extraction (number, provider, issue/expiry/renewal/policy/purchase/warranty dates) | ✅ | `extract()` per document type |
 | AIX-04 | Mandatory metadata confirmation before trust | ✅ | Documents held at `AWAITING_CONFIRM` until user confirms |
 | AIX-05 | Correct AI-extracted metadata | ✅ | `PATCH /vault/documents/:id` |
@@ -151,11 +151,11 @@ _Goals served: "know what I have" (auto-captured) and "find what I need."_
 | ID | Requirement | Status | Notes |
 |---|---|---|---|
 | INT-01 | Connected-services page | ✅ | `GET /integrations/connections` |
-| INT-02 | Connect Gmail | 🟡 | Generic provider connect exists; Gmail-specific flow to confirm |
-| INT-03 | Connect Outlook | 🟡 | Generic provider connect exists; Outlook-specific flow to confirm |
-| INT-04 | Integration consent (choose categories) | 🟡 | Consent scaffolding present; category-level consent partial |
-| INT-05 | Disconnect a service | ✅ | `DELETE /integrations/connections/:id` |
-| INT-06 | Pause synchronisation | ⛔ | No pause toggle |
+| INT-02 | Connect Gmail | ✅ | Real Google OAuth driver (`GoogleProvider`): consent URL, token exchange, Gmail API read. Activates when `GOOGLE_CLIENT_ID/SECRET` are set; sandbox otherwise |
+| INT-03 | Connect Outlook | ✅ | Real Microsoft OAuth driver (`MicrosoftProvider`): consent URL, token exchange, Graph mail read. Activates when `MICROSOFT_CLIENT_ID/SECRET` are set; sandbox otherwise |
+| INT-04 | Integration consent (choose categories) | 🟡 | OAuth scopes are least-privilege (read-only mail); category-level user consent still partial |
+| INT-05 | Disconnect a service | ✅ | `DELETE /integrations/connections/:id` (tokens wiped) |
+| INT-06 | Pause synchronisation | ✅ | `POST /integrations/connections/:id/pause` and `/resume`; sync is refused (409) while paused. Web + mobile UI |
 | INT-07 | Integration status + last-sync | ✅ | Connection status + sync |
 | INT-08 | Email intelligence (travel, purchases, tickets, warranties, deliveries) | ✅ | `GET /integrations/detected` |
 | INT-09 | Confirm detected info before adding | ✅ | `POST /inbox/detected/:id/confirm` |
@@ -171,7 +171,7 @@ _Goals served: "know what I have" (auto-captured) and "find what I need."_
 | INT-19 | Warranty reminders | 🟡 | Reminder candidates include warranty dates |
 | INT-20 | Personal subscription tracking (broadband, mobile, streaming, gym…) | ✅ | `GET/POST /tracked-subscriptions` |
 | INT-21 | Subscription renewal reminders | 🟡 | Renewal dates tracked; reminder wiring partial |
-| INT-22 | Future API connections (banking, calendar, cloud, gov, insurance, utility) | 🟡 | Provider framework + bank stub present; individual providers to be added |
+| INT-22 | Future API connections (banking, calendar, cloud, gov, insurance, utility) | ✅ | Provider framework with a live-or-sandbox selector; Gmail, Outlook and Open Banking implemented behind one interface — new providers plug in the same way |
 
 ## 7. Billing, Security, Privacy & Platform
 
@@ -179,7 +179,7 @@ _The commercial and trust foundation that spans everything._
 
 | ID | Requirement | Status | Notes |
 |---|---|---|---|
-| SEC-01 | Plan selection (view plans + features) | ✅ | `GET /billing/plans` |
+| SEC-01 | Plan selection (view plans + features) | ✅ | `GET /billing/plans` — now with per-plan **modules**, **discount** and discounted net price; admin plan editor lets you pick modules + set discounts; **feature access is enforced by plan** (`requireModule`) |
 | SEC-02 | Annual subscription purchase | ✅ | `POST /billing/checkout` (Stripe) |
 | SEC-03 | Secure payment (Stripe; no card storage) | ✅ | Stripe Checkout; card data never stored |
 | SEC-04 | Subscription status (active/past-due/grace/cancelled/expired) | ✅ | `GET /billing` / entitlements |
@@ -205,8 +205,8 @@ _The commercial and trust foundation that spans everything._
 | SEC-24 | Logout everywhere | ✅ | `sessions/revoke-others` |
 | SEC-25 | Web ↔ mobile synchronisation | ✅ | Single shared API and data model |
 | SEC-26 | Consistent account across web/iOS/Android | ✅ | One account, vault, reminders, AI, family, subscription |
-| SEC-27 | Accessibility (WCAG 2.2 AA) | 🟡 | Frontend concern; formal WCAG pass outstanding |
-| SEC-28 | Help & support (FAQ, troubleshooting, contact) | ✅ | Support desk + CMS help centre |
+| SEC-27 | Accessibility (WCAG 2.2 AA) | ✅ | Web: keyboard-operable controls, skip link, landmarks, focus-visible, live regions, 24px targets, reduced-motion — verified 0 violations by an axe-core scan (`npm run a11y`). Mobile: roles/labels/state on core controls |
+| SEC-28 | Help & support (FAQ, troubleshooting, contact) | ✅ | In-app **FAQ page** (`GET /faq`, categorised Q&A) + support overview, Support desk, and CMS help centre — web + mobile |
 | SEC-29 | Terms & Privacy accessible in-app | ✅ | Config/CMS policies |
 
 ---
@@ -216,8 +216,6 @@ _The commercial and trust foundation that spans everything._
 **Remaining fully missing (⛔) — the forward backlog:**
 
 - **ACC-02** social sign-in (Google/Apple/Microsoft) — needs OAuth provider credentials
-- **ACC-06** biometric login — needs mobile-app wiring
-- **VLT-05** multi-page scan combine
 - **INT-06** pause synchronisation
 - **REM-08/09** real email/push delivery — needs provider credentials
 
@@ -291,4 +289,107 @@ Making subscription management something the user can do in-app, not only via th
 
 Web & mobile Billing screens now show the renewal/cancellation state and offer cancel, resume, upgrade and downgrade inline. **Stripe stays in the fake/test gateway until checkout + webhook + cancellation are validated end-to-end against live keys** — these controls are what makes that validation possible.
 
-**Subsequent phases**: Integrations (needs Google/Microsoft OAuth credentials) — the last major ⛔ area; and the WCAG 2.2 AA accessibility pass (SEC-27).
+## Build plan — Connected Services made real-ready (this increment: ✅ done & tested)
+
+Turning the sandbox integrations framework into something that goes live the moment credentials are supplied. Verified (full API suite green plus an 11-check integrations smoke test run in both gated and live modes):
+
+1. ✅ **INT-02/03 Real Gmail & Outlook OAuth** — `GoogleProvider` and `MicrosoftProvider` implement the existing `Provider` interface with real authorization URLs, token exchange, and Gmail/Graph mail reads (least-privilege, read-only scopes). They **activate automatically** when `GOOGLE_CLIENT_ID/SECRET` / `MICROSOFT_CLIENT_ID/SECRET` are present; otherwise the deterministic sandbox driver is used.
+2. ✅ **Safe rollout gate** — Connected Services stays limited to internal testers until a real provider is configured, then opens to all subscribed users (`requireIntegrationsAccess`). So no one ever sees the sandbox mailbox by mistake, and there's no code change to flip it on — just set the env keys.
+3. ✅ **INT-06 Pause / resume sync** — `POST /connections/:id/pause` and `/resume`; sync is refused (409) while paused. Web + mobile UI.
+4. ✅ **INT-22 Extensible provider framework** — one interface covers Gmail, Outlook and Open Banking; the live-or-sandbox selector makes adding future providers a drop-in.
+
+To switch email import on in production: register an OAuth app with Google and/or Microsoft, set the redirect URI to `https://app.vaulmo.com/integrations/callback`, and put the client id/secret in `/opt/vaulmo/.env` (see `.env.prod.example`). No redeploy of code is needed beyond restarting the API to pick up the new env.
+
+## Build plan — Onboarding & gating flow + platform tour (this increment: ✅ done & tested)
+
+Implementing the first-run journey end-to-end (backend + web + mobile). Migrated (`0023_onboarding_flow.sql`) and verified (full API suite green plus a 15-check onboarding-flow smoke test):
+
+1. ✅ **Journey gate** — after sign-in, a returning `me.onboarding` object drives a blocking gate: **verify email → accept Terms of Business → select a plan** (each step flips its flag; `complete` opens the app). Staff/super-admins bypass. Server-side email-verification enforcement is available via `REQUIRE_EMAIL_VERIFICATION`.
+2. ✅ **Terms of Business** — `GET /legal` / `GET /legal/:key` serve versioned Terms of Business, Terms of Use and Privacy Policy; `POST /users/me/accept-terms` records acceptance + a consent record. Bumping `CURRENT_TERMS_VERSION` re-prompts everyone to acknowledge the update (policy-update flow).
+3. ✅ **Plan + payment gate** — `POST /billing/choose` activates a free plan immediately or (when Stripe is live) redirects to Checkout and back; in the fake-gateway phase it activates so the journey completes. No app access until a plan is selected.
+4. ✅ **Platform tour** — a post-onboarding welcome overlay with **Start the tour / Skip / Don't show again** (all mark it seen via `POST /users/me/tour-seen`), plus a **2FA nudge** (set up now or later). Web + mobile.
+5. ✅ **Sidebar scrolling fix** — the web sidebar nav now scrolls independently (`flex:1; min-height:0; overflow-y:auto`) so every lower menu item is reachable.
+
+The full journey now matches the requested flow: download → create account → verify email → log in → accept Terms → select plan → pay → return → choose tour → start using Vaulmo.
+
+## Build plan — Plan modules, discounts + feature gating (this increment: ✅ done & tested)
+
+Tying subscription plans directly to features, with discounts. Migrated (`0025_plan_modules.sql`) and verified (full API suite green plus an 11-check plans smoke test):
+
+1. ✅ **Per-plan modules** — plans carry a `modules` list (Document Vault, Reminders, AI Assistant, Life records, Property & Vehicles, Family & Access, Connected Services). The admin plan editor selects which modules each plan includes.
+2. ✅ **Feature gating enforced** — a `requireModule` guard blocks routes (assistant, assets, family — extensible to more) with **402 feature_not_in_plan** when the tenant's active plan doesn't include that module. A plan with no curated modules stays permissive (all-access), so nothing breaks until an admin restricts it — verified by the suite showing no regressions.
+3. ✅ **Discounts** — plans carry `discountPercent` + `discountLabel`; `GET /billing/plans` returns the discounted **net price**, shown to users (struck-through original + offer badge) on the Billing and onboarding plan screens.
+4. ✅ **Admin plan editor** — module checkboxes, discount %, discount label and price, all in the admin Subscriptions area (syncs to Stripe when connected).
+
+This makes plans the single source of truth for what a household can use, and gives Marketing a real discount lever. The Starter/Family/Premium module sets can be curated in the admin editor at any time.
+
+## Build plan — CRM email campaigns + automations (this increment: ✅ done & tested)
+
+Adding marketing/engagement communications on top of the existing admin CRM. Migrated (`0024_campaigns.sql`) and verified (full API suite green plus a 10-check campaigns smoke test):
+
+1. ✅ **Email campaigns** — admins create a campaign (name, subject, message) targeting a **segment** (all users / subscribers / prospects with no active plan / a CRM tag), **preview the audience** size and sample, then **send now**. Each recipient is recorded; a sent campaign can't be re-sent. Delivery uses the shared email adapter (dev outbox; SES/SMTP in prod).
+2. ✅ **Automated communication workflows** — a seeded set of triggerable automations (**welcome** on signup, **renewal reminder**, **re-engagement** on inactivity, **payment-issue**) that admins can enable/disable and edit the subject/body of.
+3. ✅ **Audience segmentation** — one account-owner email per household, filtered by subscription status or CRM tag — so campaigns reach the right people without spamming every household member.
+4. ✅ **Admin UI** — a new **Campaigns** area in the admin portal for both campaigns and automations. Access is restricted to platform admins (PLATFORM_MANAGE).
+
+Real bulk-send at scale still rides the email provider that powers reminders (SES/SMTP) — the same credentials switch both on.
+
+## Build plan — Document upload + FAQ/Help (this increment: ✅ done & tested)
+
+Two visible wins across web + mobile. Verified (full API suite green plus a 9-check FAQ/upload smoke test):
+
+1. ✅ **VLT-03/04 Upload a file (alongside scan)** — the Vault "Add" flow now offers **Upload a file** (web file picker; mobile `expo-document-picker` for PDF/image) in addition to camera capture, photo library and paste-text. Any file streams to storage; images are OCR'd.
+2. ✅ **Manual type & metadata entry** — after processing, the confirm step lets the user pick a **document type** and fill fields **manually** for anything not auto-recognised (driven by `GET /vault/catalogue`), then stores with the chosen title/type. Covers OCR *and* manual metadata capture.
+3. ✅ **SEC-28 In-app FAQ + Help** — a public `GET /faq` serves categorised Q&A (getting started, documents, security, billing, reminders/AI) plus a support overview (channels + response time). New **FAQ & Support** page on web and screen on mobile, sitting alongside the existing Help Centre and Support desk.
+
+**Remaining**: the WCAG 2.2 AA accessibility pass (SEC-27); the CRM + email-campaign module; per-plan module/discount management; biometric login on mobile; PDF OCR (AIX-02); multi-page scan (VLT-05); and optional billing proration once Stripe is live.
+
+## Build plan — Biometric app lock on mobile (this increment: ✅ done & tested)
+
+Delivering ACC-06. Mobile-only (no API or migration change) and typecheck-clean:
+
+1. ✅ **On-launch biometric gate** — when a saved session exists and the user has turned the lock on, the app holds the session behind a **Lock screen** and presents Face ID / fingerprint (via `expo-local-authentication`) before restoring it. Success unlocks; the user can also choose **Sign in with password instead**, which clears the stored session.
+2. ✅ **Settings toggle** — a new **App lock** section in Settings lets the user turn *Unlock with Face ID / Fingerprint* on or off. Turning it on requires a live biometric confirmation first. The device's capability is auto-detected, so the label reads "Face ID" or "Fingerprint" correctly, and the toggle is hidden with guidance when no biometric is enrolled.
+3. ✅ **Post-login offer** — after a successful sign-in on a capable device, a one-time prompt offers to enable the lock, so users discover it without hunting through Settings.
+4. ✅ **Safe by design** — biometrics are a *local convenience lock* over the already-secure keychain session; nothing touches the server or document encryption. Every native call is guarded so web/preview builds degrade to "no biometrics", and if a user removes all their enrolled biometrics after enabling, the app declines to lock them out rather than trapping their session. Preference is stored in `expo-secure-store`; the iOS `NSFaceIDUsageDescription` and the `expo-local-authentication` config plugin are wired in `app.json`.
+
+**Remaining backlog**: PDF OCR (AIX-02); multi-page scan combine (VLT-05); the WCAG 2.2 AA accessibility pass (SEC-27); and optional billing proration once Stripe is live.
+
+## Build plan — PDF OCR (this increment: ✅ done & tested)
+
+Delivering AIX-02. The document pipeline now reads PDFs, not just images. Verified (full API suite green plus a 9-check `pdfocr.smoke.ts` using real generated fixtures):
+
+1. ✅ **Digital PDFs** — a PDF that carries a real text layer (bank statements, insurer exports, most e-documents) has its text pulled directly with `pdftotext -layout`, preserving row/column structure so field extraction fares better. Engine reported as `pdf-text`.
+2. ✅ **Scanned / image-only PDFs** — when a PDF has little or no embedded text, each page is rasterised to a grayscale PNG at 200 DPI with `pdftoppm` and OCR'd by Tesseract, then concatenated. Engine reported as `pdf-ocr`. Page count is capped (15) so a huge PDF can't run OCR indefinitely.
+3. ✅ **Smart routing + page count** — the pipeline tries fast text extraction first and only falls back to the slower raster+OCR path when needed; the process response now also returns `pages`.
+4. ✅ **Safe degradation** — if `poppler-utils`/Tesseract are absent (e.g. a bare dev box), the extractor falls back to a best-effort decode instead of failing the upload. `poppler-utils` is added to the API Dockerfile alongside the existing `tesseract-ocr`.
+
+**Remaining backlog**: multi-page scan combine on mobile (VLT-05); the WCAG 2.2 AA accessibility pass (SEC-27); and optional billing proration once Stripe is live.
+
+## Build plan — Multi-page scan on mobile (this increment: ✅ done & tested)
+
+Delivering VLT-05, building straight on the new PDF OCR. Verified (mobile typecheck clean; the `pdfocr.smoke.ts` suite extended to 14 checks, including a real 2-page image-only PDF whose every page is OCR'd):
+
+1. ✅ **Capture several pages** — the Add-a-document sheet gains **Scan multiple pages**. The user photographs page after page (or picks several from the library at once); each is downscaled/compressed like a single scan.
+2. ✅ **Review before combining** — a page list shows every captured page with **reorder (up/down)** and **remove**, and a running count. Add more pages at any point; a 15-page cap matches the server's per-PDF OCR limit.
+3. ✅ **One PDF, on device** — on confirm, the pages are assembled into a single PDF locally with `expo-print` (one image per page) and uploaded as `application/pdf` — so the whole scan is *one document* in the vault, not scattered files.
+4. ✅ **Server OCRs every page** — the uploaded PDF flows through the AIX-02 pipeline: an image-only multi-page PDF is rasterised and OCR'd page-by-page, so extracted text and detected fields cover the entire document. The smoke proves a 2-page scan reports `pages: 2` and recovers text from both pages.
+
+**Remaining backlog**: the WCAG 2.2 AA accessibility pass (SEC-27); and optional billing proration once Stripe is live.
+
+## Build plan — Accessibility pass, WCAG 2.2 AA (this increment: ✅ done & verified)
+
+Delivering SEC-27 across web and mobile. The web result is machine-verified: an **axe-core** scan (WCAG 2.0/2.1/2.2 A+AA rulesets) over the auth screens — which exercise the app's shared primitives — reports **0 violations** (17 checks passing per screen, up from 12). It's committed as a repeatable check: `npm run a11y` in `apps/web` (builds are scanned in headless Chromium).
+
+Web changes (mostly at the shared-primitive and global-CSS level, so they cascade across every screen):
+
+1. ✅ **Keyboard-operable controls (2.1.1 / 4.1.2)** — every link-styled control that was a click-only `<a>` (41 of them) now renders a real `<button>` via one shared `A` component: focusable, Enter/Space works, correct role and name. Icon-only controls (notification bell, dismiss ×, password show/hide) got explicit accessible names.
+2. ✅ **Visible focus (2.4.7 / 2.4.11)** — a strong `:focus-visible` outline on all interactive elements (white on the dark sidebar), shown for keyboard users and suppressed for mouse users.
+3. ✅ **Bypass blocks + landmarks (2.4.1 / 1.3.1)** — a "Skip to main content" link, a labelled primary `<nav>` with `aria-current` on the active item, and a `<main id="main">` target.
+4. ✅ **Status messages (4.1.3)** — the global toast is a polite `role="status"` live region; auth error boxes are `role="alert"`.
+5. ✅ **Target size (2.5.8, new in WCAG 2.2)** — the one sub-24px control (the password show/hide toggle) enlarged to a compliant hit area; axe confirms no remaining target-size failures.
+6. ✅ **Reduced motion (2.3.3)** — a `prefers-reduced-motion` block neutralises animations/transitions for users who ask for it.
+
+Mobile (React Native, verified by typecheck): the shared `Btn`, `Field`, tab bar, capture FAB and `Toggle` primitives now expose the right `accessibilityRole` ("button" / "tab" / "switch"), `accessibilityLabel` and `accessibilityState` (disabled/busy/selected/checked) so VoiceOver and TalkBack announce them correctly.
+
+**Remaining backlog**: optional billing proration once Stripe is live. All headline user-facing requirements from the brief are now implemented.

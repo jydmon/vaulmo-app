@@ -1,11 +1,11 @@
 import { useEffect, useState, Fragment } from 'react';
-import { api, setTokens, hasSession, uploadText, downloadDocumentFile, exportMyData, ApiError, type AuthResult } from './api';
+import { api, setTokens, hasSession, uploadText, uploadFile, downloadDocumentFile, exportMyData, ApiError, type AuthResult } from './api';
 
 /* ---------------- helpers ---------------- */
 function useToast() {
   const [msg, setMsg] = useState('');
   useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(''), 2400); return () => clearTimeout(t); }, [msg]);
-  const node = <div className={`toast ${msg ? 'show' : ''}`}>{msg}</div>;
+  const node = <div className={`toast ${msg ? 'show' : ''}`} role="status" aria-live="polite">{msg}</div>;
   return { toast: setMsg, node };
 }
 const fmt = (s?: string | null) => (s ? new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -76,23 +76,150 @@ export function App() {
   }
   if (booting) return <div className="auth-wrap"><div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Your life, organised</span></div></div></div>;
   if (forceMfa) return <ForceMfaSetup user={forceMfa} onDone={(u: any) => { setForceMfa(null); setMe(u); }} onCancel={() => { setTokens(null, null); setForceMfa(null); setView('login'); }} />;
-  if (me) return <Shell me={me} onSignOut={() => { setTokens(null, null); setMe(null); setView('login'); }} refreshMe={async () => setMe(await api.me())} />;
+  if (me) {
+    const isSuper = me?.roles?.includes('super_admin');
+    const signOut = () => { setTokens(null, null); setMe(null); setView('login'); };
+    const refreshMe = async () => setMe(await api.me());
+    if (!isSuper && me.onboarding && !me.onboarding.complete) {
+      return <OnboardingGate me={me} refreshMe={refreshMe} onSignOut={signOut} />;
+    }
+    return <Shell me={me} onSignOut={signOut} refreshMe={refreshMe} />;
+  }
 
   return (
     <div className="auth-wrap">
       <div>
         <div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Your life, organised</span></div></div>
-        {error && <div className="err" style={{ width: 400, maxWidth: '92vw' }}>{error}</div>}
+        {error && <div className="err" role="alert" style={{ width: 400, maxWidth: '92vw' }}>{error}</div>}
         {view === 'login' && <AuthForm title="Sign in" fields={['email', 'password']} cta="Sign in"
           onSubmit={async (v) => { setError(''); try { await afterAuth(await api.login(v)); } catch (e) { setError(e instanceof ApiError ? e.message : 'Failed'); } }}
-          foot={<>New here? <a onClick={() => { setError(''); setView('register'); }}>Create an account</a></>} />}
+          foot={<>New here? <A onClick={() => { setError(''); setView('register'); }}>Create an account</A></>} />}
         {view === 'register' && <AuthForm title="Create your household" fields={['fullName', 'email', 'password']} cta="Create account"
           onSubmit={async (v) => { setError(''); try { await afterAuth(await api.register(v)); } catch (e) { setError(e instanceof ApiError ? e.message : 'Failed'); } }}
-          foot={<>Have an account? <a onClick={() => { setError(''); setView('login'); }}>Sign in</a></>} />}
+          foot={<>Have an account? <A onClick={() => { setError(''); setView('login'); }}>Sign in</A></>} />}
         {view === 'mfa' && <MfaForm onSubmit={async (code) => { setError(''); try { await afterAuth(await api.loginMfa(code, challenge!)); } catch (e) { setError(e instanceof ApiError ? e.message : 'Invalid code'); } }} />}
       </div>
     </div>
   );
+}
+
+/* ---------------- onboarding gate (first-run journey) ---------------- */
+function OnboardingGate({ me, refreshMe, onSignOut }: any) {
+  const ob = me.onboarding ?? {};
+  // Determine the current blocking step from what's still outstanding, in journey order.
+  const step = !ob.emailVerified ? 'verify' : !ob.termsAccepted ? 'terms' : 'plan';
+  const stepNo = { verify: 1, terms: 2, plan: 3 }[step];
+  return (
+    <div className="auth-wrap">
+      <div style={{ width: 520, maxWidth: '94vw' }}>
+        <div className="brandmark"><Mark size={40} /><div><b>Vaulmo</b><span>Let’s get you set up</span></div></div>
+        <div style={{ display: 'flex', gap: 6, margin: '4px 0 16px' }}>
+          {[1, 2, 3].map((n) => <div key={n} style={{ flex: 1, height: 4, borderRadius: 3, background: n <= stepNo ? 'var(--brand)' : 'var(--line)' }} />)}
+        </div>
+        {step === 'verify' && <VerifyStep me={me} refreshMe={refreshMe} />}
+        {step === 'terms' && <TermsStep refreshMe={refreshMe} />}
+        {step === 'plan' && <PlanStep refreshMe={refreshMe} />}
+        <div className="foot" style={{ marginTop: 16, textAlign: 'center' }}><A onClick={onSignOut}>Sign out</A></div>
+      </div>
+    </div>
+  );
+}
+function VerifyStep({ me, refreshMe }: any) {
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  async function send() {
+    setBusy(true); setMsg('');
+    try {
+      const r = await api.requestVerification();
+      // In dev the token is returned so we can complete verification without email.
+      if (r.devToken) { await api.verifyEmail(r.devToken); await refreshMe(); }
+      else { setSent(true); setMsg('Verification email sent — check your inbox, then refresh.'); }
+    } catch (e) { setMsg((e as any).message); } finally { setBusy(false); }
+  }
+  return <div className="card"><div className="card-b">
+    <h2 style={{ margin: '0 0 6px' }}>Verify your email</h2>
+    <p className="muted">We need to confirm <b>{me.email}</b> before you start. Click below and we’ll send a verification link.</p>
+    <button className="btn" disabled={busy} onClick={send}>{busy ? 'Working…' : sent ? 'Resend link' : 'Send verification link'}</button>
+    {sent && <button className="btn sec" style={{ marginLeft: 8 }} onClick={refreshMe}>I’ve verified — continue</button>}
+    {msg && <div className="ok" style={{ marginTop: 12 }}>{msg}</div>}
+  </div></div>;
+}
+function TermsStep({ refreshMe }: any) {
+  const { data } = useData(() => api.legalDoc('terms_of_business'));
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  async function accept() { setBusy(true); try { await api.acceptTerms(); await refreshMe(); } finally { setBusy(false); } }
+  const doc = data?.document;
+  return <div className="card"><div className="card-b">
+    <h2 style={{ margin: '0 0 6px' }}>{doc?.title ?? 'Terms of Business'}</h2>
+    <p className="muted" style={{ marginTop: 0 }}>Last updated {doc?.updated ?? '—'}. Please read and accept to continue.</p>
+    <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 10, padding: 14, fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', background: 'var(--surface-2)' }}>{doc?.body ?? 'Loading…'}</div>
+    <label className="flex" style={{ gap: 8, marginTop: 12, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} style={{ width: 'auto', marginTop: 0 }} /><span style={{ fontSize: 14 }}>I have read and accept the Terms of Business</span></label>
+    <button className="btn" style={{ marginTop: 12 }} disabled={!agree || busy} onClick={accept}>{busy ? 'Saving…' : 'Accept & continue'}</button>
+  </div></div>;
+}
+function PlanStep({ refreshMe }: any) {
+  const { data } = useData(() => api.plans());
+  const [busy, setBusy] = useState('');
+  async function choose(key: string) {
+    setBusy(key);
+    try { const r = await api.choosePlan(key); if (r.mode === 'checkout' && r.url) { window.location.href = r.url; return; } await refreshMe(); }
+    catch (e) { alert((e as any).message); } finally { setBusy(''); }
+  }
+  return <div className="card"><div className="card-b">
+    <h2 style={{ margin: '0 0 6px' }}>Choose your plan</h2>
+    <p className="muted" style={{ marginTop: 0 }}>Pick the plan that suits your household. You can change or cancel any time.</p>
+    <div className="plan-cards">{(data?.plans ?? []).map((p: any) => <div className="plan" key={p.key}>
+      <div className="spread"><b style={{ textTransform: 'capitalize' }}>{p.name}</b></div>
+      <PlanPrice p={p} />
+      <div className="feat">✓ {p.entitlements?.members === -1 ? 'Unlimited' : p.entitlements?.members} members</div>
+      <div className="feat">{p.entitlements?.aiAssistant ? '✓ AI assistant' : '— AI assistant'}</div>
+      <div className="feat">{p.entitlements?.connectedServices ? '✓ Connected services' : '— Connected services'}</div>
+      <button className="btn block sm" style={{ marginTop: 10 }} disabled={!!busy} onClick={() => choose(p.key)}>{busy === p.key ? '…' : p.amount === 0 ? 'Start free' : 'Choose ' + p.name}</button>
+    </div>)}</div>
+  </div></div>;
+}
+// Post-onboarding welcome: optional 2FA nudge + a short platform tour.
+// Shown once; Start / Skip / Don't-show-again all mark the tour as seen.
+const TOUR_SLIDES = [
+  { ic: '🗄️', t: 'Your Vault', s: 'Scan or upload documents — Vaulmo reads the details and keeps everything in one secure place.' },
+  { ic: '✅', t: 'Personalise & checklist', s: 'Answer a few questions and Vaulmo suggests exactly the documents your household should keep.' },
+  { ic: '🔔', t: 'Reminders', s: 'Renewals for passports, MOT, insurance and more — tracked automatically so nothing slips.' },
+  { ic: '💬', t: 'Ask Vaulmo', s: 'Ask questions in plain English — answers come only from your own information.' },
+  { ic: '🔒', t: 'Private by design', s: 'Your data is encrypted and access is strictly controlled. It’s your vault.' },
+];
+function WelcomeTour({ me, go, onClose }: any) {
+  const [phase, setPhase] = useState<'intro' | 'tour'>('intro');
+  const [i, setI] = useState(0);
+  async function finish() { try { await api.tourSeen(); } catch { /* ignore */ } onClose(); }
+  return <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,22,35,.55)', zIndex: 100, display: 'grid', placeItems: 'center', padding: 16 }}>
+    <div className="card" style={{ width: 460, maxWidth: '94vw', margin: 0 }}><div className="card-b">
+      {phase === 'intro' ? <>
+        <div style={{ fontSize: 40, textAlign: 'center' }}>👋</div>
+        <h2 style={{ margin: '6px 0', textAlign: 'center' }}>Welcome to Vaulmo, {me.fullName?.split(' ')[0]}</h2>
+        <p className="muted" style={{ textAlign: 'center', marginTop: 0 }}>You’re all set up. Want a 60-second tour of the essentials?</p>
+        {!me.mfaEnabled && <div className="row" style={{ background: 'var(--warn-bg)', borderRadius: 10, marginTop: 8 }}>
+          <div className="m"><div className="t">Protect your account</div><div className="s">Add two-factor authentication for extra security.</div></div>
+          <button className="btn sm" onClick={() => { finish(); go('settings'); }}>Set up 2FA</button>
+        </div>}
+        <div className="flex" style={{ gap: 8, marginTop: 14, justifyContent: 'center' }}>
+          <button className="btn" onClick={() => setPhase('tour')}>Start the tour</button>
+          <button className="btn sec" onClick={finish}>Skip</button>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 10 }}><A onClick={finish} style={{ fontSize: 13 }}>Don’t show again</A></div>
+      </> : <>
+        <div style={{ fontSize: 40, textAlign: 'center' }}>{TOUR_SLIDES[i].ic}</div>
+        <h2 style={{ margin: '6px 0', textAlign: 'center' }}>{TOUR_SLIDES[i].t}</h2>
+        <p className="muted" style={{ textAlign: 'center', minHeight: 44 }}>{TOUR_SLIDES[i].s}</p>
+        <div style={{ display: 'flex', gap: 5, justifyContent: 'center', margin: '4px 0 14px' }}>{TOUR_SLIDES.map((_, n) => <div key={n} style={{ width: 7, height: 7, borderRadius: 4, background: n === i ? 'var(--brand)' : 'var(--line)' }} />)}</div>
+        <div className="flex" style={{ justifyContent: 'space-between' }}>
+          <button className="btn sec sm" onClick={finish}>Skip</button>
+          {i < TOUR_SLIDES.length - 1 ? <button className="btn sm" onClick={() => setI(i + 1)}>Next</button> : <button className="btn sm" onClick={finish}>Get started</button>}
+        </div>
+      </>}
+    </div></div>
+  </div>;
 }
 
 function AuthForm(props: { title: string; fields: string[]; cta: string; onSubmit: (v: any) => void; foot: React.ReactNode }) {
@@ -105,7 +232,7 @@ function AuthForm(props: { title: string; fields: string[]; cta: string; onSubmi
       ? <label key={f}>Password
           <span style={{ position: 'relative', display: 'block' }}>
             <input type={showPw ? 'text' : 'password'} value={v[f]} onChange={(e) => setV({ ...v, [f]: e.target.value })} required style={{ paddingRight: 62 }} />
-            <a onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 12.5, cursor: 'pointer', color: 'var(--brand)' }}>{showPw ? 'Hide' : 'Show'}</a>
+            <A onClick={() => setShowPw(!showPw)} aria-label={showPw ? 'Hide password' : 'Show password'} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', fontSize: 12.5, cursor: 'pointer', color: 'var(--brand)', minHeight: 24, minWidth: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px 8px' }}>{showPw ? 'Hide' : 'Show'}</A>
           </span>
         </label>
       : <label key={f}>{lbl[f]}<input type={f === 'email' ? 'email' : 'text'} value={v[f]} onChange={(e) => setV({ ...v, [f]: e.target.value })} required /></label>)}
@@ -144,7 +271,7 @@ function ForceMfaSetup({ user, onDone, onCancel }: { user: any; onDone: (u: any)
 
   return <div className="auth-wrap"><div>
     <div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Administrator security</span></div></div>
-    {err && <div className="err" style={{ width: 420, maxWidth: '92vw' }}>{err}</div>}
+    {err && <div className="err" role="alert" style={{ width: 420, maxWidth: '92vw' }}>{err}</div>}
     <div className="card auth-card" style={{ width: 460 }}>
       {codes ? <>
         <h1>Save your recovery codes</h1>
@@ -163,7 +290,7 @@ function ForceMfaSetup({ user, onDone, onCancel }: { user: any; onDone: (u: any)
           <label>Enter the 6-digit code<input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" onKeyDown={(e) => { if (e.key === 'Enter') confirm(); }} /></label>
           <button className="btn block" style={{ marginTop: 10 }} disabled={busy || code.length < 6} onClick={confirm}>{busy ? 'Verifying…' : 'Verify & enable'}</button>
         </>}
-        <div className="foot"><a onClick={onCancel}>Cancel and sign out</a></div>
+        <div className="foot"><A onClick={onCancel}>Cancel and sign out</A></div>
       </>}
     </div>
   </div></div>;
@@ -176,15 +303,16 @@ const TENANT_NAV = [
   { id: 'assistant', label: 'Ask Vaulmo', ic: 'assistant' }, { id: 'reminders', label: 'Reminders', ic: 'reminders' },
   { grp: 'Life' }, { id: 'assets', label: 'Property & Vehicles', ic: 'vault' }, { id: 'trips', label: 'Trips', ic: 'trips' }, { id: 'purchases', label: 'Purchases', ic: 'purchases' },
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
-  { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
+  { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'faq', label: 'FAQ', ic: 'help' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'campaigns', label: 'Campaigns', ic: 'notif' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
 
 function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; refreshMe: () => Promise<void> }) {
   const isSuper = me?.roles?.includes('super_admin');
   const nav = isSuper ? ADMIN_NAV : TENANT_NAV;
   const [active, setActive] = useState(isSuper ? 'home' : 'home');
   const [unread, setUnread] = useState(0);
+  const [showTour, setShowTour] = useState(!isSuper && !!me.onboarding?.complete && !me.onboarding?.tourSeen);
   const { toast, node } = useToast();
   useEffect(() => { if (!isSuper) api.unread().then((r) => setUnread(r.unread)).catch(() => {}); }, [active, isSuper]);
   const [cfg, setCfg] = useState<any>({ announcements: [], environment: '' });
@@ -199,7 +327,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], assets: ['Property & Vehicles', 'Your home, car & other assets'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
   const help: Record<string, string> = {
@@ -220,10 +348,12 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     support: isSuper ? 'Manage and respond to customer support tickets.' : 'Get help and track the status of your support requests.',
     emergency: isSuper ? 'Review and authorise emergency-access requests with due diligence and an audit trail.' : 'See and control any requests from your next-of-kin to access your vault. Nothing is granted without your approval.',
     help: 'Guides, FAQs and answers to common questions.',
+    faq: 'Answers to common questions, plus how to reach support.',
     customers: 'Every customer account and the people within each household.',
     subscriptions: 'Plans, subscription status and revenue across all customers.',
     reports: 'Growth, usage and revenue analytics for the platform.',
     crm: 'Customer lifecycle, tags, notes and troubleshooting tools.',
+    campaigns: 'Send email campaigns to segments of your users, and manage automated communication workflows.',
     cms: 'Create and manage the help-centre articles customers see.',
     catalogue: 'The recommended-document list, the metadata fields AI extracts, and reminder rules.',
     notifadmin: 'Notification templates and delivery monitoring.',
@@ -236,27 +366,29 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     health: 'Live status of every platform component.',
     audit: 'A complete, append-only log of platform activity.',
   };
-  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
+    <a href="#main" className="skip-link">Skip to main content</a>
     <aside className="sidebar">
       <div className="sb-brand"><Mark size={34} /><div><b>Vaulmo</b><span>{isSuper ? 'Admin' : 'Family Vault'}</span></div></div>
-      <nav className="nav">{nav.map((n: any, i) => n.grp ? <div className="grp" key={i}>{n.grp}</div> :
-        <button key={n.id} className={active === n.id ? 'on' : ''} onClick={() => setActive(n.id)}><Icon k={n.ic} />{n.label}{n.id === 'reminders' && unread > 0 && <span className="dot">{unread}</span>}</button>)}
+      <nav className="nav" aria-label="Primary">{nav.map((n: any, i) => n.grp ? <div className="grp" key={i}>{n.grp}</div> :
+        <button key={n.id} className={active === n.id ? 'on' : ''} aria-current={active === n.id ? 'page' : undefined} onClick={() => setActive(n.id)}><Icon k={n.ic} />{n.label}{n.id === 'reminders' && unread > 0 && <span className="dot">{unread}</span>}</button>)}
       </nav>
       <div className="sb-foot"><div className="av">{me.fullName.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}</div><div><div className="nm">{me.fullName}</div><div className="rl">{isSuper ? 'Super Admin' : me.tenant?.name ?? 'Member'}</div></div></div>
     </aside>
-    <main className="main">
+    <main className="main" id="main">
       <div className="top"><div className="top-in">
         <div><div className="flex" style={{ gap: 8 }}><h2>{t0}</h2>{help[active] && <Help text={help[active]} />}</div><div className="sub">{t1}</div></div>
         <div className="sp">{isSuper && cfg.environment && <span className={`pill ${envPill(cfg.environment)}`} style={{ textTransform: 'capitalize' }}>{cfg.environment}</span>}<NotificationBell onOpenReminders={!isSuper ? () => setActive('reminders') : undefined} /><button className="btn sec sm" onClick={onSignOut}>Sign out</button></div>
       </div></div>
       <div className="view" key={active}>
-        {anns.map((a: any) => <div key={a.id} className="card" style={{ marginBottom: 16, border: 0, background: a.level === 'critical' ? 'var(--crit-bg)' : a.level === 'warning' ? 'var(--warn-bg)' : 'var(--brand-soft)' }}><div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><div><b>{a.title}</b>{a.body && <div style={{ fontSize: 13.5, marginTop: 3 }}>{a.body}</div>}</div><a onClick={() => setDismissed([...dismissed, a.id])} style={{ cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--soft)' }}>×</a></div></div>)}
+        {anns.map((a: any) => <div key={a.id} className="card" style={{ marginBottom: 16, border: 0, background: a.level === 'critical' ? 'var(--crit-bg)' : a.level === 'warning' ? 'var(--warn-bg)' : 'var(--brand-soft)' }}><div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><div><b>{a.title}</b>{a.body && <div style={{ fontSize: 13.5, marginTop: 3 }}>{a.body}</div>}</div><A onClick={() => setDismissed([...dismissed, a.id])} aria-label={`Dismiss announcement: ${a.title}`} style={{ cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--soft)' }}>×</A></div></div>)}
         {views[active]}
       </div>
     </main>
     {node}
+    {showTour && <WelcomeTour me={me} go={setActive} onClose={() => { setShowTour(false); refreshMe(); }} />}
   </div>;
 }
 
@@ -273,17 +405,17 @@ function NotificationBell({ onOpenReminders }: { onOpenReminders?: () => void })
   async function read(id: string) { await api.markRead(id); loadList(); loadCount(); }
   async function readAll() { await api.readAll(); loadList(); loadCount(); }
   return <div style={{ position: 'relative' }}>
-    <button className="bell" onClick={toggle}>🔔{unread > 0 && <span className="dot">{unread}</span>}</button>
+    <button className="bell" onClick={toggle} aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ''}`} aria-haspopup="true" aria-expanded={open}>🔔{unread > 0 && <span className="dot">{unread}</span>}</button>
     {open && <>
-      <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+      <div onClick={() => setOpen(false)} aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
       <div style={{ position: 'absolute', right: 0, top: 48, width: 344, maxHeight: 460, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, boxShadow: '0 12px 34px rgba(16,22,35,.16)', zIndex: 50 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--line)' }}><b style={{ fontSize: 14 }}>Notifications</b>{items.some((n) => !n.readAt) && <a onClick={readAll} style={{ fontSize: 12.5 }}>Mark all read</a>}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--line)' }}><b style={{ fontSize: 14 }}>Notifications</b>{items.some((n) => !n.readAt) && <A onClick={readAll} style={{ fontSize: 12.5 }}>Mark all read</A>}</div>
         {items.length ? items.slice(0, 20).map((n) => <div key={n.id} onClick={() => !n.readAt && read(n.id)} style={{ display: 'flex', gap: 10, padding: '11px 16px', borderBottom: '1px solid var(--surface-2)', cursor: n.readAt ? 'default' : 'pointer', background: n.readAt ? 'transparent' : 'var(--brand-soft)' }}>
           <span style={{ fontSize: 16, flex: 'none' }}>{notifIcon(n.category)}</span>
           <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600 }}>{n.title}</div><div style={{ fontSize: 12.5, color: 'var(--soft)' }}>{n.body}</div><div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{fmt(n.createdAt)}</div></div>
           {!n.readAt && <span style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--brand-2)', flex: 'none', marginTop: 6 }} />}
         </div>) : <div className="empty" style={{ padding: '26px 16px' }}>You're all caught up.</div>}
-        {onOpenReminders && <div style={{ padding: 10, textAlign: 'center', borderTop: '1px solid var(--line)' }}><a onClick={() => { setOpen(false); onOpenReminders(); }} style={{ fontSize: 13 }}>View all in Reminders →</a></div>}
+        {onOpenReminders && <div style={{ padding: 10, textAlign: 'center', borderTop: '1px solid var(--line)' }}><A onClick={() => { setOpen(false); onOpenReminders(); }} style={{ fontSize: 13 }}>View all in Reminders →</A></div>}
       </div>
     </>}
   </div>;
@@ -353,6 +485,10 @@ function useData<T>(fn: () => Promise<T>, deps: any[] = []) {
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, deps);
   return { data, err, reload };
 }
+// Accessible inline "link-button": renders a real <button> (keyboard-operable,
+// correct role/name) styled to look like a text link. Used everywhere we want a
+// link-styled control that isn't a navigation to a URL (WCAG 2.1.1 / 4.1.2).
+const A = ({ children, className, ...rest }: any) => <button type="button" className={`linkbtn${className ? ' ' + className : ''}`} {...rest}>{children}</button>;
 const Tile = ({ ic, bg, lab, val, note }: any) => <div className="tile"><div className="lab"><span className="ic" style={{ background: bg }}>{ic}</span>{lab}</div><div className="val">{val}</div>{note && <div className="note">{note}</div>}</div>;
 // Interactive help "?" — reveals a short explanation on hover or keyboard focus.
 function Help({ text }: { text: string }) {
@@ -384,7 +520,7 @@ function Home({ me, go }: any) {
         {up.slice(0, 6).map((r: any) => <div className="row" key={r.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>🔔</div><div className="m"><div className="t">{r.title}</div><div className="s">{fmt(r.dueDate)}</div></div>{remPill(r)}</div>)}
         {!up.length && <div className="empty">Nothing scheduled yet.</div>}
       </Card>
-      <Card title="Get started" right={<a onClick={() => go('vault')}>Open vault →</a>}>
+      <Card title="Get started" right={<A onClick={() => go('vault')}>Open vault →</A>}>
         <div className="row" onClick={() => go('vault')}><div className="ic" style={{ background: 'var(--brand-soft)' }}>🗄️</div><div className="m"><div className="t">Add a document</div><div className="s">Scan, verify and store</div></div><span>›</span></div>
         <div className="row" onClick={() => go('assistant')}><div className="ic" style={{ background: 'var(--aqua-bg)' }}>💬</div><div className="m"><div className="t">Ask Vaulmo</div><div className="s">"When does my passport expire?"</div></div><span>›</span></div>
         <div className="row" onClick={() => go('connected')}><div className="ic" style={{ background: 'var(--violet-bg)' }}>🔌</div><div className="m"><div className="t">Connect your email</div><div className="s">Auto-import trips & receipts</div></div><span>›</span></div>
@@ -430,7 +566,7 @@ function Personalise({ toast, go }: any) {
       <div className="flex" style={{ marginTop: 18, alignItems: 'center', gap: 12 }}>
         <button className="btn" disabled={busy || answered < questions.length} onClick={save}>{busy ? 'Saving…' : data?.completed ? 'Update my answers' : 'Save & tailor my checklist'}</button>
         <span className="muted" style={{ fontSize: 13 }}>{answered}/{questions.length} answered</span>
-        {go && <a onClick={() => go('vault')} style={{ marginLeft: 'auto' }}>Go to my vault →</a>}
+        {go && <A onClick={() => go('vault')} style={{ marginLeft: 'auto' }}>Go to my vault →</A>}
       </div>
     </Card>
   </div>;
@@ -442,10 +578,40 @@ const DECISION_LABEL: Record<string, string> = { store_now: 'Storing now', uploa
 function Vault({ toast, go }: any) {
   const { data, reload } = useData(() => api.documents());
   const { data: cl, reload: reloadCl } = useData(() => api.checklist());
+  const { data: cat } = useData(() => api.catalogue());
   const [scan, setScan] = useState(false); const [text, setText] = useState(SAMPLE);
   const [doc, setDoc] = useState<any>(null); const [meta, setMeta] = useState<any>({}); const [busy, setBusy] = useState('');
-  async function runScan() { setBusy('Scanning…'); try { const bytes = new Blob([text]).size; const init = await api.createDocument({ filename: 'doc.txt', contentType: 'text/plain', sizeBytes: bytes, title: 'Document' }); await uploadText(init.uploadUrl, text); const r = await api.processDocument(init.documentId); setDoc({ id: init.documentId, ...r }); const m: any = {}; r.extracted.forEach((f: any) => f.value && (m[f.key] = f.value)); setMeta(m); } finally { setBusy(''); } }
-  async function confirm() { setBusy('Storing…'); try { await api.confirmDocument(doc.id, meta); setScan(false); setDoc(null); toast('Stored and reminders set'); reload(); reloadCl(); } finally { setBusy(''); } }
+  const [title, setTitle] = useState(''); const [typeKey, setTypeKey] = useState('');
+  const types = cat?.types ?? [];
+  // Fields to fill: the extracted ones, or the chosen type's schema for manual entry.
+  const chosenType = types.find((t: any) => t.key === typeKey);
+  const fields = (doc?.extracted?.length ? doc.extracted : (chosenType?.fields ?? [])) as any[];
+  function afterProcess(id: string, r: any, fallbackTitle: string) {
+    setDoc({ id, ...r }); setTitle(r.classification?.title ?? fallbackTitle);
+    setTypeKey(r.classification?.typeKey ?? ''); const m: any = {}; (r.extracted ?? []).forEach((f: any) => f.value && (m[f.key] = f.value)); setMeta(m);
+  }
+  async function runScan() { setBusy('Scanning…'); try { const bytes = new Blob([text]).size; const init = await api.createDocument({ filename: 'doc.txt', contentType: 'text/plain', sizeBytes: bytes, title: 'Document' }); await uploadText(init.uploadUrl, text); const r = await api.processDocument(init.documentId); afterProcess(init.documentId, r, 'Document'); } finally { setBusy(''); } }
+  async function runUpload(file: File) {
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) { toast('That file is over 50 MB'); return; }
+    setBusy('Uploading…');
+    try {
+      const init = await api.createDocument({ filename: file.name, contentType: file.type || 'application/octet-stream', sizeBytes: file.size, title: file.name });
+      await uploadFile(init.uploadUrl, file);
+      setBusy('Reading…');
+      const r = await api.processDocument(init.documentId);
+      afterProcess(init.documentId, r, file.name.replace(/\.[^.]+$/, ''));
+    } catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
+  async function confirm() {
+    setBusy('Storing…');
+    try {
+      // Apply a manually chosen type/title, then confirm with the (possibly manual) metadata.
+      if (typeKey || title) await api.editDocument(doc.id, { ...(typeKey ? { typeKey } : {}), ...(title ? { title } : {}) });
+      await api.confirmDocument(doc.id, meta);
+      setScan(false); setDoc(null); setTitle(''); setTypeKey(''); toast('Stored and reminders set'); reload(); reloadCl();
+    } catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
   async function download(d: any) { try { await downloadDocumentFile(d.id, (d.title || 'document') + '.pdf'); } catch { toast('Download failed'); } }
   async function remove(d: any) { if (!window.confirm(`Delete "${d.title}"? It will be removed from your vault.`)) return; try { await api.deleteDocument(d.id); toast('Document deleted'); reload(); reloadCl(); } catch { toast('Delete failed'); } }
   async function decide(typeKey: string, decision: string) {
@@ -466,12 +632,21 @@ function Vault({ toast, go }: any) {
     </div></div>}
     {scan && <div className="card" style={{ marginBottom: 18 }}><div className="card-b">
       {!doc ? <>
-        <label>Paste a synthetic document, then scan<textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 13 }} /></label>
+        <div className="row" style={{ background: 'var(--surface-2)', borderRadius: 12 }}>
+          <div className="ic" style={{ background: 'var(--brand-soft)' }}>📎</div>
+          <div className="m"><div className="t">Upload a file</div><div className="s">Choose a PDF or image from your computer</div></div>
+          <label className="btn sm" style={{ cursor: 'pointer', marginTop: 0 }}>Choose file<input type="file" accept="image/*,application/pdf,.png,.jpg,.jpeg,.pdf,.txt" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) runUpload(f); e.currentTarget.value = ''; }} /></label>
+        </div>
+        <div className="muted" style={{ textAlign: 'center', fontSize: 12.5, margin: '10px 0' }}>— or paste document text —</div>
+        <label><textarea rows={5} value={text} onChange={(e) => setText(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 13 }} /></label>
         <div className="flex"><button className="btn" onClick={runScan} disabled={!!busy}>{busy || 'Scan & extract'}</button><button className="btn sec" onClick={() => setScan(false)}>Cancel</button></div>
       </> : <>
-        <div className="ok" style={{ marginBottom: 12 }}>Classified as <b>{doc.classification?.typeKey}</b> ({Math.round((doc.classification?.confidence ?? 0) * 100)}% · {doc.engine}). Check details, then confirm.</div>
-        {doc.extracted.map((f: any) => <label key={f.key}>{f.label}<input value={meta[f.key] ?? ''} onChange={(e) => setMeta({ ...meta, [f.key]: e.target.value })} /></label>)}
-        <div className="flex"><button className="btn" onClick={confirm} disabled={!!busy}>{busy || 'Confirm & store'}</button><button className="btn sec" onClick={() => setDoc(null)}>Back</button></div>
+        {doc.classification?.typeKey ? <div className="ok" style={{ marginBottom: 12 }}>Recognised as <b>{doc.classification.typeKey}</b> ({Math.round((doc.classification?.confidence ?? 0) * 100)}% · {doc.engine}). Check the details, then confirm.</div>
+          : <div className="err" style={{ marginBottom: 12, background: 'var(--warn-bg)', color: 'inherit' }}>We couldn't recognise this automatically — pick a document type below and fill in any details, or just give it a name and store it.</div>}
+        <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. My passport" /></label>
+        <label>Document type<select value={typeKey} onChange={(e) => { setTypeKey(e.target.value); setMeta({}); }}><option value="">Unspecified</option>{types.map((t: any) => <option key={t.key} value={t.key}>{t.name}</option>)}</select></label>
+        {fields.map((f: any) => <label key={f.key}>{f.label}<input value={meta[f.key] ?? ''} onChange={(e) => setMeta({ ...meta, [f.key]: e.target.value })} /></label>)}
+        <div className="flex"><button className="btn" onClick={confirm} disabled={!!busy}>{busy || 'Confirm & store'}</button><button className="btn sec" onClick={() => { setDoc(null); setTypeKey(''); setTitle(''); }}>Back</button></div>
       </>}
     </div></div>}
     <Card title="Recommended documents" help="Documents we suggest for your household. For anything you don't have yet, tell us what you'd like to do — store it now, upload later, be reminded, or mark it as not applicable so it stops counting against you.">
@@ -514,11 +689,11 @@ function Reminders({ onRead, toast }: any) {
   const overdue = rem?.overdue ?? []; const upcoming = rem?.upcoming ?? []; const completed = rem?.completed ?? [];
   const row = (r: any, isOverdue = false) => <div className="row" key={r.id}><div className="ic" style={{ background: isOverdue ? 'var(--warn-bg)' : 'var(--surface-2)' }}>{isOverdue ? '⚠️' : '🗓️'}</div><div className="m"><div className="t">{r.title}{r.recurrence && r.recurrence !== 'none' && <span className="pill p-info" style={{ marginLeft: 8 }}>{r.recurrence}</span>}</div><div className="s">{fmt(r.dueDate)}</div></div><div className="flex" style={{ gap: 6 }}><button className="btn sec" title="Mark done" onClick={() => complete(r.id)}>✓</button><button className="btn sec" title="Snooze 7 days" onClick={() => snooze(r.id)}>💤</button></div></div>;
   return <div className="grid2">
-    <Card title="Notifications" help="Alerts about your documents, reminders and account. Click one to mark it read." right={<a onClick={async () => { await api.readAll(); reload(); onRead(); }}>Mark all read</a>}>
+    <Card title="Notifications" help="Alerts about your documents, reminders and account. Click one to mark it read." right={<A onClick={async () => { await api.readAll(); reload(); onRead(); }}>Mark all read</A>}>
       {(notifs?.notifications ?? []).map((n: any) => <div className="row" key={n.id} onClick={() => !n.readAt && read(n.id)} style={{ cursor: n.readAt ? 'default' : 'pointer', opacity: n.readAt ? 0.6 : 1 }}><div className="ic" style={{ background: 'var(--warn-bg)' }}>{n.category === 'missing_document' ? '📄' : n.category === 'system' ? '⚙️' : '🔔'}</div><div className="m"><div className="t">{n.title}</div><div className="s">{n.body}</div></div>{!n.readAt && <span className="pill p-info">new</span>}</div>)}
       {!(notifs?.notifications ?? []).length && <div className="empty">No notifications.</div>}
     </Card>
-    <Card title="Reminders" help="Add your own reminder with an optional repeat. Use ✓ to mark done or 💤 to snooze for a week." right={<a onClick={() => setAdd((v) => !v)}>{add ? 'Close' : '+ Add reminder'}</a>}>
+    <Card title="Reminders" help="Add your own reminder with an optional repeat. Use ✓ to mark done or 💤 to snooze for a week." right={<A onClick={() => setAdd((v) => !v)}>{add ? 'Close' : '+ Add reminder'}</A>}>
       {add && <div className="card" style={{ marginBottom: 12 }}><div className="card-b">
         <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Renew car insurance" /></label>
         <div className="grid2"><label>Date<input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label><label>Repeat<select value={rec} onChange={(e) => setRec(e.target.value)}><option value="none">One-off</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></label></div>
@@ -545,7 +720,7 @@ function Purchases() {
 function Subs({ toast }: any) {
   const { data, reload } = useData(() => api.trackedSubscriptions());
   const subs = data?.subscriptions ?? [];
-  return <Card title="Tracked subscriptions" right={<a onClick={async () => { await api.confirmDetected; toast('Connect email to auto-detect'); }}>from email →</a>}>
+  return <Card title="Tracked subscriptions" right={<A onClick={async () => { await api.confirmDetected; toast('Connect email to auto-detect'); }}>from email →</A>}>
     {subs.map((s: any) => <div className="row" key={s.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>🔁</div><div className="m"><div className="t">{cap(s.name)}</div><div className="s">{s.amount ?? ''} · {s.cycle}</div></div>{s.renewalDate && <span className="pill p-neutral">renews {fmt(s.renewalDate)}</span>}</div>)}
     {!subs.length && <div className="empty">No subscriptions tracked yet.</div>}
   </Card>;
@@ -557,7 +732,9 @@ function Connected({ toast }: any) {
   const [busy, setBusy] = useState('');
   async function connect(p: string) { setBusy(p); try { await api.connectProvider(p); const code = 'demo_' + Math.random().toString(36).slice(2, 8); await api.callbackProvider(p, code); toast(`${cap(p)} connected`); await reload(); } finally { setBusy(''); } }
   async function connectBank() { setBusy('bank'); try { await api.connectBank(); const code = 'demo_' + Math.random().toString(36).slice(2, 8); await api.bankCallback(code); toast('Bank connected (sandbox)'); await reload(); } finally { setBusy(''); } }
-  async function sync(id: string) { const r = await api.sync(id); toast(`Detected ${r.created} item${r.created === 1 ? '' : 's'}`); reloadDet(); }
+  async function sync(id: string) { try { const r = await api.sync(id); toast(`Detected ${r.created} item${r.created === 1 ? '' : 's'}`); reloadDet(); } catch (e) { toast((e as any).message); } }
+  async function pause(id: string) { try { await api.pauseConnection(id); toast('Sync paused'); reload(); } catch (e) { toast((e as any).message); } }
+  async function resume(id: string) { try { await api.resumeConnection(id); toast('Sync resumed'); reload(); } catch (e) { toast((e as any).message); } }
   async function confirm(id: string) { const r = await api.confirmDetected(id); toast(`Added to ${r.entityType}`); reloadDet(); }
   const list = conns?.connections ?? []; const items = det?.detected ?? [];
   return <>
@@ -568,7 +745,7 @@ function Connected({ toast }: any) {
         <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>Sandbox providers in this environment — read-only, tokens stored encrypted. Detected items never go live until you confirm them.</p>
       </Card>
       <Card title="Your connections">
-        {list.map((c: any) => <div className="row" key={c.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>🔌</div><div className="m"><div className="t">{cap(c.provider)}</div><div className="s">{c.status}{c.lastSyncAt ? ' · synced ' + fmt(c.lastSyncAt) : ''}</div></div><button className="btn sm sec" onClick={() => sync(c.id)}>Sync</button></div>)}
+        {list.filter((c: any) => c.status !== 'disconnected').map((c: any) => <div className="row" key={c.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>🔌</div><div className="m"><div className="t">{cap(c.provider)}{c.status === 'paused' && <span className="pill p-warn" style={{ marginLeft: 6 }}>paused</span>}</div><div className="s">{c.status}{c.lastSyncAt ? ' · synced ' + fmt(c.lastSyncAt) : ''}</div></div><div className="flex" style={{ gap: 6 }}>{c.status === 'paused' ? <button className="btn sm" onClick={() => resume(c.id)}>Resume</button> : <><button className="btn sm sec" onClick={() => sync(c.id)}>Sync</button><button className="btn sm sec" onClick={() => pause(c.id)} title="Pause syncing">⏸</button></>}</div></div>)}
         {!list.length && <div className="empty">No connections yet.</div>}
       </Card>
     </div>
@@ -612,9 +789,9 @@ function AssetCard({ a, docs, onChange, toast }: any) {
         <button className="btn" style={{ marginTop: 10 }} onClick={save}>Save</button>
       </div>}
       <div style={{ borderTop: '1px solid var(--line)', marginTop: 12, paddingTop: 10 }}>
-        <a onClick={() => setOpen(!open)} style={{ fontSize: 13 }}>{open ? '▾' : '▸'} Documents ({linked.length})</a>
+        <A onClick={() => setOpen(!open)} style={{ fontSize: 13 }}>{open ? '▾' : '▸'} Documents ({linked.length})</A>
         {open && <div style={{ marginTop: 8 }}>
-          {linked.map((d: any) => <div key={d.id} className="flex" style={{ justifyContent: 'space-between', padding: '4px 0' }}><span style={{ fontSize: 13 }}>📄 {d.title}</span><a onClick={() => unlink(d.id)} style={{ fontSize: 12.5 }}>Remove</a></div>)}
+          {linked.map((d: any) => <div key={d.id} className="flex" style={{ justifyContent: 'space-between', padding: '4px 0' }}><span style={{ fontSize: 13 }}>📄 {d.title}</span><A onClick={() => unlink(d.id)} style={{ fontSize: 12.5 }}>Remove</A></div>)}
           {!linked.length && <div className="muted" style={{ fontSize: 13 }}>No documents linked.</div>}
           {assignable.length > 0 && <div className="flex" style={{ gap: 6, marginTop: 8 }}><select value={pick} onChange={(e) => setPick(e.target.value)} style={{ marginTop: 0 }}><option value="">Link a document…</option>{assignable.map((d: any) => <option key={d.id} value={d.id}>{d.title}</option>)}</select><button className="btn sm" onClick={link} disabled={!pick}>Link</button></div>}
         </div>}
@@ -666,7 +843,7 @@ function MemberRow({ m, docs, onAssign }: any) {
       <span className="muted">{open ? '▾' : '▸'}</span>
     </div>
     {open && <div style={{ padding: '4px 4px 12px 50px' }}>
-      {linked.map((d: any) => <div key={d.id} className="flex" style={{ justifyContent: 'space-between', padding: '4px 0' }}><span style={{ fontSize: 13 }}>📄 {d.title}</span><a onClick={() => unassign(d.id)} style={{ fontSize: 12.5 }}>Remove</a></div>)}
+      {linked.map((d: any) => <div key={d.id} className="flex" style={{ justifyContent: 'space-between', padding: '4px 0' }}><span style={{ fontSize: 13 }}>📄 {d.title}</span><A onClick={() => unassign(d.id)} style={{ fontSize: 12.5 }}>Remove</A></div>)}
       {!linked.length && <div className="muted" style={{ fontSize: 13 }}>No documents linked yet.</div>}
       {assignable.length > 0 && <div className="flex" style={{ gap: 6, marginTop: 8 }}>
         <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ marginTop: 0 }}><option value="">Link a document…</option>{assignable.map((d: any) => <option key={d.id} value={d.id}>{d.title}</option>)}</select>
@@ -727,7 +904,7 @@ function Billing({ toast }: any) {
       const isDown = hasPaid && p.amount > 0 && p.amount < (plans?.plans ?? []).find((x: any) => x.key === ent?.planKey)?.amount;
       return <div className={`plan ${current ? 'cur' : ''}`} key={p.key}>
         <div className="spread"><b style={{ textTransform: 'capitalize' }}>{p.name}</b>{current && <span className="pill p-info">current</span>}</div>
-        <div className="price">{p.amount === 0 ? 'Free' : '£' + (p.amount / 100).toFixed(0)}<span className="muted" style={{ fontSize: 13 }}>{p.amount ? '/yr' : ''}</span></div>
+        <PlanPrice p={p} />
         <div className="feat">✓ {p.entitlements?.members === -1 ? 'Unlimited' : p.entitlements?.members} members</div>
         <div className="feat">{p.entitlements?.aiAssistant ? '✓ AI assistant' : '— AI assistant'}</div>
         <div className="feat">{p.entitlements?.connectedServices ? '✓ Connected services' : '— Connected services'}</div>
@@ -875,7 +1052,7 @@ function DevicesCard({ toast }: any) {
   async function revoke(id: string) { await api.revokeSession(id); toast('Signed out that device'); reload(); }
   async function revokeOthers() { const r = await api.revokeOtherSessions(); toast(`Signed out ${r.revoked} other session${r.revoked === 1 ? '' : 's'}`); reload(); }
   const others = rows.filter((s: any) => !s.current).length;
-  return <Card title="Devices & sessions" right={others ? <a onClick={revokeOthers}>Sign out others →</a> : undefined}>
+  return <Card title="Devices & sessions" right={others ? <A onClick={revokeOthers}>Sign out others →</A> : undefined}>
     {rows.map((s: any) => <div className="row" key={s.id}>
       <div className="ic" style={{ background: 'var(--surface-2)' }}>💻</div>
       <div className="m"><div className="t">{device(s.userAgent)}{s.current && <span className="pill p-good" style={{ marginLeft: 8 }}>This device</span>}</div><div className="s">{s.ip ?? 'unknown IP'} · signed in {fmt(s.createdAt)}</div></div>
@@ -899,7 +1076,7 @@ function AdminHome({ go }: any) {
     <div className="card" style={{ marginBottom: 18, background: sys === 'operational' ? 'var(--good-bg)' : sys === 'issues' ? 'var(--crit-bg)' : 'var(--warn-bg)', border: 0 }}>
       <div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="flex" style={{ gap: 10, alignItems: 'center' }}><span style={{ width: 11, height: 11, borderRadius: 6, background: sys === 'operational' ? '#0ca30c' : sys === 'issues' ? '#d03b3b' : '#c98500' }} /><b>{sysMeta.txt}</b></div>
-        {go && <a onClick={() => go('health')} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>System Health →</a>}
+        {go && <A onClick={() => go('health')} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>System Health →</A>}
       </div>
     </div>
     <div className="tiles">
@@ -915,18 +1092,18 @@ function AdminHome({ go }: any) {
       <Tile ic="🔌" bg="var(--surface-2)" lab="Integrations" val={d.integrations?.connected ?? 0} note={d.integrations?.error ? `${d.integrations.error} in error` : 'all healthy'} />
     </div>
     <div className="grid2">
-      <Card title="Subscriptions" right={go ? <a onClick={() => go('subscriptions')} style={{ cursor: 'pointer', fontSize: 12.5 }}>Manage →</a> : undefined}>
+      <Card title="Subscriptions" right={go ? <A onClick={() => go('subscriptions')} style={{ cursor: 'pointer', fontSize: 12.5 }}>Manage →</A> : undefined}>
         <div className="row"><div className="ic" style={{ background: 'var(--good-bg)' }}>✅</div><div className="m"><div className="t">Active</div></div><b>{d.activeSubscriptions}</b></div>
         <div className="row"><div className="ic" style={{ background: 'var(--crit-bg)' }}>⛔</div><div className="m"><div className="t">Expired / cancelled</div></div><b>{d.expiredSubscriptions}</b></div>
         <div className="row"><div className="ic" style={{ background: 'var(--aqua-bg)' }}>💷</div><div className="m"><div className="t">Annual recurring revenue</div></div><b>{gbp(d.arr)}</b></div>
       </Card>
-      <Card title="Security" right={go ? <a onClick={() => go('security')} style={{ cursor: 'pointer', fontSize: 12.5 }}>Security →</a> : undefined}>
+      <Card title="Security" right={go ? <A onClick={() => go('security')} style={{ cursor: 'pointer', fontSize: 12.5 }}>Security →</A> : undefined}>
         <div className="row"><div className="ic" style={{ background: 'var(--warn-bg)' }}>🔑</div><div className="m"><div className="t">Failed logins (7d)</div></div><b>{d.security?.failedLogins7d ?? 0}</b></div>
         <div className="row"><div className="ic" style={{ background: 'var(--crit-bg)' }}>🔒</div><div className="m"><div className="t">Active lockouts</div></div><b>{d.security?.lockouts ?? 0}</b></div>
         <div className="row"><div className="ic" style={{ background: 'var(--surface-2)' }}>{sys === 'operational' ? '🟢' : '🟠'}</div><div className="m"><div className="t">System status</div></div><span className={`pill ${sysMeta.pill}`}>{sys}</span></div>
       </Card>
     </div>
-    <Card title="Recent platform activity" right={go ? <a onClick={() => go('audit')} style={{ cursor: 'pointer', fontSize: 12.5 }}>Audit log →</a> : undefined}>
+    <Card title="Recent platform activity" right={go ? <A onClick={() => go('audit')} style={{ cursor: 'pointer', fontSize: 12.5 }}>Audit log →</A> : undefined}>
       {(d.recentActivity ?? []).map((l: any) => <div className="row" key={l.id}><div className="ic" style={{ background: 'var(--surface-2)' }}>{l.outcome === 'failure' ? '⚠️' : '•'}</div><div className="m"><div className="t">{l.action}</div><div className="s">{l.targetType ?? ''} · {l.outcome} · {fmt(l.at)}</div></div></div>)}
       {!(d.recentActivity ?? []).length && <div className="empty">No activity yet.</div>}
     </Card>
@@ -974,16 +1151,18 @@ function Subscriptions({ toast }: any) {
     catch (e) { toast((e as any).message); } finally { setBusy(''); }
   }
   function startEdit(p?: any) {
+    const mods = p?.modules?.length ? p.modules : ALL_MODULES.map((m) => m.key);
     setEdit(p
-      ? { key: p.key, name: p.name, amountPounds: (p.amount ?? 0) / 100, members: p.entitlements?.members ?? 1, aiAssistant: !!p.entitlements?.aiAssistant, connectedServices: !!p.entitlements?.connectedServices, active: p.active !== false, isNew: false }
-      : { key: '', name: '', amountPounds: 0, members: 1, aiAssistant: false, connectedServices: false, active: true, isNew: true });
+      ? { key: p.key, name: p.name, amountPounds: (p.amount ?? 0) / 100, members: p.entitlements?.members ?? 1, aiAssistant: !!p.entitlements?.aiAssistant, connectedServices: !!p.entitlements?.connectedServices, active: p.active !== false, modules: mods, discountPercent: p.discountPercent ?? 0, discountLabel: p.discountLabel ?? '', isNew: false }
+      : { key: '', name: '', amountPounds: 0, members: 1, aiAssistant: false, connectedServices: false, active: true, modules: ALL_MODULES.map((m) => m.key), discountPercent: 0, discountLabel: '', isNew: true });
   }
+  function toggleMod(k: string) { setEdit((e: any) => ({ ...e, modules: e.modules.includes(k) ? e.modules.filter((x: string) => x !== k) : [...e.modules, k] })); }
   async function savePlan() {
     const e = edit;
     if (!e.key || !e.name) { toast('Key and name are required'); return; }
     setBusy('plan');
     try {
-      await api.adminUpsertPlan({ key: e.key, name: e.name, amount: Math.round((Number(e.amountPounds) || 0) * 100), currency: 'gbp', interval: 'year', entitlements: { members: Number(e.members), aiAssistant: !!e.aiAssistant, connectedServices: !!e.connectedServices }, active: !!e.active });
+      await api.adminUpsertPlan({ key: e.key, name: e.name, amount: Math.round((Number(e.amountPounds) || 0) * 100), currency: 'gbp', interval: 'year', entitlements: { members: Number(e.members), aiAssistant: !!e.aiAssistant, connectedServices: !!e.connectedServices }, modules: e.modules, discountPercent: Number(e.discountPercent) || 0, discountLabel: e.discountLabel || null, active: !!e.active });
       toast('Plan saved'); setEdit(null); await reload(); await reloadStatus();
     } catch (err) { toast((err as any).message); } finally { setBusy(''); }
   }
@@ -1028,7 +1207,7 @@ function Subscriptions({ toast }: any) {
       {!subs.length && <div className="empty">No customers yet.</div>}
     </Card>
 
-    <div className="section">Plans <a onClick={() => startEdit()} style={{ float: 'right', fontSize: 13, cursor: 'pointer', color: 'var(--brand)' }}>+ Add plan</a></div>
+    <div className="section">Plans <A onClick={() => startEdit()} style={{ float: 'right', fontSize: 13, cursor: 'pointer', color: 'var(--brand)' }}>+ Add plan</A></div>
     <Card title={`${plans.length} plans`}>
       <table><thead><tr><th>Plan</th><th>Price</th><th>Members</th><th>AI</th><th>Connected</th><th>Stripe</th><th></th></tr></thead>
         <tbody>{plans.map((p: any) => <tr key={p.key}>
@@ -1048,10 +1227,17 @@ function Subscriptions({ toast }: any) {
         <label>Display name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Family" /></label>
         <label>Price £ / year<input type="number" value={edit.amountPounds} onChange={(e) => setEdit({ ...edit, amountPounds: e.target.value })} /></label>
         <label>Members (-1 = unlimited)<input type="number" value={edit.members} onChange={(e) => setEdit({ ...edit, members: e.target.value })} /></label>
+        <label>Discount %<input type="number" min={0} max={100} value={edit.discountPercent} onChange={(e) => setEdit({ ...edit, discountPercent: e.target.value })} /></label>
+        <label>Discount label<input value={edit.discountLabel} onChange={(e) => setEdit({ ...edit, discountLabel: e.target.value })} placeholder="Launch offer" /></label>
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <div className="muted" style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>MODULES INCLUDED IN THIS PLAN</div>
+        <div className="flex" style={{ gap: 16, flexWrap: 'wrap' }}>
+          {ALL_MODULES.map((m) => <span key={m.key} style={chk} title={m.description}><input type="checkbox" checked={edit.modules.includes(m.key)} onChange={() => toggleMod(m.key)} style={{ width: 'auto', marginTop: 0 }} /> {m.name}</span>)}
+        </div>
+        {Number(edit.amountPounds) > 0 && Number(edit.discountPercent) > 0 && <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Customers pay £{(Number(edit.amountPounds) * (1 - Number(edit.discountPercent) / 100)).toFixed(2)}/yr after the {edit.discountPercent}% discount.</div>}
       </div>
       <div className="flex" style={{ marginTop: 12, gap: 20, flexWrap: 'wrap' }}>
-        <span style={chk}><input type="checkbox" checked={edit.aiAssistant} onChange={(e) => setEdit({ ...edit, aiAssistant: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> AI assistant</span>
-        <span style={chk}><input type="checkbox" checked={edit.connectedServices} onChange={(e) => setEdit({ ...edit, connectedServices: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> Connected services</span>
         <span style={chk}><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> Active (shown to customers)</span>
       </div>
       <div className="flex" style={{ marginTop: 14 }}>
@@ -1086,7 +1272,7 @@ function SupportTenant({ toast }: any) {
   async function send() { if (!reply.trim()) return; await api.supportReply(sel.ticket.id, reply); setReply(''); setSel(await api.supportTicket(sel.ticket.id)); await reload(); }
 
   if (sel) return <>
-    <a onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All tickets</a>
+    <A onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All tickets</A>
     <div style={{ height: 10 }} />
     <Card title={sel.ticket.subject} right={<span className={`pill ${tkPill(sel.ticket.status)}`}>{sel.ticket.status}</span>}>
       <Thread messages={sel.messages} />
@@ -1096,7 +1282,7 @@ function SupportTenant({ toast }: any) {
     </Card>
   </>;
 
-  return <Card title="Your tickets" right={<a onClick={() => setCreating(!creating)} style={{ cursor: 'pointer', color: 'var(--brand)' }}>{creating ? 'Cancel' : '+ New ticket'}</a>}>
+  return <Card title="Your tickets" right={<A onClick={() => setCreating(!creating)} style={{ cursor: 'pointer', color: 'var(--brand)' }}>{creating ? 'Cancel' : '+ New ticket'}</A>}>
     {creating && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
       <div className="grid2">
         <label>Subject<input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="What do you need help with?" /></label>
@@ -1132,7 +1318,7 @@ function AdminSupport({ toast }: any) {
   }
 
   if (sel) return <>
-    <a onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All tickets</a>
+    <A onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All tickets</A>
     <div style={{ height: 10 }} />
     <Card title={sel.ticket.subject} right={<span className={`pill ${tkPill(sel.ticket.status)}`}>{sel.ticket.status}</span>}>
       <div className="muted" style={{ fontSize: 13, marginTop: -4, marginBottom: 12 }}>{sel.ticket.customer} · {sel.ticket.requester?.email ?? '—'} · {sel.ticket.priority} priority</div>
@@ -1152,7 +1338,7 @@ function AdminSupport({ toast }: any) {
       <Tile ic="✅" bg="var(--good-bg)" lab="Closed" val={counts.closed ?? 0} />
       <Tile ic="📨" bg="var(--brand-soft)" lab="Total" val={all.length} />
     </div>
-    <Card title="Tickets" right={<div className="flex" style={{ gap: 10, alignItems: 'center' }}><a onClick={() => setCreating(!creating)} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>{creating ? 'Cancel' : '+ Raise on behalf'}</a><select value={status} onChange={(e) => setStatus(e.target.value)} style={{ marginTop: 0, maxWidth: 170 }}><option value="all">All</option><option value="open">Open</option><option value="pending">Awaiting customer</option><option value="closed">Closed</option></select></div>}>
+    <Card title="Tickets" right={<div className="flex" style={{ gap: 10, alignItems: 'center' }}><A onClick={() => setCreating(!creating)} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>{creating ? 'Cancel' : '+ Raise on behalf'}</A><select value={status} onChange={(e) => setStatus(e.target.value)} style={{ marginTop: 0, maxWidth: 170 }}><option value="all">All</option><option value="open">Open</option><option value="pending">Awaiting customer</option><option value="closed">Closed</option></select></div>}>
       {creating && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
         <div className="grid2">
           <label>Customer<select value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value })}><option value="">Choose a customer…</option>{customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}{c.owner ? ` · ${c.owner.email}` : ''}</option>)}</select></label>
@@ -1280,7 +1466,7 @@ function AdminEmergency({ toast }: any) {
   async function revoke(id: string) { setBusy(true); try { await api.emergencyRevoke(id); toast('Access revoked'); setSel(null); await reload(); } catch (e) { toast((e as any).message); } finally { setBusy(false); } }
 
   if (sel) { const m = emMeta(sel.status); const canReview = sel.status === 'owner_approved'; const elapsed = pendingElapsed(sel); return <>
-    <a onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All requests</a>
+    <A onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All requests</A>
     <div style={{ height: 10 }} />
     <Card title={`Request from ${sel.requesterName}`} right={<span className={`pill ${m.pill}`}>{m.label}</span>}>
       <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>{sel.requesterEmail} · reason: {sel.reason || '—'}</div>
@@ -1491,6 +1677,90 @@ function AccountInspector({ snap }: { snap: any }) {
   </>;
 }
 
+const ALL_MODULES = [
+  { key: 'vault', name: 'Document Vault', description: 'Store, scan and upload documents.' },
+  { key: 'reminders', name: 'Reminders', description: 'Automatic and custom reminders.' },
+  { key: 'assistant', name: 'AI Assistant', description: 'Ask questions across your own data.' },
+  { key: 'life', name: 'Life records', description: 'Trips, purchases and subscriptions.' },
+  { key: 'assets', name: 'Property & Vehicles', description: 'Track assets and renewal dates.' },
+  { key: 'family', name: 'Family & Access', description: 'Members, next of kin and emergency access.' },
+  { key: 'integrations', name: 'Connected Services', description: 'Email import of trips, receipts and more.' },
+];
+// Price with any plan discount applied, formatted as a small element.
+function PlanPrice({ p }: { p: any }) {
+  const net = p.netAmount ?? p.amount;
+  const hasDiscount = (p.discountPercent ?? 0) > 0 && p.amount > 0;
+  if (p.amount === 0) return <div className="price">Free</div>;
+  return <div className="price">
+    {hasDiscount && <span style={{ textDecoration: 'line-through', color: 'var(--soft)', fontSize: 15, marginRight: 6 }}>£{(p.amount / 100).toFixed(0)}</span>}
+    £{(net / 100).toFixed(0)}<span className="muted" style={{ fontSize: 13 }}>/yr</span>
+    {hasDiscount && <div><span className="pill p-good" style={{ fontSize: 11 }}>{p.discountLabel || `${p.discountPercent}% off`}</span></div>}
+  </div>;
+}
+const SEGMENT_LABEL: Record<string, string> = { all: 'All users', subscribers: 'Subscribers', prospects: 'Prospects (no active plan)', tag: 'Tagged' };
+function AdminCampaigns({ toast }: any) {
+  const { data, reload } = useData(() => api.adminCampaigns());
+  const { data: autos, reload: reloadAutos } = useData(() => api.adminAutomations());
+  const [creating, setCreating] = useState(false);
+  const [f, setF] = useState({ name: '', subject: '', body: '', segment: 'all', tag: '' });
+  const [busy, setBusy] = useState('');
+  const [audience, setAudience] = useState<Record<string, any>>({});
+  const [editAuto, setEditAuto] = useState<any>(null);
+
+  async function create() {
+    if (!f.name.trim() || !f.subject.trim() || !f.body.trim()) { toast('Fill in name, subject and message'); return; }
+    setBusy('create');
+    try { await api.adminCreateCampaign({ ...f, name: f.name.trim(), subject: f.subject.trim(), body: f.body.trim() }); setF({ name: '', subject: '', body: '', segment: 'all', tag: '' }); setCreating(false); reload(); toast('Campaign created'); }
+    catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
+  async function preview(id: string) { try { const r = await api.adminCampaignAudience(id); setAudience((s) => ({ ...s, [id]: r })); } catch (e) { toast((e as any).message); } }
+  async function send(c: any) {
+    if (!window.confirm(`Send "${c.name}" now? This will email everyone in the selected segment.`)) return;
+    setBusy(c.id);
+    try { const r = await api.adminSendCampaign(c.id); toast(`Sent to ${r.sent} recipient${r.sent === 1 ? '' : 's'}`); reload(); }
+    catch (e) { toast((e as any).message); } finally { setBusy(''); }
+  }
+  async function del(id: string) { if (!window.confirm('Delete this campaign?')) return; try { await api.adminDeleteCampaign(id); reload(); } catch (e) { toast((e as any).message); } }
+  async function saveAuto() { setBusy('auto'); try { await api.adminUpdateAutomation(editAuto.key, { subject: editAuto.subject, body: editAuto.body }); setEditAuto(null); reloadAutos(); toast('Saved'); } catch (e) { toast((e as any).message); } finally { setBusy(''); } }
+  async function toggleAuto(a: any) { try { await api.adminUpdateAutomation(a.key, { enabled: !a.enabled }); reloadAutos(); } catch (e) { toast((e as any).message); } }
+
+  return <>
+    <div className="spread" style={{ marginBottom: 12 }}>
+      <div className="section" style={{ margin: 0 }}>Email campaigns</div>
+      <button className="btn sm" onClick={() => setCreating(!creating)}>{creating ? 'Close' : '+ New campaign'}</button>
+    </div>
+    {creating && <Card title="New campaign">
+      <label>Campaign name<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="August newsletter" /></label>
+      <label>Audience<select value={f.segment} onChange={(e) => setF({ ...f, segment: e.target.value })}>{Object.entries(SEGMENT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+      {f.segment === 'tag' && <label>Tag<input value={f.tag} onChange={(e) => setF({ ...f, tag: e.target.value })} placeholder="e.g. vip" /></label>}
+      <label>Subject<input value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder="What's new in Vaulmo" /></label>
+      <label>Message<textarea rows={5} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} placeholder="Write your email…" /></label>
+      <button className="btn" disabled={busy === 'create'} onClick={create}>{busy === 'create' ? 'Creating…' : 'Create draft'}</button>
+    </Card>}
+    {(data?.campaigns ?? []).map((c: any) => <Card key={c.id} title={c.name} right={<span className={`pill ${c.status === 'sent' ? 'p-good' : 'p-neutral'}`}>{c.status}</span>}>
+      <div className="muted" style={{ fontSize: 13 }}><b>{c.subject}</b> · to {SEGMENT_LABEL[c.segment] ?? c.segment}{c.tag ? ` (${c.tag})` : ''}{c.status === 'sent' ? ` · ${c.recipientCount} sent ${fmt(c.sentAt)}` : ''}</div>
+      <p style={{ fontSize: 13.5, whiteSpace: 'pre-wrap', margin: '8px 0' }}>{c.body}</p>
+      {c.status !== 'sent' && <div className="flex" style={{ gap: 8 }}>
+        <button className="btn sm sec" onClick={() => preview(c.id)}>Preview audience</button>
+        {audience[c.id] && <span className="muted" style={{ fontSize: 13 }}>{audience[c.id].count} recipients{audience[c.id].sample?.length ? ` · e.g. ${audience[c.id].sample.slice(0, 2).join(', ')}` : ''}</span>}
+        <button className="btn sm" disabled={busy === c.id} onClick={() => send(c)}>{busy === c.id ? 'Sending…' : 'Send now'}</button>
+        <button className="btn sm sec" onClick={() => del(c.id)}>Delete</button>
+      </div>}
+    </Card>)}
+    {!(data?.campaigns ?? []).length && !creating && <div className="empty">No campaigns yet — create your first.</div>}
+
+    <div className="section">Automated workflows</div>
+    {(autos?.automations ?? []).map((a: any) => <Card key={a.key} title={a.name} right={<button className={`pill ${a.enabled ? 'p-good' : 'p-neutral'}`} style={{ cursor: 'pointer' }} onClick={() => toggleAuto(a)}>{a.enabled ? 'On' : 'Off'}</button>}>
+      <div className="muted" style={{ fontSize: 13 }}>{a.description} · trigger: <b>{a.trigger}</b></div>
+      {editAuto?.key === a.key ? <div style={{ marginTop: 8 }}>
+        <label>Subject<input value={editAuto.subject} onChange={(e) => setEditAuto({ ...editAuto, subject: e.target.value })} /></label>
+        <label>Message<textarea rows={4} value={editAuto.body} onChange={(e) => setEditAuto({ ...editAuto, body: e.target.value })} /></label>
+        <div className="flex"><button className="btn sm" disabled={busy === 'auto'} onClick={saveAuto}>Save</button><button className="btn sm sec" onClick={() => setEditAuto(null)}>Cancel</button></div>
+      </div> : <div style={{ marginTop: 6 }}><div style={{ fontSize: 13.5 }}><b>{a.subject}</b></div><div className="muted" style={{ fontSize: 13 }}>{a.body}</div><button className="btn sm sec" style={{ marginTop: 8 }} onClick={() => setEditAuto(a)}>Edit</button></div>}
+    </Card>)}
+  </>;
+}
+
 function AdminCRM({ toast }: any) {
   const { data, reload } = useData(() => api.adminCrm());
   const [sel, setSel] = useState<any>(null);
@@ -1511,7 +1781,7 @@ function AdminCRM({ toast }: any) {
   async function openInspect() { setBusy(true); try { setInspect(await api.adminInspect(sel.id)); setTab('inspect'); } catch (e) { toast((e as any).message); } finally { setBusy(false); } }
 
   if (sel && detail) return <>
-    <a onClick={() => { setSel(null); setDetail(null); setInspect(null); }} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All customers</a>
+    <A onClick={() => { setSel(null); setDetail(null); setInspect(null); }} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All customers</A>
     <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 14px' }}>
       <div><h2 style={{ margin: 0 }}>{sel.name}</h2><div className="muted" style={{ fontSize: 13 }}>{sel.plan} · joined {fmt(sel.createdAt)}</div></div>
       <div className="flex" style={{ gap: 6 }}>
@@ -1582,7 +1852,7 @@ function AdminCMS({ toast }: any) {
   async function del() { if (!confirmDel) { setConfirmDel(true); return; } await api.adminDeleteArticle(edit.id); toast('Deleted'); setEdit(null); await reload(); }
 
   if (edit) return <>
-    <a onClick={() => setEdit(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All articles</a>
+    <A onClick={() => setEdit(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← All articles</A>
     <div style={{ height: 10 }} />
     <Card title={edit.isNew ? 'New article' : `Edit · ${edit.title}`} right={<span className={`pill ${edit.status === 'published' ? 'p-good' : 'p-neutral'}`}>{edit.status}</span>}>
       <div className="grid2">
@@ -1609,7 +1879,7 @@ function AdminCMS({ toast }: any) {
       <Tile ic="📝" bg="var(--warn-bg)" lab="Drafts" val={articles.length - published} />
       <Tile ic="👁️" bg="var(--aqua-bg)" lab="Total views" val={articles.reduce((s: number, a: any) => s + (a.views ?? 0), 0)} />
     </div>
-    <Card title="Articles" right={<a onClick={startNew} style={{ cursor: 'pointer', color: 'var(--brand)' }}>+ New article</a>}>
+    <Card title="Articles" right={<A onClick={startNew} style={{ cursor: 'pointer', color: 'var(--brand)' }}>+ New article</A>}>
       <table><thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Views</th><th>Updated</th><th></th></tr></thead>
         <tbody>{articles.map((a: any) => <tr key={a.id}>
           <td onClick={() => openEdit(a)} style={{ cursor: 'pointer' }}><b>{a.title}</b><div className="muted" style={{ fontSize: 12 }}>/{a.slug}</div></td>
@@ -1624,6 +1894,30 @@ function AdminCMS({ toast }: any) {
   </>;
 }
 
+function Faq() {
+  const { data } = useData(() => api.faq());
+  const [open, setOpen] = useState<string>('');
+  const support = data?.support;
+  return <>
+    {support && <Card title="Getting help" help="How to reach us and where to manage your account.">
+      <p className="muted" style={{ marginTop: 0 }}>{support.intro}</p>
+      {(support.channels ?? []).map((c: any, i: number) => <div className="row" key={i}><div className="ic" style={{ background: 'var(--surface-2)' }}>{c.icon}</div><div className="m"><div className="t">{c.title}</div><div className="s">{c.detail}</div></div></div>)}
+      <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>{support.responseTime}</div>
+    </Card>}
+    {(data?.categories ?? []).map((cat: any) => <Card key={cat.key} title={cat.title}>
+      {cat.items.map((it: any, i: number) => {
+        const id = `${cat.key}-${i}`; const isOpen = open === id;
+        return <div key={id} style={{ borderBottom: '1px solid var(--surface-2)' }}>
+          <div className="row" style={{ borderBottom: 'none', cursor: 'pointer' }} onClick={() => setOpen(isOpen ? '' : id)}>
+            <div className="m"><div className="t">{it.q}</div></div><span className="muted">{isOpen ? '▾' : '▸'}</span>
+          </div>
+          {isOpen && <div className="muted" style={{ padding: '0 4px 12px', fontSize: 13.5, lineHeight: 1.55 }}>{it.a}</div>}
+        </div>;
+      })}
+    </Card>)}
+  </>;
+}
+
 function HelpCenter() {
   const { data } = useData(() => api.helpArticles());
   const [sel, setSel] = useState<any>(null);
@@ -1633,7 +1927,7 @@ function HelpCenter() {
   for (const a of articles) { const c = a.category || 'General'; byCat.set(c, [...(byCat.get(c) ?? []), a]); }
 
   if (sel) return <>
-    <a onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← Back to Help Centre</a>
+    <A onClick={() => setSel(null)} style={{ cursor: 'pointer', color: 'var(--brand)', fontSize: 13 }}>← Back to Help Centre</A>
     <div style={{ height: 10 }} />
     <Card title={sel.article.title}>
       {sel.article.category && <div className="muted" style={{ fontSize: 12.5, marginTop: -4, marginBottom: 10 }}>{sel.article.category}</div>}
@@ -1719,7 +2013,7 @@ function AdminRoles({ toast, me }: any) {
   }
 
   return <>
-    <Card title="Administrator accounts" right={<a onClick={() => setAdding(!adding)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{adding ? 'Cancel' : '+ New admin'}</a>}>
+    <Card title="Administrator accounts" right={<A onClick={() => setAdding(!adding)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{adding ? 'Cancel' : '+ New admin'}</A>}>
       {adding && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
         <div className="grid2">
           <label>Email<input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@vaulmo.com" /></label>
@@ -1785,7 +2079,7 @@ function AdminCatalogue({ toast }: any) {
   function delField(i: number) { setEdit({ ...edit, metadataSchema: edit.metadataSchema.filter((_: any, j: number) => j !== i) }); }
 
   if (edit) return <>
-    <a onClick={() => setEdit(null)} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>← All document types</a>
+    <A onClick={() => setEdit(null)} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>← All document types</A>
     <div style={{ height: 10 }} />
     <Card title={edit.isNew ? 'New document type' : `Edit · ${edit.name}`} right={edit.recommended ? <span className="pill p-good">recommended</span> : undefined}>
       <div className="grid2">
@@ -1797,7 +2091,7 @@ function AdminCatalogue({ toast }: any) {
       <label style={{ display: 'block', marginTop: 8 }}>Reminder schedule — days before expiry<input value={edit.reminderStr} onChange={(e) => setEdit({ ...edit, reminderStr: e.target.value })} placeholder="180, 90, 30, 7" /></label>
       <div className="flex" style={{ marginTop: 12, alignItems: 'center', gap: 8 }}><input type="checkbox" checked={edit.recommended} onChange={(e) => setEdit({ ...edit, recommended: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /><span style={{ fontSize: 14 }}>Recommend this document to users (shows in their checklist)</span></div>
 
-      <div className="section">Metadata to extract <a onClick={addField} style={{ float: 'right', fontSize: 13, cursor: 'pointer', color: 'var(--brand-2)' }}>+ Add field</a></div>
+      <div className="section">Metadata to extract <A onClick={addField} style={{ float: 'right', fontSize: 13, cursor: 'pointer', color: 'var(--brand-2)' }}>+ Add field</A></div>
       <table><thead><tr><th>Field key</th><th>Label</th><th>Type</th><th>Required</th><th></th></tr></thead>
         <tbody>{edit.metadataSchema.map((f: any, i: number) => <tr key={i}>
           <td><input value={f.key} onChange={(e) => setField(i, { key: e.target.value })} placeholder="expiryDate" style={{ marginTop: 0 }} /></td>
@@ -1877,7 +2171,7 @@ function AdminConfig({ toast }: any) {
       </div>
     </div>
 
-    <Card title="Feature flags" right={<a onClick={() => setAddingF(!addingF)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{addingF ? 'Cancel' : '+ New flag'}</a>}>
+    <Card title="Feature flags" right={<A onClick={() => setAddingF(!addingF)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{addingF ? 'Cancel' : '+ New flag'}</A>}>
       {addingF && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
         <div className="grid2">
           <label>Flag key<input value={nf.key} onChange={(e) => setNf({ ...nf, key: e.target.value })} placeholder="new_dashboard" /></label>
@@ -1896,7 +2190,7 @@ function AdminConfig({ toast }: any) {
       {!flags.length && <div className="empty">No feature flags yet. Add one to roll functionality out gradually.</div>}
     </Card>
 
-    <Card title="Announcements" right={<a onClick={() => setAddingA(!addingA)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{addingA ? 'Cancel' : '+ New announcement'}</a>}>
+    <Card title="Announcements" right={<A onClick={() => setAddingA(!addingA)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{addingA ? 'Cancel' : '+ New announcement'}</A>}>
       {addingA && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
         <label>Title<input value={na.title} onChange={(e) => setNa({ ...na, title: e.target.value })} placeholder="Scheduled maintenance on Sunday" /></label>
         <label style={{ display: 'block', marginTop: 8 }}>Message<textarea value={na.body} onChange={(e) => setNa({ ...na, body: e.target.value })} rows={2} style={taStyle} /></label>
@@ -1954,7 +2248,7 @@ function AdminSystemHealth() {
     <div className="card" style={{ marginBottom: 18, background: banner.bg, border: 0 }}>
       <div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="flex" style={{ gap: 10, alignItems: 'center' }}><span style={{ width: 12, height: 12, borderRadius: 6, background: healthDot(overall === 'operational' ? 'ok' : overall === 'degraded' ? 'warn' : 'down') }} /><b style={{ fontSize: 15 }}>{banner.txt}</b><span className="muted" style={{ fontSize: 12.5, textTransform: 'capitalize' }}>· {data.environment}</span></div>
-        <a onClick={reload} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>Refresh</a>
+        <A onClick={reload} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>Refresh</A>
       </div>
     </div>
     <div className="tiles">
@@ -2000,7 +2294,7 @@ function AdminNotifications({ toast }: any) {
   async function retry(id: string) { try { await api.adminRetryNotification(id); toast('Re-queued for delivery'); await reload(); } catch (e) { toast((e as any).message); } }
 
   if (edit) return <>
-    <a onClick={() => setEdit(null)} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>← All templates</a>
+    <A onClick={() => setEdit(null)} style={{ cursor: 'pointer', color: 'var(--brand-2)', fontSize: 13 }}>← All templates</A>
     <div style={{ height: 10 }} />
     <Card title={edit.isNew ? 'New template' : `Edit · ${edit.name}`} right={<span className={`pill ${edit.active ? 'p-good' : 'p-neutral'}`}>{edit.active ? 'active' : 'inactive'}</span>}>
       <div className="grid2">
@@ -2037,7 +2331,7 @@ function AdminNotifications({ toast }: any) {
       </Card>
     </div>
 
-    <Card title="Templates" right={<a onClick={startNew} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>+ New template</a>}>
+    <Card title="Templates" right={<A onClick={startNew} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>+ New template</A>}>
       <table><thead><tr><th>Template</th><th>Channel</th><th>Category</th><th>Status</th><th>Updated</th></tr></thead>
         <tbody>{templates.map((t: any) => <tr key={t.key} onClick={() => openEdit(t)} style={{ cursor: 'pointer' }}>
           <td><b>{t.name}</b><div className="muted" style={{ fontSize: 12 }}>{t.key}</div></td>
@@ -2090,7 +2384,7 @@ function AdminGdpr({ toast }: any) {
       <Tile ic="🚫" bg="var(--crit-bg)" lab="Rejected" val={stats.rejected ?? 0} />
     </div>
 
-    <Card title="Data subject requests" right={<a onClick={() => setAdding(!adding)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{adding ? 'Cancel' : '+ New request'}</a>}>
+    <Card title="Data subject requests" right={<A onClick={() => setAdding(!adding)} style={{ cursor: 'pointer', color: 'var(--brand-2)' }}>{adding ? 'Cancel' : '+ New request'}</A>}>
       {adding && <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14, marginBottom: 12 }}>
         <div className="grid2">
           <label>Subject email<input value={form.subjectEmail} onChange={(e) => setForm({ ...form, subjectEmail: e.target.value })} placeholder="customer@email.com" /></label>

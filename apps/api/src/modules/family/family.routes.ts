@@ -5,6 +5,7 @@ import { db } from '../../db/client';
 import { familyMembers, nextOfKin, documents } from '../../db/schema';
 import { isNull } from 'drizzle-orm';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
+import { requireModule } from '../../middleware/requireModule';
 import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
@@ -14,7 +15,7 @@ import { newRefreshToken, hashToken } from '../../lib/jwt';
 const RECONFIRM_DAYS = 90; // quarterly
 
 export const familyRouter = Router();
-familyRouter.use(requireAuth, requireMfaSatisfied);
+familyRouter.use(requireAuth, requireMfaSatisfied, requireModule('family'));
 const tid = (req: any): string => {
   if (!req.auth?.tid) throw new AppError(400, 'no_tenant', 'Only tenant accounts have a family');
   return req.auth.tid;

@@ -44,6 +44,12 @@ const emailDriver = {
     // Production: SES/SMTP send here.
   },
 };
+
+// Send a one-off marketing/transactional email (used by CRM campaigns & automations).
+// Uses the same email adapter — dev logs to the outbox, prod wires SES/SMTP.
+export async function sendEmail(to: string, subject: string, body: string): Promise<void> {
+  await emailDriver.send(to, subject, body);
+}
 const pushDriver = {
   async send(tokens: string[], title: string, body: string) {
     logger.info({ channel: 'push', tokens: tokens.length, title }, 'PUSH (dev outbox)');

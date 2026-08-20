@@ -7,6 +7,8 @@ import { requireAuth } from '../../middleware/auth';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
 import { verifyPassword } from '../../lib/password';
+import { entitlementsFor } from '../../lib/billing/service';
+import { CURRENT_TERMS_VERSION } from '../../lib/legal';
 import { publicUser } from '../auth/auth.routes';
 
 export const usersRouter = Router();
@@ -20,6 +22,24 @@ async function meResponse(userId: string, req: any) {
     const [t] = await db.select().from(tenants).where(eq(tenants.id, user.tenantId)).limit(1);
     if (t) tenant = { id: t.id, name: t.name, plan: t.plan, status: t.status, country: (t as any).country ?? null };
   }
+  const isSuper = (req.auth!.roles ?? []).includes('super_admin');
+  // Onboarding gate state (staff/super-admins bypass the whole flow).
+  let planSelected = isSuper;
+  if (!isSuper && user.tenantId) {
+    const ent = await entitlementsFor(user.tenantId);
+    planSelected = ['active', 'trialing', 'past_due'].includes(String(ent.status));
+  }
+  const termsAccepted = isSuper || (!!user.termsAcceptedAt && user.termsVersion === CURRENT_TERMS_VERSION);
+  const onboarding = {
+    emailVerified: isSuper || user.emailVerified,
+    termsAccepted,
+    termsVersion: CURRENT_TERMS_VERSION,
+    planSelected,
+    tourSeen: isSuper || !!user.tourSeenAt,
+    twoFactor: user.mfaEnabled,
+    // The whole first-run flow is complete once the mandatory gates are satisfied.
+    complete: (isSuper || user.emailVerified) && termsAccepted && planSelected,
+  };
   return {
     ...publicUser(user),
     emailVerified: user.emailVerified,
@@ -28,6 +48,7 @@ async function meResponse(userId: string, req: any) {
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
     tenant,
+    onboarding,
     roles: req.auth!.roles,
     permissions: req.auth!.perms,
     mfaSatisfied: req.auth!.mfa,
@@ -37,6 +58,22 @@ async function meResponse(userId: string, req: any) {
 // The authenticated user's own profile + effective roles/permissions.
 usersRouter.get('/me', async (req, res) => {
   res.json(await meResponse(req.auth!.sub, req));
+});
+
+// Onboarding: accept the current Terms of Business (required before using the platform).
+// Records the acceptance on the user + a consent record for the audit trail.
+usersRouter.post('/me/accept-terms', async (req, res) => {
+  await db.update(users).set({ termsAcceptedAt: new Date(), termsVersion: CURRENT_TERMS_VERSION, updatedAt: new Date() }).where(eq(users.id, req.auth!.sub));
+  await db.insert(consentRecords).values({ userId: req.auth!.sub, policy: 'terms', version: CURRENT_TERMS_VERSION, ip: req.ip ?? null });
+  await audit({ action: 'onboarding.terms_accepted', actorId: req.auth!.sub, tenantId: req.auth!.tid ?? null, metadata: { version: CURRENT_TERMS_VERSION }, req });
+  res.json(await meResponse(req.auth!.sub, req));
+});
+
+// Onboarding: mark the platform tour as seen (Skip / Don't show again / finished).
+usersRouter.post('/me/tour-seen', async (req, res) => {
+  await db.update(users).set({ tourSeenAt: new Date(), updatedAt: new Date() }).where(eq(users.id, req.auth!.sub));
+  await audit({ action: 'onboarding.tour_seen', actorId: req.auth!.sub, tenantId: req.auth!.tid ?? null, req });
+  res.json({ ok: true });
 });
 
 // Update your own profile (ACC-07): name, phone, timezone; country is on the household.

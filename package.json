@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Vaulmo Platform — Phase 1 foundation (API, web shell, mobile shell, infra)",
-  "workspaces": ["apps/api", "apps/web", "apps/mobile"],
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "apps/mobile"
+  ],
   "scripts": {
     "dev:api": "npm --workspace @lifehub/api run dev",
     "dev:web": "npm --workspace @lifehub/web run dev",
@@ -12,5 +16,8 @@
     "test": "npm --workspace @lifehub/api run test:e2e",
     "compose:up": "docker compose up --build",
     "compose:down": "docker compose down"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
   }
 }

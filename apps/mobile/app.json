@@ -14,7 +14,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Vaulmo uses the camera so you can scan documents straight into your vault.",
-        "NSPhotoLibraryUsageDescription": "Vaulmo lets you add documents from your photo library."
+        "NSPhotoLibraryUsageDescription": "Vaulmo lets you add documents from your photo library.",
+        "NSFaceIDUsageDescription": "Vaulmo uses Face ID to unlock your vault so only you can open it."
       }
     },
     "android": {
@@ -28,7 +29,8 @@
     },
     "plugins": [
       ["expo-build-properties", { "android": { "kotlinVersion": "1.9.25" } }],
-      ["expo-image-picker", { "photosPermission": "Vaulmo lets you add documents from your photo library.", "cameraPermission": "Vaulmo uses the camera so you can scan documents straight into your vault." }]
+      ["expo-image-picker", { "photosPermission": "Vaulmo lets you add documents from your photo library.", "cameraPermission": "Vaulmo uses the camera so you can scan documents straight into your vault." }],
+      ["expo-local-authentication", { "faceIDPermission": "Vaulmo uses Face ID to unlock your vault so only you can open it." }]
     ]
   }
 }

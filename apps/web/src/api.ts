@@ -53,6 +53,12 @@ export async function uploadText(url: string, text: string): Promise<void> {
   await fetch(`${BASE}${url}`, { method: 'PUT', headers: { 'content-type': 'text/plain', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) }, body: text });
 }
 
+// Upload a chosen file (PDF, image, etc.) — streams the raw bytes to the presigned URL.
+export async function uploadFile(url: string, file: File): Promise<void> {
+  const res = await fetch(`${BASE}${url}`, { method: 'PUT', headers: { 'content-type': file.type || 'application/octet-stream', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) }, body: file });
+  if (!res.ok) throw new ApiError(res.status, 'upload_failed', 'Upload failed');
+}
+
 const G = <T,>(p: string) => request<T>('GET', p);
 const P = <T,>(p: string, b?: unknown) => request<T>('POST', p, b ?? {});
 const PUT = <T,>(p: string, b?: unknown) => request<T>('PUT', p, b ?? {});
@@ -96,7 +102,15 @@ export const api = {
   loginMfa: (code: string, challengeToken: string) => { accessToken = challengeToken; return request<AuthResult>('POST', '/auth/login/mfa', { code }, false); },
   me: () => G<any>('/users/me'),
   updateProfile: (b: { fullName?: string; phone?: string | null; timezone?: string | null; country?: string }) => PUT<any>('/users/me', b),
+  // onboarding flow
+  legal: () => G<any>('/legal'),
+  legalDoc: (key: string) => G<any>(`/legal/${key}`),
+  acceptTerms: () => P<any>('/users/me/accept-terms'),
+  tourSeen: () => P<any>('/users/me/tour-seen'),
+  choosePlan: (planKey: string) => P<any>('/billing/choose', { planKey }),
+  faq: () => G<any>('/faq'),
   // vault
+  catalogue: () => G<any>('/vault/catalogue'),
   checklist: () => G<any>('/vault/checklist'),
   onboarding: () => G<any>('/vault/onboarding'),
   saveOnboarding: (answers: Record<string, any>) => P<any>('/vault/onboarding', { answers }),
@@ -145,6 +159,8 @@ export const api = {
   callbackProvider: (p: string, code: string) => P<any>(`/integrations/${p}/callback`, { code }),
   connections: () => G<any>('/integrations/connections'),
   sync: (id: string) => P<any>(`/integrations/connections/${id}/sync`),
+  pauseConnection: (id: string) => P<any>(`/integrations/connections/${id}/pause`),
+  resumeConnection: (id: string) => P<any>(`/integrations/connections/${id}/resume`),
   detected: (status = 'pending') => G<any>(`/integrations/detected?status=${status}`),
   dismissDetected: (id: string) => P<any>(`/integrations/detected/${id}/dismiss`),
   confirmDetected: (id: string) => P<any>(`/inbox/detected/${id}/confirm`),
@@ -260,6 +276,15 @@ export const api = {
   adminCrmProfile: (tenantId: string) => G<any>(`/admin/crm/${tenantId}`),
   adminCrmUpdate: (tenantId: string, b: any) => PUT<any>(`/admin/crm/${tenantId}`, b),
   adminCrmNote: (tenantId: string, b: any) => P<any>(`/admin/crm/${tenantId}/notes`, b),
+  // CRM: email campaigns + automations
+  adminCampaigns: () => G<any>('/admin/campaigns'),
+  adminCampaign: (id: string) => G<any>(`/admin/campaigns/${id}`),
+  adminCreateCampaign: (b: any) => P<any>('/admin/campaigns', b),
+  adminCampaignAudience: (id: string) => P<any>(`/admin/campaigns/${id}/audience`),
+  adminSendCampaign: (id: string) => P<any>(`/admin/campaigns/${id}/send`),
+  adminDeleteCampaign: (id: string) => DEL<any>(`/admin/campaigns/${id}`),
+  adminAutomations: () => G<any>('/admin/automations'),
+  adminUpdateAutomation: (key: string, b: any) => PUT<any>(`/admin/automations/${key}`, b),
   // CMS (admin)
   adminArticles: () => G<any>('/admin/cms/articles'),
   adminArticle: (id: string) => G<any>(`/admin/cms/articles/${id}`),

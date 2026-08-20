@@ -12,5 +12,10 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(monorepoRoot, 'node_modules'),
 ];
+// Pin the Metro server root to the app folder. Without this, watching the
+// monorepo root makes Metro treat the repo root as the server root, so the
+// release build's relative `--entry-file index.ts` (passed by EAS/Gradle) is
+// resolved against the repo root and fails ("Unable to resolve ./index.ts").
+config.server = { ...(config.server || {}), unstable_serverRoot: projectRoot };
 
 module.exports = config;

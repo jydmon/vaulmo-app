@@ -10,6 +10,28 @@ body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink);font
 button{font-family:inherit;cursor:pointer}
 input,select,textarea{font-family:inherit}
 a{color:var(--brand-2);cursor:pointer;text-decoration:none}
+
+/* Accessibility: link-styled button (renders a real <button> via the A component) */
+.linkbtn{background:none;border:0;padding:0;margin:0;font:inherit;color:var(--brand-2);cursor:pointer;text-decoration:none;display:inline}
+.linkbtn:hover{text-decoration:underline}
+
+/* Visible keyboard focus for every interactive control (WCAG 2.4.7 / 2.4.11).
+   Pointer users don't see it thanks to :focus-visible. */
+a:focus-visible,button:focus-visible,.linkbtn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible,[role="button"]:focus-visible{
+  outline:3px solid var(--brand-2);outline-offset:2px;border-radius:6px}
+.nav button:focus-visible,.sidebar :focus-visible{outline-color:#fff}
+
+/* Skip link (WCAG 2.4.1 Bypass Blocks) — hidden until focused */
+.skip-link{position:fixed;top:8px;left:8px;z-index:200;background:var(--brand-2);color:#fff;padding:10px 16px;border-radius:10px;font-weight:700;font-size:14px;transform:translateY(-150%);transition:transform .15s}
+.skip-link:focus{transform:translateY(0);outline:3px solid #fff;outline-offset:2px}
+
+/* Screen-reader-only utility */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Respect reduced-motion preference (WCAG 2.3.3) */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#ccd3de;border-radius:20px;border:3px solid transparent;background-clip:content-box}
 
 /* Auth */
@@ -40,7 +62,9 @@ input:focus,textarea:focus,select:focus{border-color:var(--brand-2);box-shadow:0
 .sb-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px}
 .sb-brand .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#3B82F6,#1E3A8A);display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px}
 .sb-brand b{color:#fff;font-size:16px}.sb-brand span{display:block;font-size:10px;color:#8fb0d0;text-transform:uppercase;letter-spacing:.4px}
-.nav{display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nav{display:flex;flex-direction:column;gap:2px;flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden}
+.nav::-webkit-scrollbar{width:7px}.nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:4px}
+.sb-foot{flex:0 0 auto}
 .nav .grp{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#6f90b0;font-weight:700;padding:14px 10px 5px}
 .nav button{display:flex;align-items:center;gap:11px;background:transparent;border:0;color:#b6c7d8;padding:9px 11px;border-radius:9px;font-size:14px;font-weight:500;text-align:left}
 .nav button:hover{background:rgba(255,255,255,.06);color:#fff}

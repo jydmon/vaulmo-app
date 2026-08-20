@@ -8,7 +8,8 @@ import { requirePermission } from '../../middleware/rbac';
 import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
-import { entitlementsFor, getSubscription, startCheckout, billingPortal, provisionPlan, setCancelAtPeriodEnd, changePlan } from '../../lib/billing/service';
+import { entitlementsFor, getSubscription, startCheckout, billingPortal, provisionPlan, setCancelAtPeriodEnd, changePlan, selfSelectPlan } from '../../lib/billing/service';
+import { MODULES, effectiveModules, netAmount } from '../../lib/modules';
 
 export const billingRouter = Router();
 billingRouter.use(requireAuth, requireMfaSatisfied);
@@ -21,7 +22,12 @@ function tid(req: any): string {
 // ---- Public (to authenticated users): available plans ----
 billingRouter.get('/plans', async (_req, res) => {
   const list = await db.select().from(plans).where(eq(plans.active, true)).orderBy(plans.sort);
-  res.json({ plans: list.map((p) => ({ key: p.key, name: p.name, amount: p.amount, currency: p.currency, interval: p.interval, entitlements: p.entitlements })) });
+  res.json({ modules: MODULES, plans: list.map((p) => ({
+    key: p.key, name: p.name, amount: p.amount, currency: p.currency, interval: p.interval,
+    entitlements: p.entitlements, modules: effectiveModules((p as any).modules),
+    discountPercent: (p as any).discountPercent ?? 0, discountLabel: (p as any).discountLabel ?? null,
+    netAmount: netAmount(p.amount, (p as any).discountPercent ?? 0),
+  })) });
 });
 
 // ---- Billing page: subscription + entitlements + invoices ----
@@ -94,6 +100,18 @@ billingRouter.post('/resume', requirePermission(PERMISSIONS.TENANT_MANAGE), asyn
   } catch (e) { throw new AppError(400, 'resume_failed', friendly(e)); }
 });
 
+// Onboarding: select a plan to enter the app (free activates now; paid → checkout when
+// Stripe is live, or activates directly in the fake-gateway phase).
+billingRouter.post('/choose', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {
+  const { planKey } = z.object({ planKey: z.string().min(1) }).parse(req.body);
+  const [u] = await db.select().from(users).where(eq(users.id, req.auth!.sub)).limit(1);
+  try {
+    const r = await selfSelectPlan(tid(req), u.email, planKey, 'https://app.vaulmo.com/onboarding/return', 'https://app.vaulmo.com/onboarding/plan');
+    await audit({ action: 'onboarding.plan_selected', actorId: req.auth!.sub, tenantId: tid(req), metadata: { planKey, mode: r.mode }, req });
+    res.json(r);
+  } catch (e) { throw new AppError(400, 'choose_failed', friendly(e)); }
+});
+
 // SEC-12/13: change plan (upgrade / downgrade).
 const changeSchema = z.object({ planKey: z.string().min(1) });
 billingRouter.post('/change-plan', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {
@@ -137,16 +155,21 @@ const planSchema = z.object({
   currency: z.string().default('gbp'),
   interval: z.string().default('year'),
   entitlements: z.record(z.any()).default({}),
+  modules: z.array(z.string()).optional(),
+  discountPercent: z.number().int().min(0).max(100).optional(),
+  discountLabel: z.string().max(60).nullable().optional(),
   sort: z.number().int().optional(),
   active: z.boolean().optional(),
 });
 billingRouter.post('/admin/plans', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (req, res) => {
   const body = planSchema.parse(req.body);
+  const set: any = { ...body, entitlements: body.entitlements as any };
+  if (body.modules !== undefined) set.modules = body.modules as any;
   const [existing] = await db.select().from(plans).where(eq(plans.key, body.key)).limit(1);
   if (existing) {
-    await db.update(plans).set({ ...body, entitlements: body.entitlements as any }).where(eq(plans.key, body.key));
+    await db.update(plans).set(set).where(eq(plans.key, body.key));
   } else {
-    await db.insert(plans).values({ ...body, entitlements: body.entitlements as any });
+    await db.insert(plans).values(set);
   }
   const provisioned = await provisionPlan(body.key); // creates Stripe product + price (real driver) or a fake ref
   await audit({ action: 'billing.plan.upserted', actorId: req.auth!.sub, metadata: { key: body.key }, req });

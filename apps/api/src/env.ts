@@ -18,6 +18,17 @@ const schema = z.object({
   S3_ENDPOINT: z.string().optional(),
   CORS_ORIGINS: z.string().default(''),
   LOG_LEVEL: z.string().default('info'),
+  // When true, unverified accounts cannot obtain a session (mandatory email
+  // verification before login). Default off so dev/CI and existing tests are unaffected.
+  REQUIRE_EMAIL_VERIFICATION: z.coerce.boolean().default(false),
+  // Integrations (Connected Services) — real OAuth providers activate automatically
+  // when these are present; otherwise the sandbox driver is used (internal-tester only).
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  MICROSOFT_CLIENT_ID: z.string().optional(),
+  MICROSOFT_CLIENT_SECRET: z.string().optional(),
+  MICROSOFT_TENANT: z.string().default('common'),
+  INTEGRATIONS_REDIRECT_URI: z.string().default('https://app.vaulmo.com/integrations/callback'),
 });
 
 export const env = schema.parse(process.env);

@@ -190,13 +190,14 @@ vaultRouter.post('/documents/:id/process', requirePermission(PERMISSIONS.FILE_WR
   await audit({
     action: 'document.extracted',
     actorId: req.auth!.sub, tenantId, targetType: 'document', targetId: doc.id,
-    metadata: { engine: ocr.engine, classifiedAs: cls.typeKey, confidence: cls.confidence, fields: ext.fields.length, draftReminders: ext.reminderCandidates.length },
+    metadata: { engine: ocr.engine, pages: ocr.pages, classifiedAs: cls.typeKey, confidence: cls.confidence, fields: ext.fields.length, draftReminders: ext.reminderCandidates.length },
     req,
   });
 
   res.json({
     documentId: doc.id,
     engine: ocr.engine,
+    pages: ocr.pages,
     classification: cls,
     extracted: ext.fields,
     draftReminders: ext.reminderCandidates,

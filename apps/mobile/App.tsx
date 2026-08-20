@@ -6,7 +6,11 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Print from 'expo-print';
+import * as FileSystem from 'expo-file-system';
 import { api, setTokens, loadTokens, hasToken, uploadText, uploadImage, fileSize, ApiError, type AuthResult } from './src/api';
+import { getCapability, isBiometricEnabled, setBiometricEnabled, shouldLock, authenticate, type BiometricCapability } from './src/biometric';
 
 /* ============================ design tokens ============================ */
 const C = {
@@ -29,11 +33,22 @@ export default function App() {
   const [capture, setCapture] = useState(false);
   const [sub, setSub] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [showTour, setShowTour] = useState(false);
+  const [locked, setLocked] = useState(false); // biometric app-lock gate on launch
+  useEffect(() => {
+    if (me && !((me.roles ?? []).includes('super_admin')) && me.onboarding?.complete && !me.onboarding?.tourSeen) setShowTour(true);
+  }, [me]);
+
+  // Restore the stored session once biometric (if enabled) has been satisfied.
+  const restoreSession = async () => { try { setMe(await api.me()); setLocked(false); } catch { await setTokens(null, null); setLocked(false); setMe(null); } };
 
   useEffect(() => {
     (async () => {
       await loadTokens();
-      if (hasToken()) { try { setMe(await api.me()); } catch { await setTokens(null, null); } }
+      if (hasToken()) {
+        if (await shouldLock()) setLocked(true); // hold the session behind the lock screen
+        else { try { setMe(await api.me()); } catch { await setTokens(null, null); } }
+      }
       setBooting(false);
     })();
   }, []);
@@ -48,7 +63,14 @@ export default function App() {
     </SafeAreaView>
   );
 
+  if (locked) return <LockScreen onUnlock={restoreSession} onUsePassword={async () => { await setTokens(null, null); setLocked(false); setMe(null); }} />;
+
   if (!me) return <Auth onAuthed={setMe} />;
+
+  const isSuper = (me.roles ?? []).includes('super_admin');
+  if (!isSuper && me.onboarding && !me.onboarding.complete) {
+    return <OnboardingGate me={me} refreshMe={refreshMe} onSignOut={async () => { await setTokens(null, null); setMe(null); }} />;
+  }
 
   const screens: Record<Tab, JSX.Element> = {
     home: <Home key={`h${reloadKey}`} me={me} goTab={setTab} openPersonalise={() => setOverlay('personalise')} openCapture={() => setCapture(true)} />,
@@ -65,8 +87,8 @@ export default function App() {
       {/* bottom tab bar with centre capture button */}
       <View style={st.tabbar}>
         {TABS.map((t) => t.id === 'capture'
-          ? <TouchableOpacity key="capture" style={st.fab} onPress={() => setCapture(true)} activeOpacity={0.85}><Text style={st.fabPlus}>＋</Text></TouchableOpacity>
-          : <TouchableOpacity key={t.id} style={st.tab} onPress={() => setTab(t.id as Tab)} activeOpacity={0.7}>
+          ? <TouchableOpacity key="capture" style={st.fab} onPress={() => setCapture(true)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add a document"><Text style={st.fabPlus}>＋</Text></TouchableOpacity>
+          : <TouchableOpacity key={t.id} style={st.tab} onPress={() => setTab(t.id as Tab)} activeOpacity={0.7} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: tab === t.id }}>
               <Text style={[st.tabIc, tab === t.id && { opacity: 1 }]}>{t.ic}</Text>
               <Text style={[st.tabLabel, tab === t.id && { color: C.brand }]}>{t.label}</Text>
             </TouchableOpacity>)}
@@ -82,6 +104,11 @@ export default function App() {
         <Personalise onClose={() => setOverlay(null)} onSaved={() => { setOverlay(null); bump(); }} />
       </Modal>
 
+      {/* welcome tour (post-onboarding) */}
+      <Modal visible={showTour} transparent animationType="fade" onRequestClose={() => setShowTour(false)}>
+        <WelcomeTour me={me} goSettings={() => { setShowTour(false); api.tourSeen().catch(() => {}); setTab('profile'); setSub('settings'); }} onClose={async () => { setShowTour(false); try { await api.tourSeen(); } catch {} refreshMe(); }} />
+      </Modal>
+
       {/* secondary feature screens (pushed from the You tab) */}
       <Modal visible={!!sub} animationType="slide" onRequestClose={() => setSub(null)}>
         {sub && <SubScreen title={SUB_TITLES[sub] ?? ''} onClose={() => setSub(null)}>
@@ -95,6 +122,7 @@ export default function App() {
           {sub === 'billing' && <Billing me={me} />}
           {sub === 'support' && <Support />}
           {sub === 'help' && <HelpCentre />}
+          {sub === 'faq' && <FaqScreen />}
           {sub === 'privacy' && <PrivacySecurity />}
           {sub === 'settings' && <Settings me={me} refreshMe={refreshMe} />}
         </SubScreen>}
@@ -106,7 +134,7 @@ export default function App() {
 const SUB_TITLES: Record<string, string> = {
   assets: 'Property & Vehicles', trips: 'Trips', purchases: 'Purchases & Warranties', subs: 'Subscriptions', connected: 'Connected Services',
   family: 'Family & Access', emergency: 'Emergency Access', billing: 'Plan & Billing', support: 'Support',
-  help: 'Help Centre', privacy: 'Privacy & Security', settings: 'Settings',
+  help: 'Help Centre', faq: 'FAQ & Support', privacy: 'Privacy & Security', settings: 'Settings',
 };
 
 const TABS = [
@@ -128,7 +156,7 @@ function Auth({ onAuthed }: { onAuthed: (me: any) => void }) {
 
   async function afterAuth(r: AuthResult) {
     if (r.mfaRequired && r.challengeToken) { setChallenge(r.challengeToken); setMode('mfa'); return; }
-    if (r.accessToken && r.refreshToken) { await setTokens(r.accessToken, r.refreshToken); onAuthed(await api.me()); }
+    if (r.accessToken && r.refreshToken) { await setTokens(r.accessToken, r.refreshToken); const m = await api.me(); onAuthed(m); offerBiometricSetup(); }
   }
   const run = (fn: () => Promise<void>) => async () => { setErr(''); setBusy(true); try { await fn(); } catch (e) { setErr(e instanceof ApiError ? e.message : 'Something went wrong'); } finally { setBusy(false); } };
 
@@ -159,6 +187,173 @@ function Auth({ onAuthed }: { onAuthed: (me: any) => void }) {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+/* ============================ biometric lock ============================ */
+// One-time, non-blocking offer to turn on the biometric lock right after signing in.
+// Only surfaces when the device can do biometrics and the user hasn't already chosen.
+async function offerBiometricSetup() {
+  try {
+    if (await isBiometricEnabled()) return;
+    const cap = await getCapability();
+    if (!cap.available) return;
+    Alert.alert(
+      `Unlock with ${cap.label}?`,
+      `Add ${cap.label} so only you can open Vaulmo on this device. You can change this anytime in Settings.`,
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: `Use ${cap.label}`, onPress: async () => { const r = await authenticate(`Enable ${cap.label}`); if (r.success) await setBiometricEnabled(true); } },
+      ],
+    );
+  } catch { /* never block sign-in on this */ }
+}
+
+
+function LockScreen({ onUnlock, onUsePassword }: { onUnlock: () => void | Promise<void>; onUsePassword: () => void | Promise<void> }) {
+  const [cap, setCap] = useState<BiometricCapability | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const prompt = async () => {
+    setBusy(true); setFailed(false);
+    const r = await authenticate('Unlock Vaulmo');
+    setBusy(false);
+    if (r.success) await onUnlock(); else setFailed(true);
+  };
+
+  // Auto-present the biometric prompt as soon as the lock screen mounts.
+  useEffect(() => { (async () => { const c = await getCapability(); setCap(c); await prompt(); })(); /* eslint-disable-next-line */ }, []);
+
+  const label = cap?.label ?? 'Biometric unlock';
+  const glyph = cap?.kind === 'face' ? '🙂' : cap?.kind === 'iris' ? '👁️' : '🔒';
+  return (
+    <SafeAreaView style={[st.safe, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}><StatusBar style="dark" />
+      <View style={st.logoLg}><Text style={st.logoLgTxt}>V</Text></View>
+      <Text style={[st.authTitle, { marginTop: 18 }]}>Vaulmo is locked</Text>
+      <Text style={[st.authSub, { textAlign: 'center' }]}>Use {label} to unlock your vault.</Text>
+      {failed && <View style={[st.errBox, { marginTop: 12 }]}><Text style={st.errTxt}>Unlock cancelled or not recognised. Try again.</Text></View>}
+      <View style={{ width: '100%', maxWidth: 340, marginTop: 20 }}>
+        <Btn label={busy ? 'Unlocking…' : `Unlock with ${label} ${glyph}`} busy={busy} onPress={prompt} />
+        <TouchableOpacity style={{ marginTop: 18, alignItems: 'center' }} onPress={onUsePassword}>
+          <Text style={st.link}>Sign in with password instead</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+/* ============================ onboarding gate ============================ */
+function OnboardingGate({ me, refreshMe, onSignOut }: any) {
+  const ob = me.onboarding ?? {};
+  const step = !ob.emailVerified ? 'verify' : !ob.termsAccepted ? 'terms' : 'plan';
+  const stepNo = { verify: 1, terms: 2, plan: 3 }[step];
+  return (
+    <SafeAreaView style={st.safe}><StatusBar style="dark" />
+      <ScrollView contentContainerStyle={[st.pad, { paddingTop: 40 }]} keyboardShouldPersistTaps="handled">
+        <View style={st.logoLg}><Text style={st.logoLgTxt}>V</Text></View>
+        <Text style={[st.authTitle, { marginTop: 16 }]}>Let’s get you set up</Text>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 12, marginBottom: 8 }}>
+          {[1, 2, 3].map((n) => <View key={n} style={{ flex: 1, height: 4, borderRadius: 3, backgroundColor: n <= stepNo ? C.brand : C.line }} />)}
+        </View>
+        {step === 'verify' && <OnbVerify me={me} refreshMe={refreshMe} />}
+        {step === 'terms' && <OnbTerms refreshMe={refreshMe} />}
+        {step === 'plan' && <OnbPlan refreshMe={refreshMe} />}
+        <TouchableOpacity style={{ marginTop: 18, alignItems: 'center' }} onPress={onSignOut}><Text style={st.link}>Sign out</Text></TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+function OnbVerify({ me, refreshMe }: any) {
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  async function send() {
+    setBusy(true);
+    try { const r = await api.requestVerification(); if (r.devToken) { await api.verifyEmail(r.devToken); await refreshMe(); } else setSent(true); }
+    catch (e) { Alert.alert('Error', e instanceof ApiError ? e.message : ''); } finally { setBusy(false); }
+  }
+  return <Card>
+    <Text style={st.cardT}>Verify your email</Text>
+    <Text style={st.muted}>We need to confirm {me.email} before you start.</Text>
+    <Btn label={sent ? 'Resend link' : 'Send verification link'} busy={busy} onPress={send} />
+    {sent && <><Text style={[st.muted, { marginTop: 10 }]}>Check your inbox, then:</Text><Btn label="I’ve verified — continue" secondary onPress={refreshMe} /></>}
+  </Card>;
+}
+function OnbTerms({ refreshMe }: any) {
+  const [doc] = useAsync(() => api.legalDoc('terms_of_business'));
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  async function accept() { setBusy(true); try { await api.acceptTerms(); await refreshMe(); } catch (e) { Alert.alert('Error', e instanceof ApiError ? e.message : ''); } finally { setBusy(false); } }
+  return <Card>
+    <Text style={st.cardT}>{doc?.document?.title ?? 'Terms of Business'}</Text>
+    <Text style={[st.muted, { marginBottom: 8 }]}>Last updated {doc?.document?.updated ?? '—'}.</Text>
+    <ScrollView style={{ maxHeight: 260, borderWidth: 1, borderColor: C.line, borderRadius: 10, backgroundColor: C.surf2, padding: 12 }}>
+      <Text style={{ fontSize: 13, lineHeight: 20, color: C.ink }}>{doc?.document?.body ?? 'Loading…'}</Text>
+    </ScrollView>
+    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 }} onPress={() => setAgree(!agree)}>
+      <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: agree ? C.brand : C.line, backgroundColor: agree ? C.brand : 'transparent', alignItems: 'center', justifyContent: 'center' }}>{agree && <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>✓</Text>}</View>
+      <Text style={{ fontSize: 14, flex: 1 }}>I have read and accept the Terms of Business</Text>
+    </TouchableOpacity>
+    <Btn label="Accept & continue" busy={busy} disabled={!agree} onPress={accept} />
+  </Card>;
+}
+function OnbPlan({ refreshMe }: any) {
+  const [data] = useAsync(() => api.plans());
+  const [busy, setBusy] = useState('');
+  async function choose(key: string) {
+    setBusy(key);
+    try { const r = await api.choosePlan(key); if (r.mode === 'checkout' && r.url) { Alert.alert('Complete payment', 'Continue in your browser to finish, then return to the app.'); } else { await refreshMe(); } }
+    catch (e) { Alert.alert('Could not select plan', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); }
+  }
+  if (!data) return <Loading />;
+  return <View>
+    <Text style={[st.cardT, { marginBottom: 4 }]}>Choose your plan</Text>
+    <Text style={[st.muted, { marginBottom: 8 }]}>Pick the plan that suits your household. Change or cancel any time.</Text>
+    {(data.plans ?? []).map((p: any) => (
+      <View key={p.key} style={st.recCard}>
+        <View style={st.recTop}><Text style={st.recIc}>💳</Text>
+          <View style={{ flex: 1 }}><Text style={st.itemT}>{p.name}</Text><Text style={st.itemS}>{p.amount ? `£${(p.amount / 100).toFixed(0)}/yr` : 'Free'} · {p.entitlements?.members === -1 ? 'unlimited' : p.entitlements?.members} members{p.entitlements?.aiAssistant ? ' · AI' : ''}</Text></View>
+          <TouchableOpacity style={st.smBtn} disabled={!!busy} onPress={() => choose(p.key)}><Text style={st.smBtnTxt}>{busy === p.key ? '…' : p.amount === 0 ? 'Start free' : 'Choose'}</Text></TouchableOpacity>
+        </View>
+      </View>
+    ))}
+  </View>;
+}
+
+const TOUR_SLIDES = [
+  { ic: '🗄️', t: 'Your Vault', s: 'Scan or upload documents — Vaulmo reads the details and keeps everything in one secure place.' },
+  { ic: '✅', t: 'Personalise & checklist', s: 'Answer a few questions and Vaulmo suggests exactly the documents your household should keep.' },
+  { ic: '🔔', t: 'Reminders', s: 'Renewals for passports, MOT, insurance and more — tracked automatically so nothing slips.' },
+  { ic: '💬', t: 'Ask Vaulmo', s: 'Ask questions in plain English — answers come only from your own information.' },
+  { ic: '🔒', t: 'Private by design', s: 'Your data is encrypted and access is strictly controlled. It’s your vault.' },
+];
+function WelcomeTour({ me, goSettings, onClose }: any) {
+  const [phase, setPhase] = useState<'intro' | 'tour'>('intro');
+  const [i, setI] = useState(0);
+  return <View style={{ flex: 1, backgroundColor: 'rgba(16,22,35,0.55)', justifyContent: 'center', padding: 20 }}>
+    <View style={[st.card, { margin: 0 }]}>
+      {phase === 'intro' ? <>
+        <Text style={{ fontSize: 40, textAlign: 'center' }}>👋</Text>
+        <Text style={[st.cardT, { textAlign: 'center', fontSize: 18 }]}>Welcome to Vaulmo, {me.fullName?.split(' ')[0]}</Text>
+        <Text style={[st.muted, { textAlign: 'center' }]}>You’re all set up. Want a 60-second tour of the essentials?</Text>
+        {!me.mfaEnabled && <TouchableOpacity style={[st.promptCardSm, { marginTop: 12 }]} onPress={goSettings}>
+          <View style={{ flex: 1 }}><Text style={st.promptTitleSm}>Protect your account</Text><Text style={st.promptBodySm}>Add two-factor authentication for extra security.</Text></View>
+          <Text style={st.chev}>›</Text>
+        </TouchableOpacity>}
+        <Btn label="Start the tour" onPress={() => setPhase('tour')} />
+        <Btn label="Skip" secondary onPress={onClose} />
+        <TouchableOpacity style={{ alignItems: 'center', marginTop: 8 }} onPress={onClose}><Text style={st.link}>Don’t show again</Text></TouchableOpacity>
+      </> : <>
+        <Text style={{ fontSize: 40, textAlign: 'center' }}>{TOUR_SLIDES[i].ic}</Text>
+        <Text style={[st.cardT, { textAlign: 'center', fontSize: 18 }]}>{TOUR_SLIDES[i].t}</Text>
+        <Text style={[st.muted, { textAlign: 'center', minHeight: 52 }]}>{TOUR_SLIDES[i].s}</Text>
+        <View style={{ flexDirection: 'row', gap: 5, justifyContent: 'center', marginVertical: 10 }}>{TOUR_SLIDES.map((_, n) => <View key={n} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: n === i ? C.brand : C.line }} />)}</View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+          <TouchableOpacity style={[st.btn, st.btnSec, { flex: 1 }]} onPress={onClose}><Text style={[st.btnTxt, { color: C.brand }]}>Skip</Text></TouchableOpacity>
+          <TouchableOpacity style={[st.btn, { flex: 1 }]} onPress={() => i < TOUR_SLIDES.length - 1 ? setI(i + 1) : onClose()}><Text style={st.btnTxt}>{i < TOUR_SLIDES.length - 1 ? 'Next' : 'Get started'}</Text></TouchableOpacity>
+        </View>
+      </>}
+    </View>
+  </View>;
 }
 
 /* ============================ home ============================ */
@@ -289,14 +484,23 @@ function Vault({ goTab, openPersonalise, openCapture, onChange }: any) {
 /* ============================ capture flow ============================ */
 const SAMPLE = 'UNITED KINGDOM\nPASSPORT\nPassport No: 546872331\nSurname: REID\nNationality: British\nDate of expiry: 22 Mar 2027';
 
+const MAX_SCAN_PAGES = 15; // matches the server's per-PDF OCR page cap
+
 function Capture({ onClose, onStored }: { onClose: () => void; onStored: () => void }) {
-  const [step, setStep] = useState<'choose' | 'preview' | 'text' | 'review'>('choose');
+  const [step, setStep] = useState<'choose' | 'preview' | 'pages' | 'text' | 'review'>('choose');
   const [image, setImage] = useState<{ uri: string; contentType: string; filename: string } | null>(null);
+  const [pages, setPages] = useState<string[]>([]); // captured page image URIs (multi-page scan)
   const [text, setText] = useState(SAMPLE);
   const [doc, setDoc] = useState<any>(null);
   const [meta, setMeta] = useState<Record<string, string>>({});
+  const [title, setTitle] = useState('');
+  const [typeKey, setTypeKey] = useState('');
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
+  const [cat] = useAsync(() => api.catalogue().catch(() => ({ types: [] })));
+  const types = cat?.types ?? [];
+  const chosenType = types.find((t: any) => t.key === typeKey);
+  const fields = (doc?.extracted?.length ? doc.extracted : (chosenType?.fields ?? [])) as any[];
 
   async function pick(from: 'camera' | 'library') {
     setErr('');
@@ -318,42 +522,104 @@ function Capture({ onClose, onStored }: { onClose: () => void; onStored: () => v
     } catch (e) { setErr(e instanceof Error ? e.message : 'Could not open the image.'); }
   }
 
-  async function scanImage() {
-    if (!image) return;
-    setBusy('Uploading…');
+  // Multi-page scan (VLT-05): capture pages one at a time, then combine into a
+  // single PDF on-device and upload it — the server OCRs every page.
+  async function addPage(from: 'camera' | 'library') {
+    setErr('');
+    if (pages.length >= MAX_SCAN_PAGES) { setErr(`You can combine up to ${MAX_SCAN_PAGES} pages.`); return; }
+    try {
+      const perm = from === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { setErr(`Please allow ${from === 'camera' ? 'camera' : 'photo'} access in Settings to continue.`); return; }
+      const res = from === 'camera'
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9, allowsMultipleSelection: true, selectionLimit: MAX_SCAN_PAGES - pages.length });
+      if (res.canceled || !res.assets?.length) return;
+      const added: string[] = [];
+      for (const a of res.assets.slice(0, MAX_SCAN_PAGES - pages.length)) {
+        const m = await ImageManipulator.manipulateAsync(a.uri, [{ resize: { width: 1600 } }], { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG });
+        added.push(m.uri);
+      }
+      setPages((p) => [...p, ...added]);
+      setStep('pages');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not add the page.'); }
+  }
+  const removePage = (i: number) => setPages((p) => p.filter((_, idx) => idx !== i));
+  const movePage = (i: number, dir: -1 | 1) => setPages((p) => {
+    const j = i + dir; if (j < 0 || j >= p.length) return p;
+    const next = [...p]; [next[i], next[j]] = [next[j], next[i]]; return next;
+  });
+
+  // Build a PDF from the captured page images (one image per page) and upload it.
+  async function combinePagesAndScan() {
+    if (!pages.length) return;
+    setBusy('Combining pages…'); setErr('');
+    try {
+      const blocks: string[] = [];
+      for (const uri of pages) {
+        const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        blocks.push(`<div class="pg"><img src="data:image/jpeg;base64,${b64}" /></div>`);
+      }
+      const html = `<!doctype html><html><head><meta charset="utf-8" />
+        <style>@page{margin:0} html,body{margin:0;padding:0} .pg{page-break-after:always;display:flex;align-items:center;justify-content:center;height:100vh} .pg:last-child{page-break-after:auto} img{max-width:100%;max-height:100%}</style>
+        </head><body>${blocks.join('')}</body></html>`;
+      const { uri: pdfUri } = await Print.printToFileAsync({ html, base64: false });
+      await processUpload(pdfUri, 'application/pdf', `scan-${pages.length}p.pdf`, `Scanned document (${pages.length} pages)`);
+    } catch (e) { setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Could not combine the pages.'); setBusy(''); }
+  }
+
+  // Pick any file (PDF, image, doc) and upload it directly.
+  async function pickFile() {
     setErr('');
     try {
-      const size = await fileSize(image.uri);
-      const init = await api.createDocument({ filename: image.filename, contentType: image.contentType, sizeBytes: size, title: 'Scanned document' });
-      await uploadImage(init.uploadUrl, image.uri, image.contentType);
+      const res = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*', 'text/plain'], copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.length) return;
+      const a = res.assets[0];
+      await processUpload(a.uri, a.mimeType || 'application/octet-stream', a.name || 'document', a.name?.replace(/\.[^.]+$/, '') || 'Document');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not open the file.'); }
+  }
+
+  async function processUpload(uri: string, contentType: string, filename: string, docTitle: string) {
+    setBusy('Uploading…'); setErr('');
+    try {
+      const size = await fileSize(uri);
+      const init = await api.createDocument({ filename, contentType, sizeBytes: size, title: docTitle });
+      await uploadImage(init.uploadUrl, uri, contentType);
       setBusy('Reading…');
       const r = await api.processDocument(init.documentId);
-      finishProcess(init.documentId, r);
-    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Scan failed. Try a clearer photo.'); setBusy(''); }
+      finishProcess(init.documentId, r, docTitle);
+    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Upload failed. Please try again.'); setBusy(''); }
+  }
+  async function scanImage() {
+    if (!image) return;
+    await processUpload(image.uri, image.contentType, image.filename, 'Scanned document');
   }
   async function scanText() {
-    setBusy('Reading…');
-    setErr('');
+    setBusy('Reading…'); setErr('');
     try {
       const bytes = new Blob([text]).size;
       const init = await api.createDocument({ filename: 'doc.txt', contentType: 'text/plain', sizeBytes: bytes, title: 'Document' });
       await uploadText(init.uploadUrl, text);
       const r = await api.processDocument(init.documentId);
-      finishProcess(init.documentId, r);
+      finishProcess(init.documentId, r, 'Document');
     } catch (e) { setErr(e instanceof ApiError ? e.message : 'Could not read the text.'); setBusy(''); }
   }
-  function finishProcess(id: string, r: any) {
+  function finishProcess(id: string, r: any, fallbackTitle: string) {
     const m: Record<string, string> = {};
     (r.extracted ?? []).forEach((fld: any) => { if (fld.value) m[fld.key] = fld.value; });
     setDoc({ id, extracted: r.extracted ?? [], classification: r.classification, engine: r.engine });
-    setMeta(m);
-    setBusy('');
-    setStep('review');
+    setTitle(r.classification?.title ?? fallbackTitle);
+    setTypeKey(r.classification?.typeKey ?? '');
+    setMeta(m); setBusy(''); setStep('review');
   }
   async function confirm() {
     setBusy('Storing…');
-    try { await api.confirmDocument(doc.id, meta); onStored(); }
-    catch (e) { setErr(e instanceof ApiError ? e.message : 'Could not store.'); setBusy(''); }
+    try {
+      if (typeKey || title) await api.editDocument(doc.id, { ...(typeKey ? { typeKey } : {}), ...(title ? { title } : {}) });
+      await api.confirmDocument(doc.id, meta);
+      onStored();
+    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Could not store.'); setBusy(''); }
   }
 
   return (
@@ -368,20 +634,53 @@ function Capture({ onClose, onStored }: { onClose: () => void; onStored: () => v
           {!!err && <View style={st.errBox}><Text style={st.errTxt}>{err}</Text></View>}
 
           {step === 'choose' && <>
-            <Text style={st.muted}>Snap a photo of a document and Vaulmo will read the details for you.</Text>
-            <TouchableOpacity style={st.bigChoice} activeOpacity={0.9} onPress={() => pick('camera')}>
-              <Text style={st.bigChoiceIc}>📷</Text><Text style={st.bigChoiceT}>Take a photo</Text><Text style={st.bigChoiceS}>Use your camera to scan</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={st.bigChoice} activeOpacity={0.9} onPress={() => pick('library')}>
-              <Text style={st.bigChoiceIc}>🖼️</Text><Text style={st.bigChoiceT}>Choose from library</Text><Text style={st.bigChoiceS}>Pick an existing photo or scan</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop: 16, alignItems: 'center' }} onPress={() => setStep('text')}><Text style={st.link}>Type or paste text instead</Text></TouchableOpacity>
+            <Text style={st.muted}>Snap a photo, choose an image, or upload a file — Vaulmo reads the details for you.</Text>
+            {busy ? <View style={{ paddingVertical: 30 }}><Loading /><Text style={[st.muted, { textAlign: 'center' }]}>{busy}</Text></View> : <>
+              <TouchableOpacity style={st.bigChoice} activeOpacity={0.9} onPress={() => pick('camera')}>
+                <Text style={st.bigChoiceIc}>📷</Text><Text style={st.bigChoiceT}>Take a photo</Text><Text style={st.bigChoiceS}>Use your camera to scan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={st.bigChoice} activeOpacity={0.9} onPress={() => pick('library')}>
+                <Text style={st.bigChoiceIc}>🖼️</Text><Text style={st.bigChoiceT}>Choose from library</Text><Text style={st.bigChoiceS}>Pick an existing photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={st.bigChoice} activeOpacity={0.9} onPress={() => addPage('camera')}>
+                <Text style={st.bigChoiceIc}>📚</Text><Text style={st.bigChoiceT}>Scan multiple pages</Text><Text style={st.bigChoiceS}>Combine several pages into one PDF</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={st.bigChoice} activeOpacity={0.9} onPress={pickFile}>
+                <Text style={st.bigChoiceIc}>📎</Text><Text style={st.bigChoiceT}>Upload a file</Text><Text style={st.bigChoiceS}>PDF or image from your device</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ marginTop: 16, alignItems: 'center' }} onPress={() => setStep('text')}><Text style={st.link}>Type or paste text instead</Text></TouchableOpacity>
+            </>}
           </>}
 
           {step === 'preview' && image && <>
             <Image source={{ uri: image.uri }} style={st.preview} resizeMode="contain" />
             <Btn label="Scan this document" busy={!!busy} busyLabel={busy} onPress={scanImage} />
             <Btn label="Retake" secondary onPress={() => { setImage(null); setStep('choose'); }} />
+          </>}
+
+          {step === 'pages' && <>
+            {busy ? <View style={{ paddingVertical: 30 }}><Loading /><Text style={[st.muted, { textAlign: 'center' }]}>{busy}</Text></View> : <>
+              <Text style={st.muted}>{pages.length} page{pages.length === 1 ? '' : 's'} added. Reorder or remove pages, add more, then combine them into a single PDF.</Text>
+              {pages.map((uri, i) => (
+                <View key={`${uri}-${i}`} style={st.pageRow}>
+                  <Image source={{ uri }} style={st.pageThumb} resizeMode="cover" />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={st.itemT}>Page {i + 1}</Text>
+                    <View style={{ flexDirection: 'row', gap: 14, marginTop: 6 }}>
+                      <TouchableOpacity disabled={i === 0} onPress={() => movePage(i, -1)}><Text style={[st.link, i === 0 && { color: C.line }]}>↑ Up</Text></TouchableOpacity>
+                      <TouchableOpacity disabled={i === pages.length - 1} onPress={() => movePage(i, 1)}><Text style={[st.link, i === pages.length - 1 && { color: C.line }]}>↓ Down</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => removePage(i)}><Text style={[st.link, { color: C.crit }]}>Remove</Text></TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                <View style={{ flex: 1 }}><Btn label="📷 Add page" secondary onPress={() => addPage('camera')} /></View>
+                <View style={{ flex: 1 }}><Btn label="🖼️ From library" secondary onPress={() => addPage('library')} /></View>
+              </View>
+              <Btn label={`Combine ${pages.length} page${pages.length === 1 ? '' : 's'} & scan`} busy={!!busy} busyLabel={busy} onPress={combinePagesAndScan} />
+              <Btn label="Cancel" secondary onPress={() => { setPages([]); setStep('choose'); }} />
+            </>}
           </>}
 
           {step === 'text' && <>
@@ -391,13 +690,20 @@ function Capture({ onClose, onStored }: { onClose: () => void; onStored: () => v
           </>}
 
           {step === 'review' && doc && <>
-            <View style={st.okBox}><Text style={st.okTxt}>Classified as {doc.classification?.typeKey ?? 'document'} ({Math.round((doc.classification?.confidence ?? 0) * 100)}% · {doc.engine})</Text></View>
-            <Text style={st.muted}>Check what we read, edit anything that’s off, then store it.</Text>
-            {doc.extracted.map((fld: any) => (
+            {doc.classification?.typeKey
+              ? <View style={st.okBox}><Text style={st.okTxt}>Recognised as {doc.classification.typeKey} ({Math.round((doc.classification?.confidence ?? 0) * 100)}% · {doc.engine})</Text></View>
+              : <View style={[st.okBox, { backgroundColor: C.warnBg }]}><Text style={{ color: C.warn, fontWeight: '600', fontSize: 13 }}>We couldn't read this automatically — name it and pick a type below, or just store it.</Text></View>}
+            <Field label="Title" value={title} onChangeText={setTitle} placeholder="e.g. My passport" />
+            <Text style={[st.fieldLabel, { marginTop: 12 }]}>Document type</Text>
+            <View style={st.chipRow}>
+              <TouchableOpacity style={[st.chip, !typeKey && st.chipOn]} onPress={() => { setTypeKey(''); }}><Text style={[st.chipTxt, !typeKey && st.chipTxtOn]}>Unspecified</Text></TouchableOpacity>
+              {types.slice(0, 12).map((t: any) => <TouchableOpacity key={t.key} style={[st.chip, typeKey === t.key && st.chipOn]} onPress={() => { setTypeKey(t.key); setMeta({}); }}><Text style={[st.chipTxt, typeKey === t.key && st.chipTxtOn]}>{t.name}</Text></TouchableOpacity>)}
+            </View>
+            {fields.map((fld: any) => (
               <Field key={fld.key} label={fld.label} value={meta[fld.key] ?? ''} onChangeText={(v: string) => setMeta((s) => ({ ...s, [fld.key]: v }))} />
             ))}
             <Btn label="Confirm & store" busy={!!busy} busyLabel={busy} onPress={confirm} />
-            <Btn label="Start over" secondary onPress={() => { setDoc(null); setImage(null); setStep('choose'); }} />
+            <Btn label="Start over" secondary onPress={() => { setDoc(null); setImage(null); setPages([]); setTypeKey(''); setTitle(''); setStep('choose'); }} />
           </>}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -637,7 +943,8 @@ function Profile({ me, refreshMe, onSignOut, openSub }: any) {
       <MenuItem ic="🔐" bg={C.goodBg} t="Privacy & Security" s="Activity, export & data" onPress={() => openSub('privacy')} />
       <MenuItem ic="⚙️" bg={C.surf2} t="Settings" s="Security & notifications" onPress={() => openSub('settings')} />
       <MenuItem ic="💬" bg={C.surf2} t="Support" s="Get help & track requests" onPress={() => openSub('support')} />
-      <MenuItem ic="❓" bg={C.surf2} t="Help Centre" s="Guides & answers" onPress={() => openSub('help')} />
+      <MenuItem ic="❓" bg={C.surf2} t="FAQ & Support" s="Common questions" onPress={() => openSub('faq')} />
+      <MenuItem ic="📚" bg={C.surf2} t="Help Centre" s="Guides & answers" onPress={() => openSub('help')} />
 
       <View style={{ height: 10 }} />
       <Btn label="Sign out" secondary onPress={onSignOut} />
@@ -898,7 +1205,9 @@ function Connected() {
     <Text style={st.muted}>Soon you'll be able to securely connect Gmail or Outlook so Vaulmo can spot trips, receipts and warranties automatically — you'll always confirm before anything is added. We'll switch this on for your account shortly.</Text>
   </ScrollView>;
   async function connect(p: string) { setBusy(p); try { await api.connect(p); await api.callback(p, 'demo_' + p); await rc(); } catch (e) { Alert.alert('Could not connect', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(''); } }
-  async function sync(id: string) { setBusy(id); try { await api.sync(id); await rd(); } catch { Alert.alert('Sync failed'); } finally { setBusy(''); } }
+  async function sync(id: string) { setBusy(id); try { await api.sync(id); await rd(); } catch (e) { Alert.alert('Sync failed', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); } }
+  async function pause(id: string) { setBusy(id); try { await api.pauseConnection(id); await rc(); } catch { Alert.alert('Try again'); } finally { setBusy(''); } }
+  async function resume(id: string) { setBusy(id); try { await api.resumeConnection(id); await rc(); } catch { Alert.alert('Try again'); } finally { setBusy(''); } }
   async function add(id: string) { try { await api.confirmDetected(id); await rd(); } catch { Alert.alert('Try again'); } }
   async function dismiss(id: string) { try { await api.dismissDetected(id); await rd(); } catch { Alert.alert('Try again'); } }
   return <ScrollView contentContainerStyle={st.pad}>
@@ -912,10 +1221,15 @@ function Connected() {
       </View>
     ))}
     <SectionTitle>Your connections</SectionTitle>
-    {(conns?.connections ?? []).length ? (conns?.connections ?? []).map((c: any) => (
+    {(conns?.connections ?? []).filter((c: any) => c.status !== 'disconnected').length ? (conns?.connections ?? []).filter((c: any) => c.status !== 'disconnected').map((c: any) => (
       <View key={c.id} style={st.item}><View style={st.itemIc}><Text style={{ fontSize: 18 }}>🔌</Text></View>
         <View style={{ flex: 1 }}><Text style={st.itemT}>{c.provider}</Text><Text style={st.itemS}>{c.status}</Text></View>
-        <TouchableOpacity style={st.smBtn} disabled={!!busy} onPress={() => sync(c.id)}><Text style={st.smBtnTxt}>{busy === c.id ? '…' : 'Sync'}</Text></TouchableOpacity>
+        {c.status === 'paused'
+          ? <TouchableOpacity style={st.smBtn} disabled={!!busy} onPress={() => resume(c.id)}><Text style={st.smBtnTxt}>{busy === c.id ? '…' : 'Resume'}</Text></TouchableOpacity>
+          : <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TouchableOpacity style={st.smBtn} disabled={!!busy} onPress={() => sync(c.id)}><Text style={st.smBtnTxt}>{busy === c.id ? '…' : 'Sync'}</Text></TouchableOpacity>
+              <TouchableOpacity style={[st.smBtn, { backgroundColor: C.surf2 }]} disabled={!!busy} onPress={() => pause(c.id)}><Text style={[st.smBtnTxt, { color: C.soft }]}>Pause</Text></TouchableOpacity>
+            </View>}
       </View>
     )) : <Card><Text style={st.muted}>No connections yet.</Text></Card>}
     {(det?.detected ?? []).length > 0 && <>
@@ -1140,6 +1454,36 @@ function TicketThread({ id, onBack }: any) {
   </View>;
 }
 
+function FaqScreen() {
+  const [data] = useAsync(() => api.faq());
+  const [open, setOpen] = useState('');
+  if (!data) return <Loading />;
+  const support = data.support;
+  return <ScrollView contentContainerStyle={st.pad}>
+    {support && <Card>
+      <Text style={st.cardT}>Getting help</Text>
+      <Text style={st.muted}>{support.intro}</Text>
+      {(support.channels ?? []).map((c: any, i: number) => (
+        <View key={i} style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+          <Text style={{ fontSize: 18 }}>{c.icon}</Text>
+          <View style={{ flex: 1 }}><Text style={st.itemT}>{c.title}</Text><Text style={st.itemS}>{c.detail}</Text></View>
+        </View>
+      ))}
+      <Text style={[st.itemS, { marginTop: 10 }]}>{support.responseTime}</Text>
+    </Card>}
+    {(data.categories ?? []).map((cat: any) => <View key={cat.key}>
+      <SectionTitle>{cat.title}</SectionTitle>
+      {cat.items.map((it: any, i: number) => {
+        const id = `${cat.key}-${i}`; const isOpen = open === id;
+        return <TouchableOpacity key={id} style={st.recCard} activeOpacity={0.8} onPress={() => setOpen(isOpen ? '' : id)}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={[st.itemT, { flex: 1 }]}>{it.q}</Text><Text style={st.chev}>{isOpen ? '▾' : '▸'}</Text></View>
+          {isOpen && <Text style={[st.muted, { marginTop: 8 }]}>{it.a}</Text>}
+        </TouchableOpacity>;
+      })}
+    </View>)}
+  </ScrollView>;
+}
+
 function HelpCentre() {
   const [data] = useAsync(() => api.helpArticles());
   const [active, setActive] = useState<any>(null);
@@ -1166,7 +1510,17 @@ function Settings({ me, refreshMe }: any) {
   const [enroll, setEnroll] = useState<any>(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState('');
+  const [bioCap, setBioCap] = useState<BiometricCapability | null>(null);
+  const [bioOn, setBioOn] = useState(false);
   useEffect(() => { api.notifSettings().then(setNs).catch(() => {}); api.sessions().then((r) => setSessions(r.sessions ?? [])).catch(() => {}); }, []);
+  useEffect(() => { (async () => { setBioCap(await getCapability()); setBioOn(await isBiometricEnabled()); })(); }, []);
+  async function toggleBiometric(next: boolean) {
+    if (next) {
+      const r = await authenticate(`Enable ${bioCap?.label ?? 'biometric unlock'}`);
+      if (!r.success) { Alert.alert('Not enabled', 'We couldn’t confirm your biometrics. Please try again.'); return; }
+    }
+    await setBiometricEnabled(next); setBioOn(next);
+  }
   async function saveNs(patch: any) { const next = { ...ns, ...patch }; setNs(next); try { await api.setNotifSettings(patch); } catch { Alert.alert('Could not save'); } }
   async function beginMfa() { setBusy('mfa'); try { setEnroll(await api.enrollMfa()); } catch (e) { Alert.alert('Error', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); } }
   async function confirmMfa() { setBusy('mfa'); try { await api.confirmMfa(code); setEnroll(null); setCode(''); await refreshMe(); Alert.alert('Two-factor enabled', 'Save your recovery codes from the web app.'); } catch (e) { Alert.alert('Invalid code', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); } }
@@ -1188,6 +1542,20 @@ function Settings({ me, refreshMe }: any) {
         <Btn label="Verify & enable" busy={busy === 'mfa'} onPress={confirmMfa} />
       </>}
       {me.mfaEnabled && Platform.OS === 'ios' && <Btn label="Disable 2FA" secondary onPress={disableMfa} />}
+    </Card>
+
+    <SectionTitle>App lock</SectionTitle>
+    <Card>
+      {bioCap?.available ? (
+        <>
+          <Toggle label={`Unlock with ${bioCap.label}`} value={bioOn} onChange={toggleBiometric} last />
+          <Text style={[st.muted, { marginTop: 8 }]}>Require {bioCap.label} to open Vaulmo on this device. Your sign-in stays saved securely; {bioCap.label} just confirms it’s you.</Text>
+        </>
+      ) : (
+        <Text style={st.muted}>{bioCap && bioCap.hasHardware && !bioCap.enrolled
+          ? 'Set up Face ID or a fingerprint in your device settings to enable app lock here.'
+          : 'This device doesn’t support biometric unlock.'}</Text>
+      )}
     </Card>
 
     {ns && <>
@@ -1215,7 +1583,8 @@ function Settings({ me, refreshMe }: any) {
   </ScrollView>;
 }
 function Toggle({ label, value, onChange, last }: any) {
-  return <TouchableOpacity style={[st.detailRow, last && { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => onChange(!value)}>
+  return <TouchableOpacity style={[st.detailRow, last && { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => onChange(!value)}
+    accessibilityRole="switch" accessibilityLabel={typeof label === 'string' ? label : undefined} accessibilityState={{ checked: !!value }}>
     <Text style={st.itemT}>{label}</Text>
     <View style={[st.switch, value && { backgroundColor: C.brand, alignItems: 'flex-end' }]}><View style={st.switchKnob} /></View>
   </TouchableOpacity>;
@@ -1246,7 +1615,8 @@ const Card = ({ children }: any) => <View style={st.card}>{children}</View>;
 function Btn({ label, onPress, secondary, busy, busyLabel, disabled }: any) {
   const off = busy || disabled;
   return (
-    <TouchableOpacity style={[st.btn, secondary && st.btnSec, off && { opacity: 0.6 }]} onPress={onPress} disabled={off} activeOpacity={0.85}>
+    <TouchableOpacity style={[st.btn, secondary && st.btnSec, off && { opacity: 0.6 }]} onPress={onPress} disabled={off} activeOpacity={0.85}
+      accessibilityRole="button" accessibilityLabel={typeof label === 'string' ? label : undefined} accessibilityState={{ disabled: !!off, busy: !!busy }}>
       {busy ? <ActivityIndicator color={secondary ? C.brand : '#fff'} /> : <Text style={[st.btnTxt, secondary && { color: C.brand }]}>{busyLabel && busy ? busyLabel : label}</Text>}
     </TouchableOpacity>
   );
@@ -1255,7 +1625,7 @@ function Field({ label, multiline, ...rest }: any) {
   return (
     <View style={{ marginTop: 12 }}>
       <Text style={st.fieldLabel}>{label}</Text>
-      <TextInput style={[st.input, multiline && { height: 120, textAlignVertical: 'top' }]} placeholderTextColor={C.soft} multiline={multiline} {...rest} />
+      <TextInput style={[st.input, multiline && { height: 120, textAlignVertical: 'top' }]} placeholderTextColor={C.soft} multiline={multiline} accessibilityLabel={typeof label === 'string' ? label : undefined} {...rest} />
     </View>
   );
 }
@@ -1409,6 +1779,8 @@ const st = StyleSheet.create({
   bigChoiceT: { fontWeight: '800', fontSize: 16, color: C.ink, marginTop: 8 },
   bigChoiceS: { color: C.soft, fontSize: 13, marginTop: 2 },
   preview: { width: '100%', height: 320, borderRadius: 16, backgroundColor: '#000', marginBottom: 6 },
+  pageRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 14, padding: 10, marginTop: 10, borderWidth: 1, borderColor: C.line },
+  pageThumb: { width: 56, height: 74, borderRadius: 8, backgroundColor: C.surf2 },
 
   // ask
   msgRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-end' },

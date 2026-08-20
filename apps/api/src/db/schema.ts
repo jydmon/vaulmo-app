@@ -51,6 +51,9 @@ export const users = pgTable(
     isInternalTester: boolean('is_internal_tester').notNull().default(false),
     phone: text('phone'),
     timezone: text('timezone'),
+    termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
+    termsVersion: text('terms_version'),
+    tourSeenAt: timestamp('tour_seen_at', { withTimezone: true }),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     failedLoginCount: integer('failed_login_count').notNull().default(0),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
@@ -284,6 +287,9 @@ export const plans = pgTable('plans', {
   stripeProductId: text('stripe_product_id'),
   stripePriceId: text('stripe_price_id'),
   entitlements: jsonb('entitlements').notNull().default({}),
+  modules: jsonb('modules').notNull().default([]),
+  discountPercent: integer('discount_percent').notNull().default(0),
+  discountLabel: text('discount_label'),
   active: boolean('active').notNull().default(true),
   sort: integer('sort').notNull().default(100),
 });
@@ -510,6 +516,40 @@ export const crmProfiles = pgTable('crm_profiles', {
   stage: text('stage').notNull().default('active'), // lead | onboarding | active | at_risk | churned
   tags: text('tags').array().notNull().default([]),
   ownerName: text('owner_name'), // internal account owner / CSM
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---- CRM: email campaigns + automated communication workflows ----
+export const emailCampaigns = pgTable('email_campaigns', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  segment: text('segment').notNull().default('all'),
+  tag: text('tag'),
+  status: text('status').notNull().default('draft'),
+  recipientCount: integer('recipient_count').notNull().default(0),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const campaignRecipients = pgTable('campaign_recipients', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaignId: uuid('campaign_id').notNull().references(() => emailCampaigns.id, { onDelete: 'cascade' }),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  email: text('email').notNull(),
+  status: text('status').notNull().default('sent'),
+  sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ campaignIdx: index('campaign_recipients_campaign_idx').on(t.campaignId) }));
+export const communicationAutomations = pgTable('communication_automations', {
+  key: text('key').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  trigger: text('trigger').notNull(),
+  enabled: boolean('enabled').notNull().default(false),
+  subject: text('subject').notNull().default(''),
+  body: text('body').notNull().default(''),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

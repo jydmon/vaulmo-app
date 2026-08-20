@@ -10,13 +10,22 @@ import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
 import { encrypt } from '../../lib/crypto';
-import { PROVIDERS, getProvider } from '../../lib/integrations/provider';
+import { getProvider, listProviders, anyProviderLive } from '../../lib/integrations/provider';
 import { classifyEmail } from '../../lib/integrations/classifyEmail';
 import { bankProvider, detectRecurring } from '../../lib/integrations/openBanking';
+import { env } from '../../env';
+import type { Request, Response, NextFunction } from 'express';
 
-// Rolled out gradually via the internal-tester/pilot gate rather than enabled for everyone.
+// Access gate: once a real email provider is configured (Google/Microsoft OAuth
+// credentials present), Connected Services opens to all subscribed users. Until then
+// it stays limited to internal testers so no one sees the sandbox mailbox by mistake.
+function requireIntegrationsAccess(req: Request, res: Response, next: NextFunction) {
+  if (anyProviderLive()) return next();
+  return requireInternalTester(req, res, next);
+}
+
 export const integrationsRouter = Router();
-integrationsRouter.use(requireAuth, requireMfaSatisfied, requireInternalTester);
+integrationsRouter.use(requireAuth, requireMfaSatisfied, requireIntegrationsAccess);
 const tid = (req: any): string => {
   if (!req.auth?.tid) throw new AppError(400, 'no_tenant', 'Only tenant accounts can connect services');
   return req.auth.tid;
@@ -26,8 +35,8 @@ const publicConn = (c: any) => ({ id: c.id, provider: c.provider, status: c.stat
 integrationsRouter.get('/providers', (_req, res) => {
   res.json({
     providers: [
-      ...Object.values(PROVIDERS).map((p) => ({ key: p.key, scopes: p.scopes, kind: 'email' })),
-      { key: bankProvider.key, scopes: bankProvider.scopes, kind: 'bank' },
+      ...listProviders(),
+      { key: bankProvider.key, scopes: bankProvider.scopes, kind: 'bank', live: false },
     ],
   });
 });
@@ -56,7 +65,7 @@ integrationsRouter.post('/bank/callback', requirePermission(PERMISSIONS.TENANT_M
 // Start OAuth — returns the provider consent URL (sandbox marker in dev).
 integrationsRouter.post('/:provider/connect', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {
   const provider = getProvider(req.params.provider);
-  const { authUrl, state } = provider.startAuth(tid(req), 'https://app.lifehub.local/integrations/callback');
+  const { authUrl, state } = provider.startAuth(tid(req), env.INTEGRATIONS_REDIRECT_URI);
   res.json({ authUrl, state });
 });
 
@@ -88,6 +97,7 @@ integrationsRouter.get('/connections', requirePermission(PERMISSIONS.TENANT_READ
 integrationsRouter.post('/connections/:id/sync', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {
   const [conn] = await db.select().from(connections).where(and(eq(connections.id, req.params.id), eq(connections.tenantId, tid(req)))).limit(1);
   if (!conn) throw new AppError(404, 'not_found', 'Connection not found');
+  if (conn.status === 'paused') throw new AppError(409, 'connection_paused', 'This connection is paused. Resume it to sync.');
 
   // Open Banking: pull transactions, detect recurring debits, and write PENDING
   // detected subscriptions. Nothing goes live until the user confirms each one.
@@ -133,6 +143,22 @@ integrationsRouter.post('/connections/:id/sync', requirePermission(PERMISSIONS.T
   await db.update(connections).set({ lastSyncAt: new Date() }).where(eq(connections.id, conn.id));
   await audit({ action: 'integration.synced', actorId: req.auth!.sub, tenantId: conn.tenantId, targetType: 'connection', targetId: conn.id, metadata: { created, byType }, req });
   res.json({ created, byType });
+});
+
+// INT-06: pause / resume synchronisation without disconnecting (tokens are kept).
+integrationsRouter.post('/connections/:id/pause', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {
+  const [row] = await db.update(connections).set({ status: 'paused' })
+    .where(and(eq(connections.id, req.params.id), eq(connections.tenantId, tid(req)))).returning();
+  if (!row) throw new AppError(404, 'not_found', 'Connection not found');
+  await audit({ action: 'integration.paused', actorId: req.auth!.sub, tenantId: tid(req), targetType: 'connection', targetId: row.id, req });
+  res.json({ connection: publicConn(row) });
+});
+integrationsRouter.post('/connections/:id/resume', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {
+  const [row] = await db.update(connections).set({ status: 'connected' })
+    .where(and(eq(connections.id, req.params.id), eq(connections.tenantId, tid(req)))).returning();
+  if (!row) throw new AppError(404, 'not_found', 'Connection not found');
+  await audit({ action: 'integration.resumed', actorId: req.auth!.sub, tenantId: tid(req), targetType: 'connection', targetId: row.id, req });
+  res.json({ connection: publicConn(row) });
 });
 
 integrationsRouter.delete('/connections/:id', requirePermission(PERMISSIONS.TENANT_MANAGE), async (req, res) => {

@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { subscriptions, plans, tenants, invoices, stripeEvents } from '../../db/schema';
 import { getGateway, type StripeEvent } from './gateway';
+import { effectiveModules } from '../modules';
 
 const GRACE_DAYS = 14;
 const gateway = getGateway();
@@ -34,6 +35,24 @@ export async function setCancelAtPeriodEnd(tenantId: string, cancel: boolean) {
   if (!sub || !['active', 'trialing', 'past_due'].includes(sub.status)) throw new Error('no_active_subscription');
   await upsertSubscription(tenantId, { cancelAtPeriodEnd: cancel });
   return getSubscription(tenantId);
+}
+
+// Onboarding plan gate: the user selects a plan before entering the app. Free plans
+// activate immediately; paid plans go to Stripe Checkout when live, or (in the
+// fake-gateway phase) activate directly so the onboarding journey completes end-to-end.
+export async function selfSelectPlan(tenantId: string, email: string, planKey: string, successUrl: string, cancelUrl: string) {
+  const plan = await getPlan(planKey);
+  if (!plan) throw new Error('unknown_plan');
+  const isFree = (plan.amount ?? 0) === 0;
+  const gatewayLive = (process.env.STRIPE_DRIVER ?? 'fake') === 'stripe';
+  if (!isFree && gatewayLive) {
+    const session = await startCheckout(tenantId, email, planKey, successUrl, cancelUrl);
+    return { mode: 'checkout' as const, url: session.url };
+  }
+  const end = new Date(); end.setMonth(end.getMonth() + 12);
+  await upsertSubscription(tenantId, { planKey, status: 'active', currentPeriodEnd: isFree ? null : end, graceUntil: null, cancelAtPeriodEnd: false });
+  await db.update(tenants).set({ plan: planKey }).where(eq(tenants.id, tenantId));
+  return { mode: 'activated' as const, subscription: await getSubscription(tenantId) };
 }
 
 // SEC-12/13: self-serve plan change. In this (fake-gateway) phase the change applies
@@ -90,13 +109,14 @@ export async function entitlementsFor(tenantId: string, now = new Date()) {
   const freePlan = await getPlan('starter');
 
   if (!sub || sub.status === 'none' || sub.status === 'canceled') {
-    return { planKey: 'starter', status: sub?.status ?? 'none', active: true, inGrace: false, entitlements: (freePlan?.entitlements as any) ?? {}, currentPeriodEnd: null, graceUntil: null };
+    return { planKey: 'starter', status: sub?.status ?? 'none', active: true, inGrace: false, entitlements: (freePlan?.entitlements as any) ?? {}, modules: effectiveModules(freePlan?.modules), currentPeriodEnd: null, graceUntil: null };
   }
   const inGrace = sub.status === 'past_due' && !!sub.graceUntil && sub.graceUntil.getTime() > now.getTime();
   const active = sub.status === 'active' || sub.status === 'trialing' || inGrace;
   const plan = sub.planKey ? await getPlan(sub.planKey) : null;
   const entitlements = active && plan ? (plan.entitlements as any) : (freePlan?.entitlements as any) ?? {};
-  return { planKey: sub.planKey, status: sub.status, active, inGrace, entitlements, currentPeriodEnd: sub.currentPeriodEnd, graceUntil: sub.graceUntil };
+  const modules = effectiveModules((active && plan ? plan.modules : freePlan?.modules));
+  return { planKey: sub.planKey, status: sub.status, active, inGrace, entitlements, modules, currentPeriodEnd: sub.currentPeriodEnd, graceUntil: sub.graceUntil };
 }
 
 export async function startCheckout(tenantId: string, email: string, planKey: string, successUrl: string, cancelUrl: string) {
