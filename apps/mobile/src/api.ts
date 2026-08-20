@@ -30,6 +30,10 @@ export async function setTokens(a: string | null, r: string | null) {
 }
 export function hasToken() { return !!(accessToken || refreshToken); }
 
+// Small persisted key/value flags (e.g. "the user dismissed the optional 2FA prompt").
+export async function getFlag(k: string): Promise<string | null> { try { return await SecureStore.getItemAsync('flag_' + k); } catch { return null; } }
+export async function setFlag(k: string, v: string) { try { await SecureStore.setItemAsync('flag_' + k, v); } catch { /* ignore */ } }
+
 export class ApiError extends Error { constructor(public status: number, public code: string, message: string) { super(message); } }
 
 async function tryRefresh(): Promise<boolean> {

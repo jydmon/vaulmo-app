@@ -91,12 +91,13 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
     content: {
       title: 'Everything Vaulmo does for you',
       intro: 'One secure home for the documents, dates and details your family relies on — with the smarts to keep everything organised and remind you before anything slips.',
+      image: '/img/dash.png',
       sections: [
-        { image: 'scan', heading: 'Scan & organise instantly', body: 'Photograph or upload any document — passport, insurance policy, warranty, payslip, tenancy — and Vaulmo reads the key details, works out what it is, files it in the right category and makes it searchable in seconds. No typing, no folders to maintain. It handles photos, PDFs and multi-page scans, and even builds a passport-ready photo for you.' },
-        { image: 'reminders', heading: 'Never miss a renewal', body: 'Vaulmo tracks expiry and renewal dates across your documents, MOT, road tax, insurance, warranties and subscriptions, and brings them together into one clear “what’s coming up” view — grouped by how soon they need attention. You get reminded in good time, and only after you’ve confirmed the dates, so alerts are always accurate.' },
+        { image: '/img/vault.png', heading: 'Scan & organise instantly', body: 'Photograph or upload any document — passport, insurance policy, warranty, payslip, tenancy — and Vaulmo reads the key details, works out what it is, files it in the right category and makes it searchable in seconds. No typing, no folders to maintain. It handles photos, PDFs and multi-page scans, and even builds a passport-ready photo for you.' },
+        { image: '/img/renewals.png', heading: 'Never miss a renewal', body: 'Vaulmo tracks expiry and renewal dates across your documents, MOT, road tax, insurance, warranties and subscriptions, and brings them together into one clear “what’s coming up” view — grouped by how soon they need attention. You get reminded in good time, and only after you’ve confirmed the dates, so alerts are always accurate.' },
         { image: 'assistant', heading: 'Ask Vaulmo anything', body: 'Ask plain-English questions like “when does my passport expire?”, “what renews in the next six months?” or “where’s my home insurance policy?” and get an instant answer drawn only from your own vault — with a link to the source document. It’s the fastest way to find what you need without digging through drawers or inboxes.' },
         { image: 'family', heading: 'Family & emergency access', body: 'Keep your whole household’s documents together and file them by person. Nominate a trusted next of kin who can request access in a genuine emergency — but only ever with your approval, limited to what you allow, and fully logged. Nothing is shared by default; you stay in control of who sees what.' },
-        { image: 'vault', heading: 'Password vault', body: 'Store passwords, card details, PINs and secure notes in an encrypted vault that only you can open — protected by your login and, on mobile, your fingerprint or Face ID. Everything is encrypted before it’s stored, and even our staff can’t read it.' },
+        { image: '/img/passwords.png', heading: 'Password vault', body: 'Store passwords, card details, PINs and secure notes in an encrypted vault that only you can open — protected by your login and, on mobile, your fingerprint or Face ID. Everything is encrypted before it’s stored, and even our staff can’t read it.' },
         { image: 'passport', heading: 'Passport & ID photos', body: 'Take a compliant passport photo right in the app. Vaulmo detects your face, removes the background and makes it white, then crops and sizes it to the 35×45mm standard — ready to download or print, or to keep in your vault.' },
         { image: 'connect', heading: 'Smart capture from email', body: 'Connect your inbox (with your permission, read-only) and Vaulmo can spot travel bookings, receipts, warranties and subscriptions automatically — surfacing them for you to confirm before anything is saved. Less manual entry, nothing added behind your back.' },
         { image: 'security', heading: 'Secure by design', body: 'Bank-grade encryption, two-factor authentication, a biometric app lock and a full activity log come as standard — because Vaulmo holds the documents that matter most. Read more on the Security page.' },
@@ -198,7 +199,7 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
     content: {
       title: 'About Us',
       intro: 'We’re a small, security-obsessed team on a mission to take the stress out of family admin — by giving every household one calm, trusted place for the documents, dates and details that matter most.',
-      image: 'about',
+      image: '/img/dash.png',
       sections: [
         { heading: 'About Us', body: 'We’re the team behind Vaulmo. We started this because we kept living the same frustration ourselves: important paperwork scattered across drawers, inboxes and cloud folders, renewals quietly slipping past, and that low-level worry of never quite knowing where the thing you need actually is. We believe your documents are yours and should stay that way, that good software should reduce mental load rather than add to it, and that the boring-but-important admin of family life deserves a tool that’s genuinely trustworthy. Those principles guide every decision we make — from how we handle your data to the words we choose in the app. We build in the open with the households who use Vaulmo, and we’d genuinely love to hear what would help your family.' },
         { heading: 'About Vaulmo', body: 'Vaulmo is a personal life operating system — a secure digital vault for your family’s most important documents, dates and details. You scan or photograph a document and Vaulmo reads the key details, works out what it is, files it, and makes it instantly searchable. It tracks the dates that matter and reminds you in good time, so nothing important is ever missed, and when you have a question — “when does my passport expire?”, “what renews next month?” — you can simply ask and get an answer drawn only from your own information. It works across web, iOS and Android, all signed in to the same account, so your vault is the same wherever you are.' },
@@ -215,7 +216,7 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
     content: {
       title: 'Contact Us',
       intro: 'Questions, feedback or press enquiries — fill in the form below and we’ll get back to you. We’d love to hear from you.',
-      image: 'contact',
+      image: '/img/m-home.png',
       namePlaceholder: 'Your name',
       emailPlaceholder: 'you@example.com',
       subjectPlaceholder: 'What’s it about?',

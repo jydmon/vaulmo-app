@@ -14,6 +14,7 @@ import { usersRouter } from './modules/users/users.routes';
 import { adminRouter } from './modules/admin/admin.routes';
 import { campaignsRouter } from './modules/crm/campaigns.routes';
 import { supportRouter, adminSupportRouter } from './modules/support/support.routes';
+import { commsRouter, adminCommsRouter } from './modules/comms/comms.routes';
 import { cmsRouter } from './modules/cms/cms.routes';
 import { configPublicRouter, adminConfigRouter } from './modules/config/config.routes';
 import { legalRouter, faqRouter } from './modules/legal/legal.routes';
@@ -74,6 +75,8 @@ export function createApp() {
   app.use('/api/v1/admin', campaignsRouter);
   app.use('/api/v1/support', supportRouter);
   app.use('/api/v1/admin/support', adminSupportRouter);
+  app.use('/api/v1/comms', commsRouter);
+  app.use('/api/v1/admin/comms', adminCommsRouter);
   app.use('/api/v1/cms', cmsRouter);
   app.use('/api/v1/config', configPublicRouter);
   app.use('/api/v1/legal', legalRouter);

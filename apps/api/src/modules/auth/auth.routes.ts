@@ -12,6 +12,7 @@ import { verifyTotp, hashRecoveryCode } from '../../lib/totp';
 import { decryptMaybe } from '../../lib/crypto';
 import { signAccessToken, newRefreshToken, hashToken } from '../../lib/jwt';
 import { audit } from '../../lib/audit';
+import { sendEmail } from '../../lib/notify';
 import { ROLES } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { requireAuth } from '../../middleware/auth';
@@ -250,11 +251,49 @@ async function consumeAuthToken(token: string, kind: string) {
   return row.userId;
 }
 
-// Request an email-verification link (authenticated).
+// Branded transactional-email templates (sent as HTML; the mailer auto-detects HTML).
+function emailShell(title: string, intro: string, ctaLabel: string, ctaUrl: string, footer: string) {
+  return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:8px">
+    <div style="background:linear-gradient(135deg,#3B82F6,#1E3A8A);border-radius:16px;padding:22px 24px;color:#fff">
+      <div style="font-size:20px;font-weight:800;letter-spacing:-.5px">Vaulmo</div>
+    </div>
+    <div style="border:1px solid #e6ebf3;border-top:0;border-radius:0 0 16px 16px;padding:26px 24px;color:#0f172a">
+      <h1 style="font-size:20px;margin:0 0 10px">${title}</h1>
+      <p style="font-size:15px;line-height:1.55;color:#334155;margin:0 0 20px">${intro}</p>
+      <a href="${ctaUrl}" style="display:inline-block;background:#2563EB;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px">${ctaLabel}</a>
+      <p style="font-size:12.5px;line-height:1.5;color:#5b6b85;margin:22px 0 0">${footer}</p>
+      <p style="font-size:12px;color:#94a3b8;margin:14px 0 0;word-break:break-all">If the button doesn’t work, copy this link into your browser:<br>${ctaUrl}</p>
+    </div>
+  </div>`;
+}
+
+// Request an email-verification link (authenticated). Sends a branded email with a link
+// that verifies server-side and returns the user to the app.
 authRouter.post('/request-verification', requireAuth, async (req, res) => {
   const token = await issueAuthToken(req.auth!.sub, 'email_verify', 60 * 24);
+  const [u] = await db.select({ email: users.email, name: users.fullName }).from(users).where(eq(users.id, req.auth!.sub)).limit(1);
+  if (u) {
+    const link = `${env.APP_BASE_URL}/api/v1/auth/verify-email?token=${encodeURIComponent(token)}`;
+    await sendEmail(u.email, 'Verify your Vaulmo email', emailShell(
+      `Confirm your email, ${(u.name || '').split(' ')[0] || 'there'}`,
+      'Tap the button below to confirm your email address and finish setting up your Vaulmo account. This link is valid for 24 hours.',
+      'Verify my email', link,
+      'If you didn’t create a Vaulmo account, you can safely ignore this email.'));
+  }
   await audit({ action: 'auth.verify.requested', actorId: req.auth!.sub, req });
   res.json({ sent: true, ...(isDev ? { devToken: token } : {}) });
+});
+
+// Verify via the emailed link (GET so it works from any mail client), then redirect
+// back to the app. Also keep the POST form for the in-app dev flow.
+authRouter.get('/verify-email', async (req, res) => {
+  const token = String((req.query as any).token ?? '');
+  const userId = token ? await consumeAuthToken(token, 'email_verify') : null;
+  if (userId) {
+    await db.update(users).set({ emailVerified: true }).where(eq(users.id, userId));
+    await audit({ action: 'auth.verify.success', actorId: userId, req });
+  }
+  res.redirect(`${env.APP_BASE_URL}/?verified=${userId ? '1' : '0'}`);
 });
 
 const tokenSchema = z.object({ token: z.string().min(10) });
@@ -274,6 +313,12 @@ authRouter.post('/request-password-reset', authLimiter, async (req, res) => {
   let devToken: string | undefined;
   if (user) {
     devToken = await issueAuthToken(user.id, 'password_reset', 30);
+    const link = `${env.APP_BASE_URL}/?reset=${encodeURIComponent(devToken)}`;
+    await sendEmail(user.email, 'Reset your Vaulmo password', emailShell(
+      'Reset your password',
+      'We received a request to reset your Vaulmo password. Tap below to choose a new one. This link expires in 30 minutes.',
+      'Reset my password', link,
+      'If you didn’t request this, you can safely ignore this email — your password won’t change.'));
     await audit({ action: 'auth.reset.requested', actorId: user.id, req });
   }
   res.json({ sent: true, ...(isDev && devToken ? { devToken } : {}) });

@@ -527,3 +527,39 @@ Six related requests, delivered together. Migrations `0030_plan_features.sql` an
 6. ✅ **Social links on/off switch** — a master **Show socials** toggle in the CMS turns the footer social icons on or off in one click, independently of the individual Instagram/X/Facebook URLs. (Each icon still only appears when both the switch is on and that network’s URL is set.)
 
 Deploy as usual (`git pull` + `docker compose -f docker-compose.prod.yml up -d --build`); both new migrations run automatically on API start, and the reminder worker also processes any due scheduled campaigns each hour.
+
+## Build plan — Bug fixes + communications suite (this increment: ✅ done & tested; screenshots to follow)
+
+Fixes and three new communication features. Migration `0032_comms.sql`. Verified: comms smoke 15/15, site 38/38, campaigns 18/18, a11y clean, web build clean, and headless render of the website chat widget.
+
+Bug fixes:
+1. ✅ **Web app vertical scroll** — the admin/app console couldn’t scroll; the main pane was being clipped by the full-height grid. Fixed by constraining the grid row and letting the main pane scroll internally (functionally verified: content of 4955px scrolls within a 700px viewport).
+2. ✅ **Verification / password-reset emails** — the code created the tokens but never actually sent an email. Both now send a branded email, and the verification link works end-to-end (a GET link verifies server-side and returns the user to the app). NOTE: real delivery requires SMTP to be configured on the server (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` in `/opt/vaulmo/.env`); until then email is logged to the dev outbox. This is also what enables scheduled campaigns to send.
+3. ✅ **Mobile in-app logo** — the login/lock/splash screens showed a plain “V”; they now use the real Vaulmo shield mark (the app icon already matched the brand).
+4. ✅ **More email accounts to integrate** — Yahoo Mail, iCloud Mail and “Other email (IMAP)” are now offered on both the super-admin Integrations page and the user’s Connected Services page (credentials-ready, alongside Gmail/Outlook).
+
+New features:
+5. ✅ **Message board (admin → users)** — a super-admin can post broadcasts (info/important/critical) that every user sees on a new **Messages** page and as a dismissible banner until read. Admin sees read counts and can hide/delete. Per-user read tracking drives an unread badge.
+6. ✅ **In-app user↔staff chat** — logged-in users get a **Chat with support** page; messages land in a new admin **Conversations** inbox where staff reply, with unread badges on both sides.
+7. ✅ **Website chat bot + staff hand-off** — a floating chat widget on vaulmo.com. The bot answers from the site’s own content (FAQ + page sections) with no external LLM required; when it can’t help (or the visitor taps “Talk to a human”) it captures name/email/message into the same Conversations inbox, and staff replies are emailed to the visitor.
+
+Still to come (next increment): replacing the marketing-page illustrations with real screenshots of the app’s dashboard and key screens, presented in device frames.
+
+## Build plan — Real app screenshots in device frames (this increment: ✅ done)
+
+Replaced the marketing-page illustrations with real screenshots of the actual Vaulmo app, captured from a fully-populated demo household (documents, reminders, assets, an encrypted password vault) and presented in device frames.
+
+1. ✅ **Real screenshots** — the live app was seeded with a believable household and captured headlessly: the dashboard (“Hi, Alex”, completion score, live reminders), My Vault (recommended + stored documents), Renewals & Expiries, and the encrypted Password Vault, plus mobile-width renders of the dashboard and vault. Images live in `landing/img/` and are served automatically by Caddy (the whole `landing/` folder is mounted).
+2. ✅ **Device frames** — desktop screenshots render inside a clean browser-window frame (traffic-light dots); mobile screenshots render inside a phone frame. A small helper detects screenshots vs the built-in illustrations, so the CMS still works: paste an image path/URL and it’s framed automatically.
+3. ✅ **Where they appear** — the Features page now leads with a framed dashboard and shows framed Vault / Renewals / Password-vault shots per section; the About page leads with a framed dashboard; the Contact page shows a phone-framed app screen beside the form. All remain CMS-editable (swap the image path in the Website editor any time).
+
+Deploy note: the new `landing/img/*.png` files must be included when you deploy the landing folder (they are, via `git pull` + the existing Caddy mount) — no other change needed.
+
+## Build plan — Optional 2FA popup + profile everywhere (this increment: ✅ done & tested)
+
+Made two-factor optional for regular users via a clear, skippable popup, and confirmed a profile section exists in both apps. No migration; verified (web build clean, both apps typecheck, headless test of the popup show/dismiss/persist).
+
+1. ✅ **2FA is optional for regular users** — the API already only *forces* 2FA for administrator accounts; regular users were never blocked. We now surface that clearly with a dedicated popup.
+2. ✅ **Optional 2FA popup (web + mobile)** — after onboarding, regular users without 2FA see a friendly “Add extra security?” popup with **Set up two-factor** or **Not now**. Declining is remembered on that device (localStorage on web, SecureStore on mobile) so it doesn’t nag, and it never blocks the app. The web popup runs the full enrolment inline (QR + code + recovery codes); the mobile popup opens You → Settings where enrolment lives.
+3. ✅ **Enable later from Profile / Security settings** — web Profile shows an “Enable two-factor” action when it’s off; mobile Profile adds an “Enable two-factor” item under Account. Both lead to Settings, which has the full flow.
+4. ✅ **Profile section present in both apps** — web has “My Profile” in the sidebar; mobile has the “You” tab. Both show account details, 2FA status and links to security settings. (Administrators still require 2FA via the existing mandatory setup screen.)

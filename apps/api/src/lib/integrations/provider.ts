@@ -143,10 +143,15 @@ export function anyProviderLive(): boolean {
   return isProviderLive('gmail') || isProviderLive('outlook');
 }
 
+// Generic mail scopes for providers connected by OAuth or an app-specific password (IMAP).
+const MAIL_SCOPES = ['mail.read'];
 const SANDBOX: Record<string, Provider> = {
   mock: new SandboxProvider('mock', ['mock.read']),
   gmail: new SandboxProvider('gmail', GMAIL_SCOPES),
   outlook: new SandboxProvider('outlook', OUTLOOK_SCOPES),
+  yahoo: new SandboxProvider('yahoo', MAIL_SCOPES),
+  icloud: new SandboxProvider('icloud', MAIL_SCOPES),
+  imap: new SandboxProvider('imap', MAIL_SCOPES),
 };
 // Back-compat export (kept for any existing imports).
 export const PROVIDERS = SANDBOX;
@@ -164,5 +169,8 @@ export function listProviders(): { key: string; scopes: string[]; kind: string; 
   return [
     { key: 'gmail', scopes: GMAIL_SCOPES, kind: 'email', live: isProviderLive('gmail') },
     { key: 'outlook', scopes: OUTLOOK_SCOPES, kind: 'email', live: isProviderLive('outlook') },
+    { key: 'yahoo', scopes: MAIL_SCOPES, kind: 'email', live: isProviderLive('yahoo') },
+    { key: 'icloud', scopes: MAIL_SCOPES, kind: 'email', live: isProviderLive('icloud') },
+    { key: 'imap', scopes: MAIL_SCOPES, kind: 'email', live: isProviderLive('imap') },
   ];
 }

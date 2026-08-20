@@ -733,3 +733,42 @@ export const aiUsage = pgTable(
   },
   (t) => ({ createdIdx: index('ai_usage_created_idx').on(t.createdAt) }),
 );
+
+// ---- Communications: broadcast message board + unified conversations (0032) ----
+export const broadcasts = pgTable('broadcasts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  level: text('level').notNull().default('info'), // info | warning | critical
+  active: boolean('active').notNull().default(true),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const broadcastReads = pgTable('broadcast_reads', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  broadcastId: uuid('broadcast_id').notNull().references(() => broadcasts.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const conversations = pgTable('conversations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  source: text('source').notNull().default('app'), // app | website
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  name: text('name').notNull().default(''),
+  email: text('email'),
+  subject: text('subject').notNull().default('Support chat'),
+  status: text('status').notNull().default('open'), // open | closed
+  unreadStaff: integer('unread_staff').notNull().default(0),
+  unreadUser: integer('unread_user').notNull().default(0),
+  lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const conversationMessages = pgTable('conversation_messages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  conversationId: uuid('conversation_id').notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  authorRole: text('author_role').notNull(), // user | staff | bot
+  authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+  body: text('body').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

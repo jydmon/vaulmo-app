@@ -411,12 +411,15 @@ adminRouter.get('/dashboard', requirePermission(PERMISSIONS.PLATFORM_MANAGE), as
 
 // ================= Integrations management =================
 const DEFAULT_INTEGRATIONS = { providers: [
-  { id: 'gmail', name: 'Gmail', category: 'Email', enabled: true, plans: ['family', 'premium'] },
-  { id: 'outlook', name: 'Outlook', category: 'Email', enabled: true, plans: ['family', 'premium'] },
+  { id: 'gmail', name: 'Gmail', category: 'Email', enabled: true, plans: ['family'] },
+  { id: 'outlook', name: 'Outlook', category: 'Email', enabled: true, plans: ['family'] },
+  { id: 'yahoo', name: 'Yahoo Mail', category: 'Email', enabled: true, plans: ['family'] },
+  { id: 'icloud', name: 'iCloud Mail', category: 'Email', enabled: true, plans: ['family'] },
+  { id: 'imap', name: 'Other email (IMAP)', category: 'Email', enabled: true, plans: ['family'] },
   { id: 'google_drive', name: 'Google Drive', category: 'Storage', enabled: false, plans: [] },
   { id: 'onedrive', name: 'OneDrive', category: 'Storage', enabled: false, plans: [] },
   { id: 'google_calendar', name: 'Google Calendar', category: 'Calendar', enabled: false, plans: [] },
-  { id: 'openbanking', name: 'Open Banking', category: 'Finance', enabled: true, plans: ['premium'] },
+  { id: 'openbanking', name: 'Open Banking', category: 'Finance', enabled: true, plans: ['family'] },
 ] };
 
 adminRouter.get('/integrations', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {

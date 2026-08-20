@@ -235,6 +235,54 @@ function WelcomeTour({ me, go, onClose }: any) {
   </div>;
 }
 
+// Optional two-factor popup for regular users. Fully skippable ("Not now"); the choice
+// is remembered on this device, and 2FA can always be turned on later from Profile →
+// Security settings. (Admins are handled separately by ForceMfaSetup, which is mandatory.)
+const TWOFA_KEY = 'vaulmo_2fa_prompt';
+function TwoFactorPrompt({ me, refreshMe, onClose, go }: any) {
+  const [enroll, setEnroll] = useState<any>(null);
+  const [code, setCode] = useState('');
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function begin() { setErr(''); setBusy(true); try { setEnroll(await api.enrollMfa()); } catch (e) { setErr((e as any).message); } finally { setBusy(false); } }
+  async function confirm() { setErr(''); setBusy(true); try { const r = await api.confirmMfa(code.trim()); setCodes(r.recoveryCodes ?? []); await refreshMe(); } catch { setErr('That code didn’t match — check your authenticator and try again.'); } finally { setBusy(false); } }
+  function notNow() { try { localStorage.setItem(TWOFA_KEY, 'dismissed'); } catch { /* ignore */ } onClose(); }
+  function done() { try { localStorage.setItem(TWOFA_KEY, 'done'); } catch { /* ignore */ } onClose(); }
+  return <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,22,35,.55)', zIndex: 100, display: 'grid', placeItems: 'center', padding: 16 }}>
+    <div className="card" style={{ width: 480, maxWidth: '94vw', margin: 0 }}><div className="card-b">
+      {codes ? <>
+        <div style={{ fontSize: 34, textAlign: 'center' }}>✅</div>
+        <h2 style={{ margin: '6px 0', textAlign: 'center' }}>Two-factor is on</h2>
+        <p className="muted" style={{ textAlign: 'center', marginTop: 0 }}>Save these one-time recovery codes somewhere safe — each works once if you ever lose your authenticator.</p>
+        <div className="ok" style={{ textAlign: 'center', fontWeight: 700, letterSpacing: .5 }}>{codes.join('   ')}</div>
+        <div className="flex" style={{ justifyContent: 'center', marginTop: 14 }}><button className="btn" onClick={done}>Done</button></div>
+      </> : !enroll ? <>
+        <div style={{ fontSize: 34, textAlign: 'center' }}>🔐</div>
+        <h2 style={{ margin: '6px 0', textAlign: 'center' }}>Add extra security?</h2>
+        <p className="muted" style={{ textAlign: 'center', marginTop: 0 }}>Two-factor authentication adds a second step at sign-in using an authenticator app, so your password alone isn’t enough to get in. It’s optional — you can set it up now or any time later.</p>
+        {err && <div className="err" style={{ marginTop: 8 }}>{err}</div>}
+        <div className="flex" style={{ justifyContent: 'center', gap: 8, marginTop: 14 }}>
+          <button className="btn" disabled={busy} onClick={begin}>{busy ? '…' : 'Set up two-factor'}</button>
+          <button className="btn sec" onClick={notNow}>Not now</button>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 10 }}><A onClick={() => { notNow(); go && go('settings'); }} style={{ fontSize: 12.5, cursor: 'pointer' }}>You can also turn this on later from Profile → Security settings</A></div>
+      </> : <>
+        <h2 style={{ margin: '2px 0 8px', textAlign: 'center' }}>Set up two-factor</h2>
+        <div className="flex" style={{ alignItems: 'flex-start', gap: 14 }}>
+          <img src={enroll.qrDataUrl} width={140} height={140} style={{ borderRadius: 10, border: '1px solid var(--line)' }} alt="Two-factor QR code" />
+          <div style={{ flex: 1 }}>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13.5 }}>Scan the QR with Google Authenticator, 1Password or Authy (or enter the key <code style={{ fontSize: 11 }}>{enroll.secret}</code>), then enter the 6-digit code:</p>
+            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" style={{ maxWidth: 160 }} />
+            {err && <div className="err" style={{ marginTop: 8 }}>{err}</div>}
+            <div className="flex" style={{ gap: 8, marginTop: 10 }}><button className="btn" disabled={busy || code.length < 6} onClick={confirm}>{busy ? '…' : 'Confirm'}</button><button className="btn sec" onClick={notNow}>Cancel</button></div>
+          </div>
+        </div>
+      </>}
+    </div></div>
+  </div>;
+}
+
 const SOCIAL_META: Record<string, { label: string; ic: string }> = {
   google: { label: 'Continue with Google', ic: 'G' },
   microsoft: { label: 'Continue with Microsoft', ic: '⊞' },
@@ -338,7 +386,7 @@ function ForceMfaSetup({ user, onDone, onCancel }: { user: any; onDone: (u: any)
 
 /* ---------------- shell ---------------- */
 const TENANT_NAV = [
-  { grp: 'Vaulmo' }, { id: 'home', label: 'Home', ic: 'home' }, { id: 'vault', label: 'My Vault', ic: 'vault' },
+  { grp: 'Vaulmo' }, { id: 'home', label: 'Home', ic: 'home' }, { id: 'board', label: 'Messages', ic: 'notif' }, { id: 'vault', label: 'My Vault', ic: 'vault' },
   { id: 'personalise', label: 'Personalise', ic: 'settings' },
   { id: 'assistant', label: 'Ask Vaulmo', ic: 'assistant' }, { id: 'reminders', label: 'Reminders', ic: 'reminders' },
   { id: 'expiries', label: 'Renewals & Expiries', ic: 'reminders' },
@@ -346,9 +394,9 @@ const TENANT_NAV = [
   { id: 'passport', label: 'Passport Photo', ic: 'vault' },
   { grp: 'Life' }, { id: 'assets', label: 'Property & Vehicles', ic: 'vault' }, { id: 'trips', label: 'Trips', ic: 'trips' }, { id: 'purchases', label: 'Purchases', ic: 'purchases' },
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
-  { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'faq', label: 'FAQ', ic: 'help' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
+  { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'chat', label: 'Chat with support', ic: 'support' }, { id: 'faq', label: 'FAQ', ic: 'help' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'campaigns', label: 'Campaigns', ic: 'notif' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'website', label: 'Website (CMS)', ic: 'cms' }, { id: 'subscribers', label: 'Waitlist', ic: 'crm' }, { id: 'messages', label: 'Form submissions', ic: 'support' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'campaigns', label: 'Campaigns', ic: 'notif' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'website', label: 'Website (CMS)', ic: 'cms' }, { id: 'subscribers', label: 'Waitlist', ic: 'crm' }, { id: 'messages', label: 'Form submissions', ic: 'support' }, { id: 'conversations', label: 'Conversations', ic: 'support' }, { id: 'broadcasts', label: 'Broadcasts', ic: 'notif' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
 
 function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; refreshMe: () => Promise<void> }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -356,8 +404,18 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
   const [active, setActive] = useState(isSuper ? 'home' : 'home');
   const [unread, setUnread] = useState(0);
   const [showTour, setShowTour] = useState(!isSuper && !!me.onboarding?.complete && !me.onboarding?.tourSeen);
+  // Optional 2FA popup: regular users only, once per device, after the tour, unless already on.
+  const twofaDismissed = (() => { try { return !!localStorage.getItem(TWOFA_KEY); } catch { return false; } })();
+  const [show2fa, setShow2fa] = useState(false);
+  useEffect(() => { if (!isSuper && !me.mfaEnabled && me.onboarding?.complete && !showTour && !twofaDismissed) setShow2fa(true); }, [isSuper, me.mfaEnabled, me.onboarding?.complete, showTour, twofaDismissed]);
   const { toast, node } = useToast();
   useEffect(() => { if (!isSuper) api.unread().then((r) => setUnread(r.unread)).catch(() => {}); }, [active, isSuper]);
+  // Broadcast message board + support-chat unread badges (tenant users only).
+  const [bcasts, setBcasts] = useState<any[]>([]);
+  const [chatUnread, setChatUnread] = useState(0);
+  useEffect(() => { if (!isSuper) { api.broadcasts().then((r) => setBcasts(r.broadcasts ?? [])).catch(() => {}); api.supportChatUnread().then((r) => setChatUnread(r.unread ?? 0)).catch(() => {}); } }, [active, isSuper]);
+  const unreadBcasts = bcasts.filter((b) => !b.read);
+  async function dismissBcast(id: string) { setBcasts((s) => s.map((b) => (b.id === id ? { ...b, read: true } : b))); try { await api.markBroadcastRead(id); } catch { /* ignore */ } }
   const [cfg, setCfg] = useState<any>({ announcements: [], environment: '' });
   const [dismissed, setDismissed] = useState<string[]>([]);
   useEffect(() => { api.configPublic().then(setCfg).catch(() => {}); }, []);
@@ -370,7 +428,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     reminders: ['Reminders', 'What needs your attention'], expiries: ['Renewals & Expiries', 'Everything coming due, in one place'], passwords: ['Password Vault', 'Passwords, cards & secure notes'], passport: ['Passport Photo', 'A compliant photo from any picture'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], assets: ['Property & Vehicles', 'Your home, car & other assets'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], website: ['Website (CMS)', 'Edit the public vaulmo.com pages'], subscribers: ['Waitlist', 'People who signed up on the website'], messages: ['Form submissions', 'Messages sent via the website contact form'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], website: ['Website (CMS)', 'Edit the public vaulmo.com pages'], subscribers: ['Waitlist', 'People who signed up on the website'], messages: ['Form submissions', 'Messages sent via the website contact form'], conversations: ['Conversations', 'Live chats from the app and website'], broadcasts: ['Broadcasts', 'Post a message to every user'], board: ['Messages', 'Announcements from the Vaulmo team'], chat: ['Chat with support', 'Message our team and see replies'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
   const help: Record<string, string> = {
@@ -402,6 +460,10 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     website: 'Edit the text and content of the public marketing website (vaulmo.com) — every page and section. Changes go live on the site immediately.',
     subscribers: 'Everyone who signed up on the website to be notified at launch. Export them as a CSV for your email tool.',
     messages: 'Messages people send through the website contact form. Read them here, mark them done, and export them as a CSV.',
+    conversations: 'Live chat conversations — from users inside the app and from visitors on the website chat widget. Reply here; website replies are emailed to the visitor.',
+    broadcasts: 'Post an announcement that every Vaulmo user sees on their Messages page and as a banner until they read it.',
+    board: 'Announcements and updates from the Vaulmo team.',
+    chat: 'Message the Vaulmo support team and see their replies here.',
     campaigns: 'Send email campaigns to segments of your users, and manage automated communication workflows.',
     cms: 'Create and manage the help-centre articles customers see.',
     catalogue: 'The recommended-document list, the metadata fields AI extracts, and reminder rules.',
@@ -415,14 +477,14 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     health: 'Live status of every platform component.',
     audit: 'A complete, append-only log of platform activity.',
   };
-  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, expiries: <Expiries />, passwords: <Passwords toast={toast} />, passport: <PassportTool toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, website: <AdminSite toast={toast} />, subscribers: <AdminSubscribers toast={toast} />, messages: <AdminMessages toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, expiries: <Expiries />, passwords: <Passwords toast={toast} />, passport: <PassportTool toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, website: <AdminSite toast={toast} />, subscribers: <AdminSubscribers toast={toast} />, messages: <AdminMessages toast={toast} />, conversations: <AdminConversations toast={toast} />, broadcasts: <AdminBroadcasts toast={toast} />, board: <UserMessages toast={toast} />, chat: <UserChat toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
     <a href="#main" className="skip-link">Skip to main content</a>
     <aside className="sidebar">
       <div className="sb-brand"><Mark size={34} /><div><b>Vaulmo</b><span>{isSuper ? 'Admin' : 'Family Vault'}</span></div></div>
       <nav className="nav" aria-label="Primary">{nav.map((n: any, i) => n.grp ? <div className="grp" key={i}>{n.grp}</div> :
-        <button key={n.id} className={active === n.id ? 'on' : ''} aria-current={active === n.id ? 'page' : undefined} onClick={() => setActive(n.id)}><Icon k={n.ic} />{n.label}{n.id === 'reminders' && unread > 0 && <span className="dot">{unread}</span>}</button>)}
+        <button key={n.id} className={active === n.id ? 'on' : ''} aria-current={active === n.id ? 'page' : undefined} onClick={() => setActive(n.id)}><Icon k={n.ic} />{n.label}{n.id === 'reminders' && unread > 0 && <span className="dot">{unread}</span>}{n.id === 'board' && unreadBcasts.length > 0 && <span className="dot">{unreadBcasts.length}</span>}{n.id === 'chat' && chatUnread > 0 && <span className="dot">{chatUnread}</span>}</button>)}
       </nav>
       <div className="sb-foot"><div className="av">{me.fullName.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}</div><div><div className="nm">{me.fullName}</div><div className="rl">{isSuper ? 'Super Admin' : me.tenant?.name ?? 'Member'}</div></div></div>
     </aside>
@@ -433,11 +495,13 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
       </div></div>
       <div className="view" key={active}>
         {anns.map((a: any) => <div key={a.id} className="card" style={{ marginBottom: 16, border: 0, background: a.level === 'critical' ? 'var(--crit-bg)' : a.level === 'warning' ? 'var(--warn-bg)' : 'var(--brand-soft)' }}><div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><div><b>{a.title}</b>{a.body && <div style={{ fontSize: 13.5, marginTop: 3 }}>{a.body}</div>}</div><A onClick={() => setDismissed([...dismissed, a.id])} aria-label={`Dismiss announcement: ${a.title}`} style={{ cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--soft)' }}>×</A></div></div>)}
+        {!isSuper && active !== 'board' && unreadBcasts.map((b: any) => <div key={b.id} className="card" style={{ marginBottom: 16, border: 0, background: b.level === 'critical' ? 'var(--crit-bg)' : b.level === 'warning' ? 'var(--warn-bg)' : 'var(--brand-soft)' }}><div className="card-b flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><div><b>{b.title}</b>{b.body && <div style={{ fontSize: 13.5, marginTop: 3 }}>{b.body}</div>}<div style={{ marginTop: 6 }}><A onClick={() => setActive('board')} style={{ cursor: 'pointer', fontSize: 12.5, color: 'var(--brand)' }}>View all messages →</A></div></div><A onClick={() => dismissBcast(b.id)} aria-label={`Dismiss: ${b.title}`} style={{ cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--soft)' }}>×</A></div></div>)}
         {views[active]}
       </div>
     </main>
     {node}
     {showTour && <WelcomeTour me={me} go={setActive} onClose={() => { setShowTour(false); refreshMe(); }} />}
+    {show2fa && <TwoFactorPrompt me={me} refreshMe={refreshMe} go={setActive} onClose={() => { setShow2fa(false); refreshMe(); }} />}
   </div>;
 }
 
@@ -521,7 +585,7 @@ function Profile({ me, toast, refreshMe, go }: any) {
       <div className="row"><div className="m"><div className="t">Account type</div><div className="s">{isSuper ? 'Platform administrator' : 'Household member'}</div></div></div>
       {!isSuper && me.tenant && <div className="row"><div className="m"><div className="t">Plan</div><div className="s" style={{ textTransform: 'capitalize' }}>{me.tenant.plan} · {me.tenant.status}</div></div>{go && <button className="btn sm sec" onClick={() => go('billing')}>Manage</button>}</div>}
       <div className="row"><div className="m"><div className="t">Member since</div><div className="s">{fmt(me.createdAt)}</div></div></div>
-      <div className="row"><div className="m"><div className="t">Two-factor authentication</div><div className="s">{me.mfaEnabled ? 'Enabled' : 'Not enabled'}</div></div><button className="btn sm sec" onClick={() => go && go('settings')}>Security settings</button></div>
+      <div className="row"><div className="m"><div className="t">Two-factor authentication</div><div className="s">{me.mfaEnabled ? 'Enabled — your account has an extra layer of security.' : 'Optional. Add an authenticator app for extra security.'}</div></div><button className={`btn sm ${me.mfaEnabled ? 'sec' : ''}`} onClick={() => go && go('settings')}>{me.mfaEnabled ? 'Security settings' : 'Enable two-factor'}</button></div>
     </Card>
   </>;
 }
@@ -951,7 +1015,7 @@ function Connected({ toast }: any) {
   return <>
     <div className="grid2">
       <Card title="Connect a service">
-        {['gmail', 'outlook'].map((p) => <div className="row" key={p}><div className="ic" style={{ background: 'var(--brand-soft)' }}>{p === 'gmail' ? '📧' : '📨'}</div><div className="m"><div className="t">{cap(p)}</div><div className="s">Import trips, receipts & subscriptions</div></div><button className="btn sm" onClick={() => connect(p)} disabled={!!busy}>{busy === p ? '…' : 'Connect'}</button></div>)}
+        {[['gmail', 'Gmail'], ['outlook', 'Outlook'], ['yahoo', 'Yahoo Mail'], ['icloud', 'iCloud Mail'], ['imap', 'Other email (IMAP)']].map(([p, label]) => <div className="row" key={p}><div className="ic" style={{ background: 'var(--brand-soft)' }}>{intIcon(p)}</div><div className="m"><div className="t">{label}</div><div className="s">Import trips, receipts & subscriptions</div></div><button className="btn sm" onClick={() => connect(p)} disabled={!!busy}>{busy === p ? '…' : 'Connect'}</button></div>)}
         <div className="row"><div className="ic" style={{ background: 'var(--aqua-bg)' }}>🏦</div><div className="m"><div className="t">Open Banking</div><div className="s">Detect recurring subscriptions from your statement</div></div><button className="btn sm" onClick={connectBank} disabled={!!busy}>{busy === 'bank' ? '…' : 'Connect'}</button></div>
         <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>Sandbox providers in this environment — read-only, tokens stored encrypted. Detected items never go live until you confirm them.</p>
       </Card>
@@ -2276,6 +2340,96 @@ function AdminMessages({ toast }: any) {
     </div>}
   </div>;
 }
+function AdminBroadcasts({ toast }: any) {
+  const { data, reload } = useData(() => api.adminBroadcasts());
+  const [f, setF] = useState({ title: '', body: '', level: 'info' });
+  const [busy, setBusy] = useState(false);
+  const list = data?.broadcasts ?? [];
+  async function post() {
+    if (!f.title.trim() || !f.body.trim()) { toast('Add a title and message'); return; }
+    setBusy(true);
+    try { await api.adminCreateBroadcast({ title: f.title.trim(), body: f.body.trim(), level: f.level, active: true }); setF({ title: '', body: '', level: 'info' }); reload(); toast('Broadcast published to all users'); }
+    catch (e) { toast((e as any).message); } finally { setBusy(false); }
+  }
+  async function toggle(b: any) { try { await api.adminUpdateBroadcast(b.id, { active: !b.active }); reload(); } catch (e) { toast((e as any).message); } }
+  async function del(id: string) { if (!window.confirm('Delete this broadcast?')) return; try { await api.adminDeleteBroadcast(id); reload(); } catch (e) { toast((e as any).message); } }
+  return <div>
+    <Card title="Post a broadcast" help="Every Vaulmo user sees this on their Messages page, and active messages show as a banner until each person reads it.">
+      <label>Title<input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="New: passport photo tool is live" /></label>
+      <label>Message<textarea rows={4} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} placeholder="Tell your users what’s new…" /></label>
+      <label>Importance<select value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })} style={{ maxWidth: 220 }}><option value="info">Info</option><option value="warning">Important</option><option value="critical">Critical</option></select></label>
+      <button className="btn" style={{ marginTop: 12 }} disabled={busy} onClick={post}>{busy ? 'Publishing…' : 'Publish to all users'}</button>
+    </Card>
+    <Card title={`${list.length} broadcast${list.length === 1 ? '' : 's'}`}>
+      {list.length ? <table><thead><tr><th>Title</th><th>Importance</th><th>Reads</th><th>Status</th><th></th></tr></thead>
+        <tbody>{list.map((b: any) => <tr key={b.id}><td><b>{b.title}</b><div className="muted" style={{ fontSize: 12 }}>{fmt(b.createdAt)}</div></td><td><span className={`pill ${b.level === 'critical' ? 'p-crit' : b.level === 'warning' ? 'p-warn' : 'p-neutral'}`}>{b.level}</span></td><td>{b.readCount}</td><td><button className={`pill ${b.active ? 'p-good' : 'p-neutral'}`} style={{ cursor: 'pointer' }} onClick={() => toggle(b)}>{b.active ? 'Active' : 'Hidden'}</button></td><td><button className="btn sm sec" onClick={() => del(b.id)}>Delete</button></td></tr>)}</tbody></table>
+        : <div className="empty">No broadcasts yet — post your first above.</div>}
+    </Card>
+  </div>;
+}
+function ChatBubbles({ messages, mineRole }: { messages: any[]; mineRole: string }) {
+  return <div style={{ display: 'grid', gap: 8, maxHeight: 420, overflowY: 'auto', marginBottom: 12, minHeight: 120 }}>
+    {messages.length ? messages.map((m: any) => { const mine = (m.role ?? m.authorRole) === mineRole; const role = m.role ?? m.authorRole;
+      return <div key={m.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+        <div style={{ maxWidth: '80%', padding: '9px 12px', borderRadius: 12, fontSize: 14, background: mine ? 'var(--brand)' : 'var(--surface-2)', color: mine ? '#fff' : 'var(--ink)' }}>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{m.body}</div>
+          <div style={{ fontSize: 10, opacity: .7, marginTop: 3 }}>{role === 'staff' ? 'Vaulmo Support' : role === 'bot' ? 'Assistant' : role === 'user' ? (mineRole === 'user' ? 'You' : 'Customer') : role} · {fmt(m.createdAt)}</div>
+        </div></div>;
+    }) : <div className="empty">No messages yet.</div>}
+  </div>;
+}
+function AdminConversations({ toast }: any) {
+  const { data, reload } = useData(() => api.adminConversations());
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [reply, setReply] = useState('');
+  const [busy, setBusy] = useState(false);
+  const convs = data?.conversations ?? [];
+  async function open(id: string) { setOpenId(id); setDetail(null); try { setDetail(await api.adminConversation(id)); reload(); } catch (e) { toast((e as any).message); } }
+  async function send() { if (!reply.trim()) return; setBusy(true); try { await api.adminReplyConversation(openId!, reply.trim()); setReply(''); setDetail(await api.adminConversation(openId!)); reload(); } catch (e) { toast((e as any).message); } finally { setBusy(false); } }
+  async function close() { try { await api.adminCloseConversation(openId!); setDetail(await api.adminConversation(openId!)); reload(); } catch (e) { toast((e as any).message); } }
+  return <div className="grid2" style={{ alignItems: 'start' }}>
+    <Card title="Conversations" help="Live chats from users in the app and visitors on the website widget. Replies to website chats are emailed to the visitor.">
+      {convs.length ? <div style={{ display: 'grid', gap: 6 }}>{convs.map((c: any) => <button key={c.id} className="row" style={{ textAlign: 'left', cursor: 'pointer', border: openId === c.id ? '1px solid var(--brand)' : '1px solid var(--line)', borderRadius: 10, background: '#fff' }} onClick={() => open(c.id)}>
+        <div className="ic" style={{ background: c.source === 'website' ? 'var(--aqua-bg)' : 'var(--brand-soft)' }}>{c.source === 'website' ? '🌐' : '📱'}</div>
+        <div className="m"><div className="t">{c.name || c.email || 'Guest'} {c.unreadStaff > 0 && <span className="pill p-crit" style={{ marginLeft: 6 }}>{c.unreadStaff} new</span>}</div><div className="s">{c.source === 'website' ? 'Website' : 'App'} · {fmt(c.lastMessageAt)}{c.status === 'closed' ? ' · closed' : ''}</div></div>
+      </button>)}</div> : <div className="empty">No conversations yet.</div>}
+    </Card>
+    <Card title={detail ? `Chat with ${detail.conversation.name || detail.conversation.email || 'guest'}` : 'Select a conversation'}>
+      {detail ? <>
+        <ChatBubbles messages={detail.messages ?? []} mineRole="staff" />
+        {detail.conversation.email && <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Contact: {detail.conversation.email}</div>}
+        <textarea rows={3} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Type your reply…" />
+        <div className="flex" style={{ gap: 8, marginTop: 8 }}><button className="btn" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send reply'}</button><button className="btn sec" onClick={close}>Close chat</button></div>
+      </> : <div className="empty">Pick a conversation on the left to read and reply.</div>}
+    </Card>
+  </div>;
+}
+function UserMessages({ toast }: any) {
+  const { data, reload } = useData(() => api.broadcasts());
+  const list = data?.broadcasts ?? [];
+  useEffect(() => { if (data && data.unread > 0) { api.markAllBroadcastsRead().then(() => reload()).catch(() => {}); } /* eslint-disable-next-line */ }, [data?.unread]);
+  return <div>
+    <Card title="Messages" help="Announcements and updates from the Vaulmo team.">
+      {list.length ? <div style={{ display: 'grid', gap: 12 }}>{list.map((b: any) => <div key={b.id} className="card" style={{ margin: 0, border: b.level === 'critical' ? '1px solid var(--crit)' : b.level === 'warning' ? '1px solid var(--warn)' : '1px solid var(--line)' }}><div className="card-b">
+        <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><b>{b.title}</b>{!b.read && <span className="pill p-good">new</span>}</div>
+        <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 6, color: 'var(--soft)' }}>{b.body}</div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>{fmt(b.createdAt)}</div>
+      </div></div>)}</div> : <div className="empty">No messages yet. Announcements from the Vaulmo team will appear here.</div>}
+    </Card>
+  </div>;
+}
+function UserChat({ toast }: any) {
+  const { data, reload } = useData(() => api.supportChat());
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const msgs = data?.messages ?? [];
+  async function send() { if (!msg.trim()) return; setBusy(true); try { await api.sendSupportChat(msg.trim()); setMsg(''); reload(); } catch (e) { toast((e as any).message); } finally { setBusy(false); } }
+  return <Card title="Chat with support" help="Send us a message and our team will reply here. Check back to see their replies.">
+    <ChatBubbles messages={msgs} mineRole="user" />
+    <div className="flex" style={{ gap: 8 }}><input value={msg} onChange={(e) => setMsg(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Type a message…" style={{ flex: 1, marginTop: 0 }} /><button className="btn" disabled={busy} onClick={send}>{busy ? '…' : 'Send'}</button></div>
+  </Card>;
+}
 function AdminCMS({ toast }: any) {
   const { data, reload } = useData(() => api.adminArticles());
   const [edit, setEdit] = useState<any>(null);
@@ -2937,7 +3091,7 @@ function AdminAI({ toast }: any) {
 }
 
 /* ---------------- Integrations management ---------------- */
-const intIcon = (id: string) => ({ gmail: '📧', outlook: '📨', google_drive: '📁', onedrive: '☁️', google_calendar: '📅', openbanking: '🏦' } as any)[id] ?? '🔌';
+const intIcon = (id: string) => ({ gmail: '📧', outlook: '📨', yahoo: '💜', icloud: '☁️', imap: '✉️', google_drive: '📁', onedrive: '☁️', google_calendar: '📅', openbanking: '🏦' } as any)[id] ?? '🔌';
 function AdminIntegrations({ toast }: any) {
   const { data, reload } = useData(() => api.adminIntegrations());
   const [cfg, setCfg] = useState<any>(null);

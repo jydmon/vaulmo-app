@@ -9,7 +9,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
-import { api, setTokens, loadTokens, hasToken, uploadText, uploadImage, fileSize, processPassport, ApiError, type AuthResult } from './src/api';
+import { api, setTokens, loadTokens, hasToken, uploadText, uploadImage, fileSize, processPassport, ApiError, getFlag, setFlag, type AuthResult } from './src/api';
 import { getCapability, isBiometricEnabled, setBiometricEnabled, shouldLock, authenticate, type BiometricCapability } from './src/biometric';
 import { registerForPush } from './src/push';
 
@@ -35,10 +35,19 @@ export default function App() {
   const [sub, setSub] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [showTour, setShowTour] = useState(false);
+  const [show2fa, setShow2fa] = useState(false);
   const [locked, setLocked] = useState(false); // biometric app-lock gate on launch
   useEffect(() => {
     if (me && !((me.roles ?? []).includes('super_admin')) && me.onboarding?.complete && !me.onboarding?.tourSeen) setShowTour(true);
     if (me && !((me.roles ?? []).includes('super_admin')) && me.onboarding?.complete) registerForPush();
+  }, [me]);
+  // Optional 2FA popup — regular users only, shown after the tour, remembered on this device.
+  useEffect(() => {
+    (async () => {
+      if (me && !((me.roles ?? []).includes('super_admin')) && me.onboarding?.complete && me.onboarding?.tourSeen && !me.mfaEnabled) {
+        if (!(await getFlag('twofa'))) setShow2fa(true);
+      }
+    })();
   }, [me]);
 
   // Restore the stored session once biometric (if enabled) has been satisfied.
@@ -60,7 +69,7 @@ export default function App() {
 
   if (booting) return (
     <SafeAreaView style={[st.safe, { justifyContent: 'center', alignItems: 'center' }]}><StatusBar style="dark" />
-      <View style={st.logoLg}><Text style={st.logoLgTxt}>V</Text></View>
+      <Image source={require('./assets/icon.png')} style={st.logoLg} resizeMode="cover" />
       <Text style={{ marginTop: 16, color: C.soft, fontWeight: '600' }}>Vaulmo</Text>
     </SafeAreaView>
   );
@@ -109,6 +118,14 @@ export default function App() {
       {/* welcome tour (post-onboarding) */}
       <Modal visible={showTour} transparent animationType="fade" onRequestClose={() => setShowTour(false)}>
         <WelcomeTour me={me} goSettings={() => { setShowTour(false); api.tourSeen().catch(() => {}); setTab('profile'); setSub('settings'); }} onClose={async () => { setShowTour(false); try { await api.tourSeen(); } catch {} refreshMe(); }} />
+      </Modal>
+
+      {/* optional two-factor prompt (skippable; can enable later from You → Settings) */}
+      <Modal visible={show2fa} transparent animationType="fade" onRequestClose={() => setShow2fa(false)}>
+        <TwoFactorPrompt
+          onSetup={async () => { await setFlag('twofa', 'seen'); setShow2fa(false); setTab('profile'); setSub('settings'); }}
+          onNotNow={async () => { await setFlag('twofa', 'seen'); setShow2fa(false); }}
+        />
       </Modal>
 
       {/* secondary feature screens (pushed from the You tab) */}
@@ -169,7 +186,7 @@ function Auth({ onAuthed }: { onAuthed: (me: any) => void }) {
     <SafeAreaView style={st.safe}><StatusBar style="dark" />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={st.authWrap} keyboardShouldPersistTaps="handled">
-          <View style={st.logoLg}><Text style={st.logoLgTxt}>V</Text></View>
+          <Image source={require('./assets/icon.png')} style={st.logoLg} resizeMode="cover" />
           <Text style={st.authTitle}>{mode === 'register' ? 'Create your household' : mode === 'mfa' ? 'Two-factor code' : 'Welcome to Vaulmo'}</Text>
           <Text style={st.authSub}>{mode === 'register' ? 'Your secure home for life’s important documents.' : mode === 'mfa' ? 'Enter the 6-digit code from your authenticator app.' : 'Sign in to your family vault.'}</Text>
           {!!err && <View style={st.errBox}><Text style={st.errTxt}>{err}</Text></View>}
@@ -233,7 +250,7 @@ function LockScreen({ onUnlock, onUsePassword }: { onUnlock: () => void | Promis
   const glyph = cap?.kind === 'face' ? '🙂' : cap?.kind === 'iris' ? '👁️' : '🔒';
   return (
     <SafeAreaView style={[st.safe, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}><StatusBar style="dark" />
-      <View style={st.logoLg}><Text style={st.logoLgTxt}>V</Text></View>
+      <Image source={require('./assets/icon.png')} style={st.logoLg} resizeMode="cover" />
       <Text style={[st.authTitle, { marginTop: 18 }]}>Vaulmo is locked</Text>
       <Text style={[st.authSub, { textAlign: 'center' }]}>Use {label} to unlock your vault.</Text>
       {failed && <View style={[st.errBox, { marginTop: 12 }]}><Text style={st.errTxt}>Unlock cancelled or not recognised. Try again.</Text></View>}
@@ -255,7 +272,7 @@ function OnboardingGate({ me, refreshMe, onSignOut }: any) {
   return (
     <SafeAreaView style={st.safe}><StatusBar style="dark" />
       <ScrollView contentContainerStyle={[st.pad, { paddingTop: 40 }]} keyboardShouldPersistTaps="handled">
-        <View style={st.logoLg}><Text style={st.logoLgTxt}>V</Text></View>
+        <Image source={require('./assets/icon.png')} style={st.logoLg} resizeMode="cover" />
         <Text style={[st.authTitle, { marginTop: 16 }]}>Let’s get you set up</Text>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 12, marginBottom: 8 }}>
           {[1, 2, 3].map((n) => <View key={n} style={{ flex: 1, height: 4, borderRadius: 3, backgroundColor: n <= stepNo ? C.brand : C.line }} />)}
@@ -357,6 +374,19 @@ function WelcomeTour({ me, goSettings, onClose }: any) {
           <TouchableOpacity style={[st.btn, { flex: 1 }]} onPress={() => i < TOUR_SLIDES.length - 1 ? setI(i + 1) : onClose()}><Text style={st.btnTxt}>{i < TOUR_SLIDES.length - 1 ? 'Next' : 'Get started'}</Text></TouchableOpacity>
         </View>
       </>}
+    </View>
+  </View>;
+}
+
+// Optional two-factor popup. Fully skippable; 2FA can be enabled later from You → Settings.
+function TwoFactorPrompt({ onSetup, onNotNow }: any) {
+  return <View style={{ flex: 1, backgroundColor: 'rgba(16,22,35,0.55)', justifyContent: 'center', padding: 20 }}>
+    <View style={[st.card, { margin: 0 }]}>
+      <Text style={{ fontSize: 38, textAlign: 'center' }}>🔐</Text>
+      <Text style={[st.cardT, { textAlign: 'center', fontSize: 18 }]}>Add extra security?</Text>
+      <Text style={[st.muted, { textAlign: 'center' }]}>Two-factor authentication adds a second step at sign-in using an authenticator app, so your password alone isn’t enough. It’s optional — set it up now, or any time later from You → Settings.</Text>
+      <Btn label="Set up two-factor" onPress={onSetup} />
+      <Btn label="Not now" secondary onPress={onNotNow} />
     </View>
   </View>;
 }
@@ -947,6 +977,7 @@ function Profile({ me, refreshMe, onSignOut, openSub }: any) {
       <MenuItem ic="🛡️" bg={C.goodBg} t="Emergency Access" s="Requests to reach your vault" onPress={() => openSub('emergency')} />
 
       <SectionTitle>Account</SectionTitle>
+      {!me.mfaEnabled && <MenuItem ic="🔐" bg={C.warnBg} t="Enable two-factor" s="Optional — add a second sign-in step" onPress={() => openSub('settings')} />}
       <MenuItem ic="💳" bg={C.violetBg} t="Plan & Billing" s="Your subscription" onPress={() => openSub('billing')} />
       <MenuItem ic="🔐" bg={C.goodBg} t="Privacy & Security" s="Activity, export & data" onPress={() => openSub('privacy')} />
       <MenuItem ic="⚙️" bg={C.surf2} t="Settings" s="Security & notifications" onPress={() => openSub('settings')} />

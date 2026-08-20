@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { desc, sql, eq as eqOp } from 'drizzle-orm';
 import { db } from '../../db/client';
-import { sitePages, siteSubscribers, plans, contactMessages } from '../../db/schema';
+import { sitePages, siteSubscribers, plans, contactMessages, conversations, conversationMessages } from '../../db/schema';
 import { MODULES, effectiveModules, netAmount } from '../../lib/modules';
 import { requireAuth, requireMfaSatisfied } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
@@ -121,6 +121,71 @@ siteRouter.options('/contact', (_req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'content-type');
   res.status(204).end();
 });
+
+// ---- Public: website help bot + "talk to a human" hand-off ----
+// The bot answers from the site's own content (FAQ + page sections). No external LLM
+// is required: it scores each answer candidate by keyword overlap with the question and
+// returns the best match, or a friendly fallback that offers to pass the visitor to staff.
+const STOP = new Set('the a an and or of to for is are do does can how what when where why my your you we it in on at with be this that i me our will if not no yes as by from about into your yours have has'.split(' '));
+const tokenize = (s: string) => String(s || '').toLowerCase().match(/[a-z0-9]+/g)?.filter((t) => t.length > 2 && !STOP.has(t)) ?? [];
+
+async function botCandidates(): Promise<{ q: string; a: string }[]> {
+  const out: { q: string; a: string }[] = [];
+  const pages = await allPages();
+  for (const p of pages) {
+    const c: any = p.content || {};
+    if (Array.isArray(c.items)) for (const it of c.items) if (it?.q && it?.a) out.push({ q: it.q, a: it.a }); // FAQ
+    if (Array.isArray(c.sections)) for (const s of c.sections) if (s?.heading && s?.body) out.push({ q: s.heading, a: s.body });
+    if (Array.isArray(c.channels)) for (const s of c.channels) if (s?.name && s?.detail) out.push({ q: s.name, a: s.detail });
+    if (c.intro && (c.title || p.title)) out.push({ q: String(c.title || p.title), a: String(c.intro) });
+  }
+  return out;
+}
+function answerFor(query: string, cands: { q: string; a: string }[]) {
+  const qt = tokenize(query);
+  if (!qt.length) return { matched: false, answer: '' };
+  let best: { score: number; a: string; q: string } | null = null;
+  for (const c of cands) {
+    const ct = new Set([...tokenize(c.q), ...tokenize(c.a)]);
+    let score = 0;
+    for (const t of qt) if (ct.has(t)) score += tokenize(c.q).includes(t) ? 2 : 1; // heading matches weigh more
+    if (!best || score > best.score) best = { score, a: c.a, q: c.q };
+  }
+  const matched = !!best && best.score >= Math.max(2, Math.ceil(qt.length * 0.5));
+  return { matched, answer: matched ? best!.a : '', topic: best?.q };
+}
+
+const chatSchema = z.object({ message: z.string().min(1).max(1000) });
+siteRouter.post('/chat', async (req, res) => {
+  const { message } = chatSchema.parse(req.body);
+  const cands = await botCandidates();
+  const r = answerFor(message, cands);
+  res.json({
+    answer: r.matched ? r.answer : 'I’m not fully sure about that one — but our team can help. Tap “Talk to a human” and leave your email, and we’ll get back to you.',
+    matched: r.matched,
+    offerHandoff: true,
+  });
+});
+
+const handoffSchema = z.object({
+  name: z.string().min(1).max(120),
+  email: z.string().email().max(200),
+  message: z.string().min(1).max(4000),
+  transcript: z.string().max(8000).optional(),
+});
+siteRouter.post('/chat/handoff', async (req, res) => {
+  const b = handoffSchema.parse(req.body);
+  const [c] = await db.insert(conversations).values({
+    source: 'website', name: b.name.trim(), email: b.email.toLowerCase().trim(),
+    subject: 'Website chat', unreadStaff: 1,
+  }).returning({ id: conversations.id });
+  const body = b.transcript ? `${b.message.trim()}\n\n— chat so far —\n${b.transcript}` : b.message.trim();
+  await db.insert(conversationMessages).values({ conversationId: c.id, authorRole: 'user', body });
+  await audit({ action: 'site.chat.handoff', targetType: 'conversation', targetId: c.id, metadata: { email: b.email.toLowerCase().trim() }, req });
+  res.status(201).json({ ok: true });
+});
+siteRouter.options('/chat', (_req, res) => { res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS'); res.setHeader('Access-Control-Allow-Headers', 'content-type'); res.status(204).end(); });
+siteRouter.options('/chat/handoff', (_req, res) => { res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS'); res.setHeader('Access-Control-Allow-Headers', 'content-type'); res.status(204).end(); });
 
 // ---- Admin: edit site content (platform admins only) ----
 const adminGuard = [requireAuth, requireMfaSatisfied, requirePermission(PERMISSIONS.PLATFORM_MANAGE)];
