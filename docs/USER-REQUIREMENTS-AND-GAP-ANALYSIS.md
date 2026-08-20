@@ -449,3 +449,28 @@ Three "credentials-ready" capabilities — each works the moment you add the rel
 Notes: OAuth id-tokens are read from the provider's own token endpoint over TLS (server-to-server), so claims are trusted without a separate JWKS check — fine for extracting a verified email; JWKS verification can be added later for defence-in-depth. Social sign-in currently issues a full session for accounts without app-level TOTP; MFA-over-OAuth can be layered on if you enable mandatory TOTP for social accounts. Push requires a fresh mobile build to include the notifications module.
 
 **Remaining backlog**: optional billing proration once Stripe is live. Everything else in the brief is implemented; the items above just need your credentials to go live.
+
+## Build plan — Marketing website + CMS (this increment: ✅ done & tested)
+
+The public site (vaulmo.com) is now a proper multi-page site, fully editable from the admin console. Migrated (`0027_site_pages.sql`) and verified (full API suite green plus an 8-check `site.smoke.ts`):
+
+1. ✅ **Download button fixed** — the nav Download button now shows white text (a CSS specificity bug made `.nav-links a` override `.btn`'s white; fixed with a targeted rule).
+2. ✅ **Real pages** — Features, Security, Privacy, Support, About, Contact and FAQs are now full pages (not just anchors), each with proper content, plus the home page. A hash router (`#/features`, `#/faq`, …) drives navigation; the FAQ page uses an accordion; Contact shows structured details.
+3. ✅ **Everything is CMS-editable** — a new **Website (CMS)** area in the admin console lets a platform admin edit every page and section: headings, intros, feature cards, FAQ Q&As, security points, contact details, the nav/footer links and the store URLs. A generic editor renders each field automatically and supports adding/removing list items. Each page can be reset to its default.
+4. ✅ **How it works** — the landing site fetches content from a public, CORS-open API (`GET /site/pages`) and renders it, falling back to built-in default copy if the API is briefly unreachable, so the site is never blank. Admin edits (`PUT /site/admin/pages/:slug`, PLATFORM_MANAGE, audited) go live immediately.
+
+Deployment note: the landing calls the API at `https://app.vaulmo.com`. Because the site is a separate origin, the `/site` endpoints send permissive CORS for their public GETs — no extra config needed. The new `site_pages` table migrates automatically on deploy.
+
+**Remaining backlog**: optional billing proration once Stripe is live; and social sign-in / live email / push only need your provider credentials to activate.
+
+## Build plan — Website waitlist, socials & launch popup (this increment: ✅ done & tested)
+
+Turning the marketing site into a lead-capture funnel, all CMS/CRM-driven. Migrated (`0028_site_subscribers.sql`) and verified (full API suite green plus the site smoke extended to 14 checks):
+
+1. ✅ **Waitlist sign-up form (top & bottom)** — the same form (name, email, and a “notify me when you launch” tick) appears near the top of the home page and again at the bottom. Submissions POST to a public endpoint and are captured to a `site_subscribers` table (idempotent on email; invalid emails rejected).
+2. ✅ **Launch pop-up on download** — tapping **Download**, **App Store** or **Google Play** before launch opens a pop-up (“Vaulmo isn’t live just yet”) containing the same sign-up form, so intent-to-download is captured. Once you set real store URLs in the CMS, those buttons switch to opening the stores instead — no code change.
+3. ✅ **Social links** — Instagram, X/Twitter and Facebook icons in the footer, each shown only when its link is set.
+4. ✅ **CMS-driven** — the form copy, success message, pop-up text, and social links all live in the site CMS (the “Global” page in the Website editor), editable from the admin console with no deploy.
+5. ✅ **CRM-driven** — a new **Waitlist** area in the admin console shows every signup with totals, and a one-click **CSV export** for your email tool. Reading the list requires platform-admin; the public can only add themselves.
+
+**Remaining backlog**: optional billing proration once Stripe is live; social sign-in / live email / push just need your provider credentials to activate.

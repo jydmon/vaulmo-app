@@ -456,6 +456,24 @@ export const trackedSubscriptions = pgTable('tracked_subscriptions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ---- Marketing-site CMS (editable landing pages) ----
+export const sitePages = pgTable('site_pages', {
+  slug: text('slug').primaryKey(),
+  title: text('title').notNull(),
+  content: jsonb('content').notNull().default({}),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Waitlist / marketing subscribers captured from the public site.
+export const siteSubscribers = pgTable('site_subscribers', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  notifyAtLaunch: boolean('notify_at_launch').notNull().default(true),
+  source: text('source').notNull().default('website'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ---- Password / secrets vault (SEC-30) ----
 // Owner-scoped secure items. The sensitive payload (password, notes, card number,
 // PIN) is AES-256-GCM encrypted at rest in `secretCipher`; only non-sensitive labels

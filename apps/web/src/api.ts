@@ -305,6 +305,10 @@ export const api = {
   adminAutomations: () => G<any>('/admin/automations'),
   adminUpdateAutomation: (key: string, b: any) => PUT<any>(`/admin/automations/${key}`, b),
   // CMS (admin)
+  adminSitePages: () => G<any>('/site/admin/pages'),
+  adminSubscribers: () => G<any>('/site/admin/subscribers'),
+  adminSaveSitePage: (slug: string, b: { title?: string; content: any }) => PUT<any>(`/site/admin/pages/${slug}`, b),
+  adminResetSitePage: (slug: string) => P<any>(`/site/admin/pages/${slug}/reset`),
   adminArticles: () => G<any>('/admin/cms/articles'),
   adminArticle: (id: string) => G<any>(`/admin/cms/articles/${id}`),
   adminCreateArticle: (b: any) => P<any>('/admin/cms/articles', b),

@@ -30,6 +30,7 @@ import { lifeRouter } from './modules/life/life.routes';
 import { assetsRouter } from './modules/assets/assets.routes';
 import { passwordsRouter } from './modules/passwords/passwords.routes';
 import { passportRouter } from './modules/passport/passport.routes';
+import { siteRouter } from './modules/site/site.routes';
 import { healthRouter } from './modules/health/health.routes';
 
 export function createApp() {
@@ -73,6 +74,9 @@ export function createApp() {
   app.use('/api/v1/config', configPublicRouter);
   app.use('/api/v1/legal', legalRouter);
   app.use('/api/v1/faq', faqRouter);
+  // Public marketing-site CMS — must be mounted before the broad `/api/v1` lifeRouter,
+  // which has its own auth guard and would otherwise intercept these public routes.
+  app.use('/api/v1/site', siteRouter);
   app.use('/api/v1/admin/config', adminConfigRouter);
   app.use('/api/v1/files', filesRouter);
   app.use('/api/v1/vault', vaultRouter);

@@ -348,7 +348,7 @@ const TENANT_NAV = [
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
   { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'faq', label: 'FAQ', ic: 'help' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'campaigns', label: 'Campaigns', ic: 'notif' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'campaigns', label: 'Campaigns', ic: 'notif' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'website', label: 'Website (CMS)', ic: 'cms' }, { id: 'subscribers', label: 'Waitlist', ic: 'crm' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
 
 function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; refreshMe: () => Promise<void> }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -370,7 +370,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     reminders: ['Reminders', 'What needs your attention'], expiries: ['Renewals & Expiries', 'Everything coming due, in one place'], passwords: ['Password Vault', 'Passwords, cards & secure notes'], passport: ['Passport Photo', 'A compliant photo from any picture'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], assets: ['Property & Vehicles', 'Your home, car & other assets'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], website: ['Website (CMS)', 'Edit the public vaulmo.com pages'], subscribers: ['Waitlist', 'People who signed up on the website'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
   const help: Record<string, string> = {
@@ -399,6 +399,8 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     subscriptions: 'Plans, subscription status and revenue across all customers.',
     reports: 'Growth, usage and revenue analytics for the platform.',
     crm: 'Customer lifecycle, tags, notes and troubleshooting tools.',
+    website: 'Edit the text and content of the public marketing website (vaulmo.com) — every page and section. Changes go live on the site immediately.',
+    subscribers: 'Everyone who signed up on the website to be notified at launch. Export them as a CSV for your email tool.',
     campaigns: 'Send email campaigns to segments of your users, and manage automated communication workflows.',
     cms: 'Create and manage the help-centre articles customers see.',
     catalogue: 'The recommended-document list, the metadata fields AI extracts, and reminder rules.',
@@ -412,7 +414,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     health: 'Live status of every platform component.',
     audit: 'A complete, append-only log of platform activity.',
   };
-  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, expiries: <Expiries />, passwords: <Passwords toast={toast} />, passport: <PassportTool toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, expiries: <Expiries />, passwords: <Passwords toast={toast} />, passport: <PassportTool toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, website: <AdminSite toast={toast} />, subscribers: <AdminSubscribers toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
     <a href="#main" className="skip-link">Skip to main content</a>
@@ -2038,6 +2040,78 @@ function AdminCRM({ toast }: any) {
 }
 
 /* ---------------- CMS / knowledge base ---------------- */
+// Generic recursive editor for the site-content JSON: strings → inputs, arrays →
+// add/remove item lists, objects → labelled nested fields. This makes every text
+// block on the marketing site editable without per-page code.
+function ContentEditor({ value, onChange }: { value: any; onChange: (v: any) => void }) {
+  if (typeof value === 'string' || typeof value === 'number') {
+    const long = String(value).length > 58;
+    return long
+      ? <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={Math.min(6, Math.ceil(String(value).length / 60) + 1)} />
+      : <input value={value} onChange={(e) => onChange(e.target.value)} />;
+  }
+  if (Array.isArray(value)) {
+    return <div style={{ display: 'grid', gap: 10 }}>
+      {value.map((item, i) => (
+        <div key={i} className="card" style={{ boxShadow: 'none' }}><div className="card-b">
+          <ContentEditor value={item} onChange={(v) => { const next = [...value]; next[i] = v; onChange(next); }} />
+          <div style={{ marginTop: 8 }}><A onClick={() => onChange(value.filter((_: any, idx: number) => idx !== i))} style={{ color: 'var(--crit)', fontSize: 13 }}>Remove</A></div>
+        </div></div>
+      ))}
+      <A onClick={() => { const proto = value[0]; const blank = proto && typeof proto === 'object' && !Array.isArray(proto) ? Object.fromEntries(Object.keys(proto).map((k) => [k, ''])) : ''; onChange([...value, blank]); }}>+ Add item</A>
+    </div>;
+  }
+  return <div style={{ display: 'grid', gap: 12 }}>
+    {Object.keys(value ?? {}).map((key) => (
+      <div key={key}>
+        <label style={{ textTransform: 'capitalize', fontSize: 12.5, fontWeight: 700, color: 'var(--soft)', marginBottom: 4, display: 'block' }}>{key.replace(/([A-Z])/g, ' $1')}</label>
+        <ContentEditor value={value[key]} onChange={(v) => onChange({ ...value, [key]: v })} />
+      </div>
+    ))}
+  </div>;
+}
+function AdminSite({ toast }: any) {
+  const { data, reload } = useData(() => api.adminSitePages());
+  const pages = data?.pages ?? [];
+  const [slug, setSlug] = useState('home');
+  const [draft, setDraft] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const current = pages.find((p: any) => p.slug === slug);
+  useEffect(() => { if (current) setDraft(JSON.parse(JSON.stringify(current.content))); /* eslint-disable-next-line */ }, [slug, data]);
+  async function save() { setBusy(true); try { await api.adminSaveSitePage(slug, { content: draft }); toast('Saved — live on the website'); reload(); } catch { toast('Could not save'); } finally { setBusy(false); } }
+  async function reset() { try { const r = await api.adminResetSitePage(slug); setDraft(r.content); toast('Reset to default'); reload(); } catch { toast('Try again'); } }
+  return <div style={{ maxWidth: 820 }}>
+    <div className="ok" role="note" style={{ marginBottom: 14 }}>Edits here change the public <b>vaulmo.com</b> pages. Pick a page, edit the text, and Save — it goes live immediately.</div>
+    <div className="chips">{pages.map((p: any) => <button key={p.slug} className={`chip${slug === p.slug ? ' on' : ''}`} onClick={() => setSlug(p.slug)}>{p.title}</button>)}</div>
+    <Card title={`Editing: ${current?.title ?? slug}`} help="Every field maps to text on the live site. Lists (features, FAQs, sections) can be added to or removed." right={<A onClick={reset}>Reset to default</A>}>
+      {draft != null ? <ContentEditor value={draft} onChange={setDraft} /> : <div className="empty">Loading…</div>}
+      <button className="btn" style={{ marginTop: 16 }} onClick={save} disabled={busy || draft == null}>{busy ? 'Saving…' : 'Save changes'}</button>
+    </Card>
+  </div>;
+}
+function AdminSubscribers({ toast }: any) {
+  const { data } = useData(() => api.adminSubscribers());
+  const subs = data?.subscribers ?? [];
+  function exportCsv() {
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = [['Name', 'Email', 'Notify at launch', 'Source', 'Signed up'].map(esc).join(',')]
+      .concat(subs.map((s: any) => [s.name, s.email, s.notifyAtLaunch ? 'yes' : 'no', s.source, fmt(s.createdAt)].map(esc).join(',')));
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'vaulmo-waitlist.csv'; a.click();
+    toast('Exported CSV');
+  }
+  return <div>
+    <div className="tiles" style={{ gridTemplateColumns: 'repeat(2,1fr)', maxWidth: 460 }}>
+      <Tile ic="📝" bg="var(--brand-soft)" lab="Total signups" val={data?.total ?? 0} />
+      <Tile ic="🔔" bg="var(--good-bg)" lab="Want launch alert" val={subs.filter((s: any) => s.notifyAtLaunch).length} />
+    </div>
+    <Card title="Website waitlist" help="Everyone who signed up on vaulmo.com. Captured from the site’s sign-up form and the launch pop-up." right={subs.length ? <A onClick={exportCsv}>Export CSV</A> : null}>
+      {subs.length ? <table><thead><tr><th>Name</th><th>Email</th><th>Launch alert</th><th>Signed up</th></tr></thead>
+        <tbody>{subs.map((s: any) => <tr key={s.id}><td>{s.name}</td><td>{s.email}</td><td>{s.notifyAtLaunch ? <span className="pill p-good">yes</span> : <span className="pill p-neutral">no</span>}</td><td>{fmt(s.createdAt)}</td></tr>)}</tbody></table>
+        : <div className="empty">No signups yet. They’ll appear here as people join from the website.</div>}
+    </Card>
+  </div>;
+}
 function AdminCMS({ toast }: any) {
   const { data, reload } = useData(() => api.adminArticles());
   const [edit, setEdit] = useState<any>(null);
