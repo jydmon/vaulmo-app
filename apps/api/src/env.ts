@@ -29,6 +29,24 @@ const schema = z.object({
   MICROSOFT_CLIENT_SECRET: z.string().optional(),
   MICROSOFT_TENANT: z.string().default('common'),
   INTEGRATIONS_REDIRECT_URI: z.string().default('https://app.vaulmo.com/integrations/callback'),
+  // Live email delivery (REM-09). When SMTP_HOST is set, transactional email is sent
+  // over SMTP; otherwise it falls back to the dev outbox (logged, not sent).
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: z.coerce.boolean().default(false),
+  EMAIL_FROM: z.string().default('Vaulmo <no-reply@vaulmo.com>'),
+  // Live push delivery (REM-08) via Expo Push. Optional token for higher rate limits.
+  EXPO_ACCESS_TOKEN: z.string().optional(),
+  // Social sign-in (ACC-02). The public base URL of the web app, used to build OAuth
+  // redirect URIs and to bounce the user back after provider login.
+  APP_BASE_URL: z.string().default('https://app.vaulmo.com'),
+  // Apple Sign in (optional; the client secret is a JWT generated from these).
+  APPLE_CLIENT_ID: z.string().optional(),
+  APPLE_TEAM_ID: z.string().optional(),
+  APPLE_KEY_ID: z.string().optional(),
+  APPLE_PRIVATE_KEY: z.string().optional(),
 });
 
 export const env = schema.parse(process.env);

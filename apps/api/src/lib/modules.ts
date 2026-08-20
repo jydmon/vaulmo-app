@@ -11,6 +11,7 @@ export const MODULES: ModuleDef[] = [
   { key: 'assets', name: 'Property & Vehicles', description: 'Track assets and renewal dates.' },
   { key: 'family', name: 'Family & Access', description: 'Members, next of kin and emergency access.' },
   { key: 'integrations', name: 'Connected Services', description: 'Email import of trips, receipts and more.' },
+  { key: 'passwords', name: 'Password Vault', description: 'Store passwords, cards and secure notes, encrypted.' },
 ];
 
 export const ALL_MODULE_KEYS = MODULES.map((m) => m.key);

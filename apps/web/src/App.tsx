@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from 'react';
-import { api, setTokens, hasSession, uploadText, uploadFile, downloadDocumentFile, exportMyData, ApiError, type AuthResult } from './api';
+import { api, setTokens, hasSession, uploadText, uploadFile, processPassport, downloadDocumentFile, exportMyData, ApiError, type AuthResult } from './api';
 
 /* ---------------- helpers ---------------- */
 function useToast() {
@@ -61,8 +61,21 @@ export function App() {
   const [error, setError] = useState('');
   const [booting, setBooting] = useState(true);
 
-  // Restore an existing session on load (survives page refresh).
+  // Restore an existing session on load (survives page refresh). Also completes a
+  // social sign-in: the OAuth callback redirects back with tokens in the URL fragment.
   useEffect(() => {
+    const m = window.location.hash.match(/oauth=([A-Za-z0-9_-]+)/);
+    if (m) {
+      try {
+        const { accessToken, refreshToken } = JSON.parse(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')));
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+        if (accessToken && refreshToken) {
+          setTokens(accessToken, refreshToken);
+          api.me().then((u) => setMe(u)).catch(() => setTokens(null, null)).finally(() => setBooting(false));
+          return;
+        }
+      } catch { /* fall through to normal restore */ }
+    }
     if (hasSession()) {
       api.me().then((u) => setMe(u)).catch(() => setTokens(null, null)).finally(() => setBooting(false));
     } else { setBooting(false); }
@@ -93,10 +106,10 @@ export function App() {
         {error && <div className="err" role="alert" style={{ width: 400, maxWidth: '92vw' }}>{error}</div>}
         {view === 'login' && <AuthForm title="Sign in" fields={['email', 'password']} cta="Sign in"
           onSubmit={async (v) => { setError(''); try { await afterAuth(await api.login(v)); } catch (e) { setError(e instanceof ApiError ? e.message : 'Failed'); } }}
-          foot={<>New here? <A onClick={() => { setError(''); setView('register'); }}>Create an account</A></>} />}
+          foot={<><SocialButtons onError={setError} />New here? <A onClick={() => { setError(''); setView('register'); }}>Create an account</A></>} />}
         {view === 'register' && <AuthForm title="Create your household" fields={['fullName', 'email', 'password']} cta="Create account"
           onSubmit={async (v) => { setError(''); try { await afterAuth(await api.register(v)); } catch (e) { setError(e instanceof ApiError ? e.message : 'Failed'); } }}
-          foot={<>Have an account? <A onClick={() => { setError(''); setView('login'); }}>Sign in</A></>} />}
+          foot={<><SocialButtons onError={setError} />Have an account? <A onClick={() => { setError(''); setView('login'); }}>Sign in</A></>} />}
         {view === 'mfa' && <MfaForm onSubmit={async (code) => { setError(''); try { await afterAuth(await api.loginMfa(code, challenge!)); } catch (e) { setError(e instanceof ApiError ? e.message : 'Invalid code'); } }} />}
       </div>
     </div>
@@ -222,6 +235,33 @@ function WelcomeTour({ me, go, onClose }: any) {
   </div>;
 }
 
+const SOCIAL_META: Record<string, { label: string; ic: string }> = {
+  google: { label: 'Continue with Google', ic: 'G' },
+  microsoft: { label: 'Continue with Microsoft', ic: '⊞' },
+  apple: { label: 'Continue with Apple', ic: '' },
+};
+// Social sign-in buttons — only rendered for providers the server reports as configured,
+// so nothing shows until you add the OAuth credentials.
+function SocialButtons({ onError }: { onError: (m: string) => void }) {
+  const [providers, setProviders] = useState<string[]>([]);
+  useEffect(() => { api.authProviders().then((r) => setProviders(r.providers ?? [])).catch(() => setProviders([])); }, []);
+  if (!providers.length) return null;
+  async function go(p: string) {
+    try { const { url } = await api.oauthStart(p); window.location.href = url; }
+    catch (e) { onError(e instanceof ApiError ? e.message : 'Could not start sign-in'); }
+  }
+  return <div style={{ margin: '4px 0 14px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--muted)', fontSize: 12, margin: '4px 0 12px' }}>
+      <span style={{ flex: 1, height: 1, background: 'var(--line)' }} /> or <span style={{ flex: 1, height: 1, background: 'var(--line)' }} />
+    </div>
+    {providers.map((p) => (
+      <button key={p} type="button" className="btn sec block" style={{ marginBottom: 8, justifyContent: 'center' }} onClick={() => go(p)}>
+        <span aria-hidden="true" style={{ fontWeight: 800 }}>{SOCIAL_META[p]?.ic ?? ''}</span>{SOCIAL_META[p]?.label ?? `Continue with ${p}`}
+      </button>
+    ))}
+  </div>;
+}
+
 function AuthForm(props: { title: string; fields: string[]; cta: string; onSubmit: (v: any) => void; foot: React.ReactNode }) {
   const [v, setV] = useState<any>({ fullName: '', email: '', password: '' });
   const [showPw, setShowPw] = useState(false);
@@ -301,6 +341,9 @@ const TENANT_NAV = [
   { grp: 'Vaulmo' }, { id: 'home', label: 'Home', ic: 'home' }, { id: 'vault', label: 'My Vault', ic: 'vault' },
   { id: 'personalise', label: 'Personalise', ic: 'settings' },
   { id: 'assistant', label: 'Ask Vaulmo', ic: 'assistant' }, { id: 'reminders', label: 'Reminders', ic: 'reminders' },
+  { id: 'expiries', label: 'Renewals & Expiries', ic: 'reminders' },
+  { id: 'passwords', label: 'Password Vault', ic: 'security' },
+  { id: 'passport', label: 'Passport Photo', ic: 'vault' },
   { grp: 'Life' }, { id: 'assets', label: 'Property & Vehicles', ic: 'vault' }, { id: 'trips', label: 'Trips', ic: 'trips' }, { id: 'purchases', label: 'Purchases', ic: 'purchases' },
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
   { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'faq', label: 'FAQ', ic: 'help' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
@@ -324,7 +367,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
   const titles: any = {
     home: isSuper ? ['Platform Overview', 'Every tenant at a glance'] : [`Hi, ${me.fullName.split(' ')[0]}`, "Here's what matters today"],
     vault: ['My Vault', 'Your important documents'], personalise: ['Personalise Vaulmo', 'Tailor your recommended documents'], assistant: ['Ask Vaulmo', 'Answers from your own vault'],
-    reminders: ['Reminders', 'What needs your attention'], trips: ['Trips', 'Your travel, organised'],
+    reminders: ['Reminders', 'What needs your attention'], expiries: ['Renewals & Expiries', 'Everything coming due, in one place'], passwords: ['Password Vault', 'Passwords, cards & secure notes'], passport: ['Passport Photo', 'A compliant photo from any picture'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], assets: ['Property & Vehicles', 'Your home, car & other assets'], family: ['Family & Access', 'People, next of kin, emergency access'],
     billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
@@ -336,6 +379,9 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     personalise: 'Answer a few quick questions about your household so Vaulmo only recommends the documents that actually apply to you.',
     assistant: 'Ask questions in plain English about your documents, trips, purchases and warranties. Answers come only from your own data, with sources.',
     reminders: 'Deadlines and alerts. Add your own reminder, set it to repeat, snooze it, or mark it done when handled.',
+    expiries: 'One horizon of everything coming due — document expiries, MOT, tax, insurance, warranties and subscription renewals — grouped by how soon they need attention.',
+    passwords: 'A private, encrypted store for passwords, card details, PINs and secure notes. Only you can see them — they are encrypted and never visible to staff or other household members.',
+    passport: 'Upload a head-and-shoulders photo and Vaulmo makes a passport-compliant version — background whitened and cropped to 35×45mm. Download it or save it to your vault.',
     trips: 'Your travel grouped into trips — flights, hotels and tickets together in one place.',
     purchases: 'Receipts, valuable assets and warranty dates, with reminders before warranties expire.',
     subs: 'Track what you personally pay for — broadband, streaming, gym — and get renewal reminders.',
@@ -366,7 +412,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     health: 'Live status of every platform component.',
     audit: 'A complete, append-only log of platform activity.',
   };
-  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, expiries: <Expiries />, passwords: <Passwords toast={toast} />, passport: <PassportTool toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
     <a href="#main" className="skip-link">Skip to main content</a>
@@ -703,6 +749,168 @@ function Reminders({ onRead, toast }: any) {
       {upcoming.map((r: any) => row(r))}
       {!overdue.length && !upcoming.length && <div className="empty">Nothing scheduled — add a reminder.</div>}
       {completed.length > 0 && <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>{completed.length} completed</div>}
+    </Card>
+  </div>;
+}
+
+const EXP_CAT: Record<string, { ic: string; bg: string }> = {
+  Vehicle: { ic: '🚗', bg: 'var(--brand-soft)' }, Property: { ic: '🏠', bg: 'var(--warn-bg)' },
+  Subscription: { ic: '🔁', bg: 'var(--violet-bg)' }, Warranty: { ic: '🛡️', bg: 'var(--good-bg)' },
+  Document: { ic: '📄', bg: 'var(--surface-2)' }, Renewal: { ic: '🗓️', bg: 'var(--surface-2)' },
+};
+function Expiries() {
+  const [within, setWithin] = useState(365);
+  const { data } = useData(() => api.expiries(within), [within]);
+  const daysLabel = (d: number) => (d < 0 ? `${-d} day${d === -1 ? '' : 's'} overdue` : d === 0 ? 'due today' : `in ${d} day${d === 1 ? '' : 's'}`);
+  const item = (i: any) => {
+    const cat = EXP_CAT[i.category] ?? EXP_CAT.Renewal;
+    const pill = i.daysRemaining < 0 ? 'p-crit' : i.daysRemaining <= 30 ? 'p-crit' : i.daysRemaining <= 90 ? 'p-warn' : 'p-good';
+    return <div className="row" key={`${i.category}-${i.dueDate}-${i.title}`}>
+      <div className="ic" style={{ background: cat.bg }}>{cat.ic}</div>
+      <div className="m"><div className="t">{i.title}</div><div className="s">{i.category} · {fmt(i.dueDate)}</div></div>
+      <span className={`pill ${pill}`}>{daysLabel(i.daysRemaining)}</span>
+    </div>;
+  };
+  const b = data?.buckets ?? { overdue: [], soon: [], upcoming: [], later: [] };
+  const total = data?.counts?.total ?? 0;
+  const section = (title: string, list: any[], note: string) => list.length > 0 && <Card title={`${title} (${list.length})`} help={note}>{list.map(item)}</Card>;
+  return <>
+    <div className="chips" role="group" aria-label="Time horizon">
+      {[[90, '3 months'], [180, '6 months'], [365, '1 year'], [730, '2 years']].map(([d, lbl]) => (
+        <button key={d} className={`chip${within === d ? ' on' : ''}`} aria-pressed={within === d} onClick={() => setWithin(d as number)}>{lbl as string}</button>
+      ))}
+    </div>
+    {!data ? <Card title="Renewals & Expiries"><div className="empty">Loading…</div></Card>
+      : total === 0 ? <Card title="Renewals & Expiries"><div className="empty">Nothing is coming due in this window. 🎉</div></Card>
+      : <div style={{ display: 'grid', gap: 16 }}>
+          {section('Overdue', b.overdue, 'Past their date — deal with these first.')}
+          {section('Due soon', b.soon, 'Within the next 30 days.')}
+          {section('Upcoming', b.upcoming, 'In the next 1–3 months.')}
+          {section('Later', b.later, 'Further out, so you can plan ahead.')}
+        </div>}
+  </>;
+}
+
+const PW_KIND: Record<string, { ic: string; label: string }> = {
+  login: { ic: '🔑', label: 'Login' }, card: { ic: '💳', label: 'Card' }, note: { ic: '📝', label: 'Secure note' }, pin: { ic: '🔢', label: 'PIN' },
+};
+function Passwords({ toast }: any) {
+  const { data, reload } = useData(() => api.passwords());
+  const [add, setAdd] = useState(false);
+  const [f, setF] = useState<any>({ kind: 'login', label: '', username: '', url: '', password: '', note: '' });
+  const [busy, setBusy] = useState(false);
+  const [revealed, setRevealed] = useState<Record<string, any>>({});
+  const items = data?.items ?? [];
+  const set = (k: string, v: string) => setF((s: any) => ({ ...s, [k]: v }));
+
+  async function create() {
+    if (!f.label) return; setBusy(true);
+    try {
+      await api.createPassword({ kind: f.kind, label: f.label, username: f.username || null, url: f.url || null,
+        secret: { password: f.password || undefined, note: f.note || undefined } });
+      setF({ kind: 'login', label: '', username: '', url: '', password: '', note: '' }); setAdd(false); toast('Saved securely'); reload();
+    } finally { setBusy(false); }
+  }
+  async function reveal(id: string) {
+    if (revealed[id]) { setRevealed((s) => { const n = { ...s }; delete n[id]; return n; }); return; }
+    try { const r = await api.revealPassword(id); setRevealed((s) => ({ ...s, [id]: r.secret })); } catch { toast('Could not unlock'); }
+  }
+  async function copy(text: string) { try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Copy failed'); } }
+  async function del(id: string) { await api.deletePassword(id); toast('Deleted'); setRevealed((s) => { const n = { ...s }; delete n[id]; return n; }); reload(); }
+
+  return <div style={{ maxWidth: 760 }}>
+    <Card title="Your encrypted vault" help="Everything here is encrypted before it is stored. Only you can unlock it — not other household members, and not Vaulmo staff."
+      right={<A onClick={() => setAdd((v) => !v)}>{add ? 'Close' : '+ Add item'}</A>}>
+      <div className="ok" role="note" style={{ marginBottom: add ? 12 : 0 }}>🔒 End-to-end encrypted at rest · owner-only access · every unlock is logged.</div>
+      {add && <div className="card" style={{ marginBottom: 4 }}><div className="card-b">
+        <label>Type<select value={f.kind} onChange={(e) => set('kind', e.target.value)}>{Object.entries(PW_KIND).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></label>
+        <label>Name<input value={f.label} onChange={(e) => set('label', e.target.value)} placeholder="e.g. Gmail, Barclays card, Wi-Fi" /></label>
+        {(f.kind === 'login') && <div className="grid2">
+          <label>Username / email<input value={f.username} onChange={(e) => set('username', e.target.value)} autoComplete="off" /></label>
+          <label>Website<input value={f.url} onChange={(e) => set('url', e.target.value)} placeholder="https://" autoComplete="off" /></label>
+        </div>}
+        {f.kind !== 'note' && <label>{f.kind === 'pin' ? 'PIN' : f.kind === 'card' ? 'Card number' : 'Password'}<input value={f.password} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" /></label>}
+        <label>{f.kind === 'note' ? 'Secure note' : 'Notes (optional)'}<textarea value={f.note} onChange={(e) => set('note', e.target.value)} rows={f.kind === 'note' ? 4 : 2} /></label>
+        <button className="btn" onClick={create} disabled={busy || !f.label}>{busy ? 'Saving…' : 'Save securely'}</button>
+      </div></div>}
+    </Card>
+
+    <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
+      {items.map((i: any) => {
+        const k = PW_KIND[i.kind] ?? PW_KIND.login; const sec = revealed[i.id];
+        return <div className="card" key={i.id}><div className="card-b">
+          <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div className="flex" style={{ gap: 12 }}>
+              <div className="ic" style={{ width: 40, height: 40, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'var(--surface-2)', fontSize: 18 }}>{k.ic}</div>
+              <div><div style={{ fontWeight: 700 }}>{i.label}</div><div className="muted" style={{ fontSize: 13 }}>{k.label}{i.username ? ` · ${i.username}` : ''}</div></div>
+            </div>
+            <div className="flex" style={{ gap: 6 }}>
+              <button className="btn sec sm" onClick={() => reveal(i.id)} aria-expanded={!!sec}>{sec ? 'Hide' : 'Reveal'}</button>
+              <button className="btn sec sm" aria-label={`Delete ${i.label}`} onClick={() => del(i.id)}>🗑</button>
+            </div>
+          </div>
+          {sec && <div style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 12, display: 'grid', gap: 8 }}>
+            {sec.password && <div className="flex" style={{ justifyContent: 'space-between' }}><code style={{ fontSize: 14 }}>{sec.password}</code><A onClick={() => copy(sec.password)}>Copy</A></div>}
+            {sec.pin && <div className="flex" style={{ justifyContent: 'space-between' }}><code>{sec.pin}</code><A onClick={() => copy(sec.pin)}>Copy</A></div>}
+            {sec.cardNumber && <div className="flex" style={{ justifyContent: 'space-between' }}><code>{sec.cardNumber}</code><A onClick={() => copy(sec.cardNumber)}>Copy</A></div>}
+            {i.url && <a href={i.url} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>{i.url}</a>}
+            {sec.note && <div className="muted" style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{sec.note}</div>}
+          </div>}
+        </div></div>;
+      })}
+      {!items.length && <div className="empty">Nothing saved yet. Add your first password or secure note.</div>}
+    </div>
+  </div>;
+}
+
+function PassportTool({ toast }: any) {
+  const [orig, setOrig] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [result, setResult] = useState<{ preview: string; meta: any } | null>(null);
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) return;
+    setErr(''); setFile(f); setOrig(URL.createObjectURL(f)); setResult(null);
+    setBusy('Creating your passport photo…');
+    try { const r = await processPassport(f, false); setResult({ preview: r.preview, meta: r.meta }); }
+    catch (e2) { setErr(e2 instanceof ApiError ? e2.message : 'Could not process the photo.'); }
+    finally { setBusy(''); }
+  }
+  async function save() {
+    if (!file) return; setBusy('Saving…');
+    try { await processPassport(file, true); toast('Saved to your vault'); }
+    catch (e2) { setErr(e2 instanceof ApiError ? e2.message : 'Could not save.'); }
+    finally { setBusy(''); }
+  }
+  function download() {
+    if (!result) return;
+    const a = document.createElement('a'); a.href = result.preview; a.download = 'passport-photo.jpg'; a.click();
+  }
+
+  return <div style={{ maxWidth: 720 }}>
+    <Card title="Passport photo maker" help="Upload a clear, front-facing head-and-shoulders photo against a plain wall. Vaulmo removes the background, makes it white, and crops to 35×45mm.">
+      {err && <div className="err" role="alert">{err}</div>}
+      <p className="muted" style={{ marginTop: 0 }}>For the best result: face the camera, even lighting, neutral expression, no hat or sunglasses.</p>
+      <label className="btn" style={{ display: 'inline-flex', cursor: 'pointer' }}>
+        {busy ? busy : orig ? 'Choose a different photo' : 'Choose a photo'}
+        <input type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} disabled={!!busy} />
+      </label>
+
+      {result && <div style={{ marginTop: 18 }}>
+        <div className="grid2">
+          <div><div className="section" style={{ margin: '0 0 8px' }}>Your photo</div>{orig && <img src={orig} alt="Original upload" style={{ width: '100%', borderRadius: 12, border: '1px solid var(--line)' }} />}</div>
+          <div><div className="section" style={{ margin: '0 0 8px' }}>Passport-ready</div><img src={result.preview} alt="Processed passport photo" style={{ width: '100%', aspectRatio: '35 / 45', objectFit: 'contain', borderRadius: 12, border: '1px solid var(--line)', background: '#fff' }} /></div>
+        </div>
+        <div className={result.meta?.facesDetected ? 'ok' : 'err'} role="status" style={{ marginTop: 12, ...(result.meta?.facesDetected ? {} : { background: 'var(--warn-bg)', color: 'inherit' }) }}>
+          {result.meta?.facesDetected ? '✅ Face detected · background whitened · sized to 35×45mm' : 'We couldn’t clearly detect a face — try a clearer, front-facing photo in good light.'}
+        </div>
+        <div className="flex" style={{ marginTop: 12, gap: 8 }}>
+          <button className="btn" onClick={download}>Download</button>
+          <button className="btn sec" onClick={save} disabled={!!busy}>{busy === 'Saving…' ? 'Saving…' : 'Save to vault'}</button>
+        </div>
+      </div>}
     </Card>
   </div>;
 }

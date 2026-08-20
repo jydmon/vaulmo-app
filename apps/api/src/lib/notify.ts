@@ -1,7 +1,15 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client';
-import { notifications, notificationSettings, deviceTokens } from '../db/schema';
+import { notifications, notificationSettings, deviceTokens, users } from '../db/schema';
 import { logger } from '../logger';
+import { sendMail, emailIsLive } from './mailer';
+import { sendExpoPush } from './push';
+
+// Resolve a user's email for delivery (the notify() API is keyed by userId).
+async function emailForUser(userId: string): Promise<string | null> {
+  const [u] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+  return u?.email ?? null;
+}
 
 // Notification delivery across three channels behind one interface.
 //  - in_app : stored, served by GET /notifications  (fully real)
@@ -39,21 +47,26 @@ function inQuietHours(s: { quietStart?: number | null; quietEnd?: number | null 
 
 // Provider adapters (dev drivers log; real drivers are wired by env in staging/prod).
 const emailDriver = {
+  // `to` may be a userId (from notify()) or a raw email (from sendEmail()); resolve it.
   async send(to: string, title: string, body: string) {
-    logger.info({ channel: 'email', to, title }, 'EMAIL (dev outbox)');
-    // Production: SES/SMTP send here.
+    const address = to.includes('@') ? to : await emailForUser(to);
+    if (address && emailIsLive()) {
+      const sent = await sendMail(address, title, body);
+      if (sent) return;
+    }
+    logger.info({ channel: 'email', to: address ?? to, title, live: emailIsLive() }, 'EMAIL (dev outbox)');
   },
 };
 
 // Send a one-off marketing/transactional email (used by CRM campaigns & automations).
-// Uses the same email adapter — dev logs to the outbox, prod wires SES/SMTP.
+// Live over SMTP when configured; otherwise logged to the dev outbox.
 export async function sendEmail(to: string, subject: string, body: string): Promise<void> {
   await emailDriver.send(to, subject, body);
 }
 const pushDriver = {
   async send(tokens: string[], title: string, body: string) {
-    logger.info({ channel: 'push', tokens: tokens.length, title }, 'PUSH (dev outbox)');
-    // Production: FCM/APNs send here.
+    const sent = await sendExpoPush(tokens, title, body);
+    if (!sent) logger.info({ channel: 'push', tokens: tokens.length, title }, 'PUSH (dev outbox)');
   },
 };
 

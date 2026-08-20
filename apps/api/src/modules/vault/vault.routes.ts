@@ -14,6 +14,7 @@ import { ocrExtractText } from '../../lib/ocr';
 import { classify } from '../../lib/classify';
 import { extract, requiredFieldsPresent } from '../../lib/extract';
 import { reindexDocument } from '../../lib/search';
+import { expiryHorizon } from '../../lib/expiries';
 
 // The vault is available to every authenticated, MFA-satisfied tenant user.
 // (Subscription entitlement is the access control; the alpha internal-tester gate
@@ -417,4 +418,13 @@ vaultRouter.get('/reminders', requirePermission(PERMISSIONS.FILE_READ), async (r
     live: all.filter((r) => r.status === 'ACTIVE'),
     draft: all.filter((r) => r.status === 'DRAFT'),
   });
+});
+
+// Renewals & Expiries hub (AIX-11, INT-18/19/21, SEC-06): a single horizon of
+// everything coming due — document expiries, MOT/tax/insurance, warranties and
+// subscription renewals — bucketed by urgency.
+vaultRouter.get('/expiries', requirePermission(PERMISSIONS.FILE_READ), async (req, res) => {
+  const withinDays = Number(req.query.withinDays ?? 365);
+  const horizon = await expiryHorizon(tid(req), Number.isFinite(withinDays) ? withinDays : 365);
+  res.json(horizon);
 });

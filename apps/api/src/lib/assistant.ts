@@ -4,6 +4,7 @@ import { reminders, documents, tenants, trips, purchases, trackedSubscriptions }
 import { searchDocuments, type SearchHit } from './search';
 import { recommendedForCountry } from './catalogue';
 import { byKey } from './catalogue';
+import { expiryHorizon, parseHorizonDays } from './expiries';
 
 // Retrieval-augmented answers, STRICTLY permission-scoped: every fact used to build
 // an answer is retrieved with a tenant_id filter, so an answer can only ever draw on
@@ -109,8 +110,34 @@ async function answerFromLifeRecords(tenantId: string, ql: string, raw: string):
   return null;
 }
 
+// A horizon question asks about a *window* of time ("what expires in 6 months",
+// "renewals coming up"), as opposed to a single named item ("when does my passport
+// expire" — handled by the document date answer below).
+function isHorizonQuestion(q: string): boolean {
+  if (/\b\d+\s*(day|days|week|weeks|month|months|year|years)\b/.test(q)) {
+    return /(expir|renew|due|end|valid|coming|upcoming|next)/.test(q);
+  }
+  return /((what|which|anything|everything|any)\b.{0,24}(expir|renew|due))|expiring soon|renewals?\s+(coming|due|soon|this)|coming up|upcoming\s+(renewal|expir)|what'?s due|whats due|due (soon|this)/.test(q);
+}
+
 export async function ask(tenantId: string, question: string): Promise<Answer> {
   const ql = question.toLowerCase();
+
+  // Horizon questions → answer from the unified Renewals & Expiries hub (AIX-11).
+  if (isHorizonQuestion(ql)) {
+    const days = parseHorizonDays(ql) ?? 180;
+    const h = await expiryHorizon(tenantId, days);
+    if (!h.items.length) {
+      return { answer: `Nothing is due in the next ${days} days — you're all clear on that horizon.`, sources: [], retrieved: 0 };
+    }
+    const top = h.items.slice(0, 6);
+    const lines = top.map((i) => `• ${i.title} — ${i.dueDate} (${i.daysRemaining < 0 ? `${-i.daysRemaining}d overdue` : `in ${i.daysRemaining}d`}, ${i.category})`).join('\n');
+    const more = h.items.length > top.length ? `\n…and ${h.items.length - top.length} more.` : '';
+    const label = days % 365 === 0 ? `${days / 365} year${days === 365 ? '' : 's'}` : days % 30 === 0 ? `${days / 30} months` : `${days} days`;
+    const sources: Source[] = top.filter((i) => i.documentId).map((i) => ({ documentId: i.documentId!, title: i.title, ref: i.title }));
+    return { answer: `In the next ${label} you have ${h.items.length} item${h.items.length === 1 ? '' : 's'} coming due:\n${lines}${more}`, sources, retrieved: h.items.length };
+  }
+
   // Route life-record questions (trips, purchases, warranties, subscriptions) first.
   const life = await answerFromLifeRecords(tenantId, ql, question);
   if (life) return life;

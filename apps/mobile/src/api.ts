@@ -88,6 +88,19 @@ export async function uploadImage(url: string, uri: string, contentType: string)
   }
 }
 
+// Send a captured photo to the passport processor and get back the compliant result
+// (base64 preview + metadata). Uses the native binary uploader like image uploads.
+export async function processPassport(uri: string, save = false): Promise<{ meta: any; preview: string; documentId: string | null }> {
+  const res = await FileSystem.uploadAsync(`${BASE}/api/v1/passport/process${save ? '?save=1' : ''}`, uri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: { 'content-type': 'image/jpeg', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) },
+  });
+  let j: any = {}; try { j = JSON.parse(res.body); } catch { /* keep {} */ }
+  if (res.status < 200 || res.status >= 300) throw new ApiError(res.status, j?.error ?? 'process_failed', j?.message ?? 'Could not process the photo');
+  return j;
+}
+
 export interface AuthResult {
   user?: any; accessToken?: string; refreshToken?: string;
   mfaRequired?: boolean; challengeToken?: string; mfaSetupRequired?: boolean;
@@ -128,7 +141,14 @@ export const api = {
   ask: (question: string) => P<any>('/assistant/ask', { question }),
   whatsImportant: () => G<any>('/assistant/whats-important'),
   // reminders / notifications
+  registerDevice: (platform: string, token: string) => P<any>('/notifications/devices', { platform, token }),
   reminders: () => G<any>('/vault/reminders'),
+  expiries: (withinDays = 365) => G<any>(`/vault/expiries?withinDays=${withinDays}`),
+  // password vault
+  passwords: () => G<any>('/passwords'),
+  createPassword: (b: any) => P<any>('/passwords', b),
+  revealPassword: (id: string) => P<any>(`/passwords/${id}/reveal`),
+  deletePassword: (id: string) => DEL<any>(`/passwords/${id}`),
   reminderCentre: () => G<any>('/notifications/reminders'),
   createReminder: (b: { title: string; dueDate: string; recurrence?: string; kind?: string }) => P<any>('/notifications/reminders', b),
   completeReminder: (id: string) => P<any>(`/notifications/reminders/${id}/complete`),

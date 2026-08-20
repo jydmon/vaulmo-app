@@ -59,6 +59,16 @@ export async function uploadFile(url: string, file: File): Promise<void> {
   if (!res.ok) throw new ApiError(res.status, 'upload_failed', 'Upload failed');
 }
 
+// Passport tool: POST the chosen image to the processor, get back a base64 preview + meta.
+export async function processPassport(file: File | Blob, save = false): Promise<{ meta: any; preview: string; documentId: string | null }> {
+  const res = await fetch(`${BASE}/api/v1/passport/process${save ? '?save=1' : ''}`, {
+    method: 'POST', headers: { 'content-type': (file as File).type || 'image/jpeg', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) }, body: file,
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, (j as any)?.error ?? 'process_failed', (j as any)?.message ?? 'Could not process the photo');
+  return j as any;
+}
+
 const G = <T,>(p: string) => request<T>('GET', p);
 const P = <T,>(p: string, b?: unknown) => request<T>('POST', p, b ?? {});
 const PUT = <T,>(p: string, b?: unknown) => request<T>('PUT', p, b ?? {});
@@ -99,6 +109,8 @@ export const api = {
   // auth
   register: (b: any) => P<AuthResult>('/auth/register', b),
   login: (b: any) => P<AuthResult>('/auth/login', b),
+  authProviders: () => G<{ providers: string[] }>('/auth/providers'),
+  oauthStart: (provider: string) => G<{ url: string }>(`/auth/oauth/${provider}/start`),
   loginMfa: (code: string, challengeToken: string) => { accessToken = challengeToken; return request<AuthResult>('POST', '/auth/login/mfa', { code }, false); },
   me: () => G<any>('/users/me'),
   updateProfile: (b: { fullName?: string; phone?: string | null; timezone?: string | null; country?: string }) => PUT<any>('/users/me', b),
@@ -133,6 +145,13 @@ export const api = {
   replaceDocument: (id: string, b: any) => P<any>(`/vault/documents/${id}/replace`, b),
   deleteDocument: (id: string) => DEL<any>(`/vault/documents/${id}`),
   reminders: () => G<any>('/vault/reminders'),
+  expiries: (withinDays = 365) => G<any>(`/vault/expiries?withinDays=${withinDays}`),
+  // password vault
+  passwords: () => G<any>('/passwords'),
+  createPassword: (b: any) => P<any>('/passwords', b),
+  revealPassword: (id: string) => P<any>(`/passwords/${id}/reveal`),
+  updatePassword: (id: string, b: any) => PATCH<any>(`/passwords/${id}`, b),
+  deletePassword: (id: string) => DEL<any>(`/passwords/${id}`),
   // assistant
   ask: (question: string) => P<any>('/assistant/ask', { question }),
   search: (query: string) => P<any>('/assistant/search', { query }),

@@ -41,7 +41,7 @@ _Goal served: mainly "know what I am missing" (onboarding) and the secure founda
 | ID | Requirement | Status | Notes |
 |---|---|---|---|
 | ACC-01 | Account registration via email/password | ✅ | `POST /auth/register` |
-| ACC-02 | Registration via Google / Apple / Microsoft | ⛔ | No OAuth/social sign-in yet; email/password only |
+| ACC-02 | Registration via Google / Apple / Microsoft | ✅ | OAuth sign-in for Google, Microsoft & Apple (`/auth/oauth/:provider`), find-or-create household, JWT session. Credentials-ready: each button appears only when that provider is configured |
 | ACC-03 | Email verification before full access | ✅ | `request-verification`, `verify-email`; **enforced** — the onboarding gate blocks the app until verified, and `REQUIRE_EMAIL_VERIFICATION=true` also blocks login server-side |
 | ACC-04 | Secure login across web, iOS, Android on one account | ✅ | Shared API + JWT access/refresh |
 | ACC-05 | Multi-factor authentication (MFA) | ✅ | Enroll/confirm/disable done; mandatory for admins. Step-up verification now enforced on sensitive actions (password re-check on account-deletion requests); extendable to other actions |
@@ -70,6 +70,7 @@ _Goal served: "know what I have."_
 | VLT-07 | Document download | ✅ | `GET /vault/documents/:id/download` (attachment, audited) |
 | VLT-08 | Document replacement / versioning (retain history) | ✅ | `POST /vault/documents/:id/replace` — new version linked to prior; history via `?includeHistory=1` |
 | VLT-09 | Document deletion (subject to retention rules) | ✅ | `DELETE /vault/documents/:id` — soft-delete, retained for audit |
+| VLT-10 | In-app passport-photo tool (auto-white background, compliant crop) | ✅ | `POST /passport/process` — OpenCV face detection + grabCut background removal → white background, cropped/sized to 35×45mm (600×771). Mobile guided capture + web upload, preview, download or save-to-vault |
 
 ## 3. AI, OCR & Search
 
@@ -87,7 +88,7 @@ _Goals served: "know what I have" and "find what I need."_
 | AIX-08 | Automatic reminder suggestions after confirmation | ✅ | Draft reminders created on process, activated on confirm |
 | AIX-09 | Conversational AI assistant | ✅ | `POST /assistant/ask` (grounded, extractive RAG) |
 | AIX-10 | Document search ("Find my home insurance policy") | ✅ | Full-text over documents |
-| AIX-11 | Expiry search ("What expires in six months?") | 🟡 | Date-field answers work; a true horizon query relies on reminders more than documents |
+| AIX-11 | Expiry search ("What expires in six months?") | ✅ | Assistant parses a time window and answers from the unified Renewals & Expiries horizon (`GET /vault/expiries`) |
 | AIX-12 | Personal search ("When does my passport expire?") | ✅ | Handled by date-aware answer path |
 | AIX-13 | Missing-info search ("What am I still missing?") | ✅ | Backed by the checklist/outstanding logic |
 | AIX-14 | Travel search ("What trips next month?") | ✅ | Assistant routes travel questions to trips |
@@ -115,8 +116,8 @@ _Goal served: "know what I need to do next."_
 | REM-05 | Snooze a reminder | ✅ | `POST /notifications/reminders/:id/snooze` |
 | REM-06 | Mark action complete to stop alerts | ✅ | `POST /notifications/reminders/:id/complete` — sets COMPLETED, stops alerts |
 | REM-07 | Notification centre (urgent / upcoming / completed / snoozed) | ✅ | `GET /notifications`, unread-count, read-all |
-| REM-08 | Push notifications (mobile) | 🟡 | Full pipeline (settings, quiet hours, dedupe, device tokens); needs FCM/APNs credentials to deliver |
-| REM-09 | Email notifications | 🟡 | Full pipeline via the notify adapter; needs SES/SMTP credentials to deliver |
+| REM-08 | Push notifications (mobile) | ✅ | Live delivery via **Expo Push** (relays to FCM/APNs); mobile registers its Expo token after login. Delivery activates once FCM/APNs are set in the Expo project |
+| REM-09 | Email notifications | ✅ | Live delivery via **SMTP** (nodemailer); sends the moment `SMTP_HOST` is set, otherwise logs to the dev outbox. Admin delivery-status endpoint shows the mode |
 | REM-10 | In-app notifications | ✅ | Notification centre |
 | REM-11 | Notification preferences (categories + channels) | ✅ | `GET/PUT /notifications/settings` |
 | REM-12 | Quiet hours | ✅ | Per-user quiet window enforced in `notify` (holds non-urgent email/push; in-app kept; overdue bypasses) + web UI |
@@ -167,10 +168,10 @@ _Goals served: "know what I have" (auto-captured) and "find what I need."_
 | INT-15 | Purchase tracking | ✅ | `GET/POST /purchases` |
 | INT-16 | Receipt storage | ✅ | Purchases + vault documents |
 | INT-17 | Home inventory of assets | 🟡 | Purchases approximate this; a dedicated inventory is partial |
-| INT-18 | Warranty tracking (periods/expiry) | 🟡 | Warranty dates captured on documents/purchases; a first-class warranty view is partial |
-| INT-19 | Warranty reminders | 🟡 | Reminder candidates include warranty dates |
+| INT-18 | Warranty tracking (periods/expiry) | ✅ | Warranty dates surface as first-class items in the Renewals & Expiries hub (web + mobile), categorised as Warranty |
+| INT-19 | Warranty reminders | ✅ | Warranty dates create ACTIVE reminders and appear in the horizon with lead-time buckets |
 | INT-20 | Personal subscription tracking (broadband, mobile, streaming, gym…) | ✅ | `GET/POST /tracked-subscriptions` |
-| INT-21 | Subscription renewal reminders | 🟡 | Renewal dates tracked; reminder wiring partial |
+| INT-21 | Subscription renewal reminders | ✅ | Subscriptions create ACTIVE renewal reminders on save; surfaced in the horizon as Subscription |
 | INT-22 | Future API connections (banking, calendar, cloud, gov, insurance, utility) | ✅ | Provider framework with a live-or-sandbox selector; Gmail, Outlook and Open Banking implemented behind one interface — new providers plug in the same way |
 
 ## 7. Billing, Security, Privacy & Platform
@@ -184,7 +185,7 @@ _The commercial and trust foundation that spans everything._
 | SEC-03 | Secure payment (Stripe; no card storage) | ✅ | Stripe Checkout; card data never stored |
 | SEC-04 | Subscription status (active/past-due/grace/cancelled/expired) | ✅ | `GET /billing` / entitlements |
 | SEC-05 | Renewal date visible | ✅ | On subscription record |
-| SEC-06 | Advance renewal notifications | 🟡 | Data present; reminder wiring to confirm |
+| SEC-06 | Advance renewal notifications | ✅ | Horizon buckets (overdue / ≤30d / ≤90d / later) give advance visibility; reminders carry lead days [30,7,1,0] |
 | SEC-07 | Billing history (invoices/receipts) | ✅ | `GET /billing` returns invoices; in-app invoice list on web & mobile |
 | SEC-08 | Payment-method management | ✅ | `POST /billing/portal` (Stripe portal) |
 | SEC-09 | Cancel renewal (keep access to period end) | ✅ | `POST /billing/cancel` schedules end-of-period; access is kept until `currentPeriodEnd` (never an immediate cut). In-app on web & mobile |
@@ -208,6 +209,7 @@ _The commercial and trust foundation that spans everything._
 | SEC-27 | Accessibility (WCAG 2.2 AA) | ✅ | Web: keyboard-operable controls, skip link, landmarks, focus-visible, live regions, 24px targets, reduced-motion — verified 0 violations by an axe-core scan (`npm run a11y`). Mobile: roles/labels/state on core controls |
 | SEC-28 | Help & support (FAQ, troubleshooting, contact) | ✅ | In-app **FAQ page** (`GET /faq`, categorised Q&A) + support overview, Support desk, and CMS help centre — web + mobile |
 | SEC-29 | Terms & Privacy accessible in-app | ✅ | Config/CMS policies |
+| SEC-30 | Password / secrets vault | ✅ | Owner-scoped `secure_items`, AES-256-GCM encrypted at rest; list never returns secrets, reveals are audited; admins & other household members cannot read them. Web page + mobile screen (behind the biometric app-lock) |
 
 ---
 
@@ -393,3 +395,57 @@ Web changes (mostly at the shared-primitive and global-CSS level, so they cascad
 Mobile (React Native, verified by typecheck): the shared `Btn`, `Field`, tab bar, capture FAB and `Toggle` primitives now expose the right `accessibilityRole` ("button" / "tab" / "switch"), `accessibilityLabel` and `accessibilityState` (disabled/busy/selected/checked) so VoiceOver and TalkBack announce them correctly.
 
 **Remaining backlog**: optional billing proration once Stripe is live. All headline user-facing requirements from the brief are now implemented.
+
+## Build plan — Renewals & Expiries hub (this increment: ✅ done & tested)
+
+A single place that answers "what's coming due?" — closing AIX-11, INT-18, INT-19, INT-21 and SEC-06 together. No migration needed (built on the existing reminders spine). Verified (full API suite green plus a 14-check `expiries.smoke.ts`):
+
+1. ✅ **Unified horizon endpoint** — `GET /vault/expiries?withinDays=N` aggregates everything with a real date into one deduplicated, soonest-first list: document expiry/renewal fields, MOT / road-tax / insurance, warranties, and subscription renewals. Each item carries a category, the due date, and `daysRemaining`.
+2. ✅ **Urgency buckets (SEC-06)** — items are grouped **Overdue / Due soon (≤30d) / Upcoming (31–90d) / Later**, giving advance visibility; the underlying reminders already carry lead days `[30, 7, 1, 0]`.
+3. ✅ **Warranty & subscription coverage (INT-18/19/21)** — warranties surface as first-class `Warranty` items; subscriptions create an ACTIVE renewal reminder on save and show as `Subscription`; vehicle/property renewals categorise correctly.
+4. ✅ **Assistant horizon queries (AIX-11)** — "what expires in the next 6 months?", "what's due in 30 days?", "renewals coming up" are parsed for their time window and answered from the same horizon, with document sources. Single-item questions ("when does my passport expire?") still use the precise document answer.
+5. ✅ **Web + mobile UI** — a new **Renewals & Expiries** page on web (with a 3-month / 6-month / 1-year / 2-year horizon switch) and a matching screen on mobile, both grouped by the urgency buckets.
+
+**Remaining backlog**: optional billing proration once Stripe is live; plus items that need external credentials to *deliver* (Google/Apple/Microsoft sign-in — ACC-02; live email/push provider keys — REM-08/09). All headline user-facing requirements from the brief are implemented.
+
+## Build plan — Password / secrets vault (this increment: ✅ done & tested)
+
+A private, encrypted place for passwords, card details, PINs and secure notes (SEC-30). Migrated (`0026_secure_items.sql`) and verified (full API suite green plus a 12-check `passwords.smoke.ts`):
+
+1. ✅ **Encrypted at rest** — the sensitive payload (password / note / card number / PIN) is AES-256-GCM encrypted with the platform `ENCRYPTION_KEY` before it touches the database; only non-sensitive labels (name, username, URL, type) are stored in clear for listing. The test asserts the stored cipher is not the plaintext.
+2. ✅ **Strict owner access (admins can't read it)** — every query is scoped to the **owning user**, not just the tenant, so other household members and administrators (including super-admin) cannot list or reveal another person's secrets. The test proves a second user gets a 404 on both list and reveal.
+3. ✅ **Reveal is deliberate and audited** — lists never return the secret; the decrypted value comes only from an explicit `POST /passwords/:id/reveal`, and every reveal (plus create/update/delete) is written to the audit log.
+4. ✅ **Full CRUD + rotation** — create, list, reveal, update (re-encrypts on change) and delete, for logins, cards, PINs and secure notes.
+5. ✅ **Web + mobile UI** — a **Password Vault** page on web (add, reveal/hide, copy, delete) and a matching screen on mobile. On mobile it sits behind the biometric app-lock, so Face ID / fingerprint gates access to the whole app including the vault.
+
+This is server-encrypted with strict access (the chosen model) rather than zero-knowledge, so it stays recoverable through the user's normal login and consistent with the rest of Vaulmo; it can be upgraded to a user-held passphrase later if desired.
+
+**Remaining backlog**: the in-app passport-photo tool (next); optional billing proration once Stripe is live; and items needing external credentials to *deliver* (Google/Apple/Microsoft sign-in — ACC-02; live email/push provider keys — REM-08/09).
+
+## Build plan — In-app passport-photo tool (this increment: ✅ done & tested)
+
+A new tool (VLT-10) that turns a casual photo into a passport-compliant one. Uses OpenCV in the API image (no ML model download; Haar cascades + grabCut ship with OpenCV). Verified (full API suite green plus a 9-check `passport.smoke.ts` on a generated portrait):
+
+1. ✅ **Background made white** — `scripts/passport.py` detects the face, segments the person from the background with grabCut, feathers the edge and composites onto pure white. The smoke asserts the output corners are white (background removed).
+2. ✅ **Compliant crop & size** — the photo is cropped and scaled so the head sits at the right size/position and output is **600×771 px (35×45mm ratio)**, print-ready JPEG.
+3. ✅ **Face detection + honest fallback** — when a face is found the crop is centred on it; when it isn't, the tool still returns a correctly-sized, white-background photo and the UI advises retaking in better light (rather than pretending it's compliant).
+4. ✅ **Endpoint** — `POST /passport/process` takes the raw image and returns a base64 preview + metadata; `?save=1` stores the result straight into the vault as a `passport_photo` document.
+5. ✅ **Mobile + web UI** — mobile: front-camera or library capture with framing guidance, then a before/after preview and **Save to vault**; web: upload a photo, see before/after, **Download** or **Save to vault**.
+
+Quality note: result quality depends on the input (front-facing, even lighting, plain-ish backdrop). It's built to make a compliant photo from a reasonable capture, and to fail safe (clear guidance) when the input is poor — not to guarantee acceptance of a bad photo. The segmentation can be upgraded to a heavier model (e.g. `rembg`) later if you want studio-grade cut-outs.
+
+**Remaining backlog**: optional billing proration once Stripe is live; and items needing external credentials to *deliver* (Google/Apple/Microsoft sign-in — ACC-02; live email/push provider keys — REM-08/09).
+
+## Build plan — Social sign-in + live email/push (this increment: ✅ done & tested)
+
+Three "credentials-ready" capabilities — each works the moment you add the relevant keys, and stays safely dormant (with a graceful fallback) until then. Verified (full API suite green plus an 8-check `deliveryauth.smoke.ts`):
+
+1. ✅ **Social sign-in (ACC-02)** — `GET /auth/providers` lists only the providers you've configured, so the login/registration screens show **Continue with Google / Microsoft / Apple** only when set up. The flow: the app gets a provider authorize URL (`/auth/oauth/:provider/start`, CSRF-protected with a signed state), the provider redirects back to `/auth/oauth/:provider/callback`, we verify the profile, find-or-create the household + owner, and hand a session to the app via the URL fragment. Google & Microsoft use standard OIDC; Apple's signed (ES256) client secret is generated from its key material. OAuth accounts are created email-verified with an unusable password (they can set one via "forgot password").
+2. ✅ **Live email (REM-09)** — a real SMTP transport (nodemailer) sends transactional email as soon as `SMTP_HOST` (+ user/pass) is set; with nothing configured it logs to the dev outbox exactly as before, so dev/CI are unchanged. Recipient email is resolved from the user record.
+3. ✅ **Live push (REM-08)** — delivery via **Expo Push**, which relays to FCM (Android) and APNs (iOS), so the backend only needs the device's Expo token. The mobile app registers its token after login (`expo-notifications`); non-Expo tokens are ignored and, with no deliverable tokens, it falls back to the outbox. An admin **delivery-status** endpoint (`/notifications/admin/delivery`) reports whether email is live and how many devices are registered.
+
+**What you provide to switch each on:** Google/Microsoft/Apple OAuth client IDs + secrets (and Apple's key files) for sign-in; `SMTP_HOST/PORT/USER/PASS/EMAIL_FROM` for email; and FCM/APNs configured in your Expo project for push. No code changes — just environment values.
+
+Notes: OAuth id-tokens are read from the provider's own token endpoint over TLS (server-to-server), so claims are trusted without a separate JWKS check — fine for extracting a verified email; JWKS verification can be added later for defence-in-depth. Social sign-in currently issues a full session for accounts without app-level TOTP; MFA-over-OAuth can be layered on if you enable mandatory TOTP for social accounts. Push requires a fresh mobile build to include the notifications module.
+
+**Remaining backlog**: optional billing proration once Stripe is live. Everything else in the brief is implemented; the items above just need your credentials to go live.

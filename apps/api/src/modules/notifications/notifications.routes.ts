@@ -9,6 +9,7 @@ import { PERMISSIONS } from '../../lib/permissions';
 import { AppError } from '../../middleware/error';
 import { audit } from '../../lib/audit';
 import { runReminderTick } from '../../lib/reminderEngine';
+import { emailIsLive } from '../../lib/mailer';
 
 export const notificationsRouter = Router();
 // In-app notifications are available to every authenticated user (the internal-tester
@@ -69,6 +70,16 @@ notificationsRouter.put('/settings', async (req, res) => {
     const [row] = await db.insert(notificationSettings).values({ userId: req.auth!.sub, ...body }).returning();
     res.json(row);
   }
+});
+
+// Delivery status — lets the owner/admin see whether live email & push are active
+// and how many devices are registered, so they know what still needs configuring.
+notificationsRouter.get('/admin/delivery', requirePermission(PERMISSIONS.PLATFORM_MANAGE), async (_req, res) => {
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(deviceTokens);
+  res.json({
+    email: { live: emailIsLive(), mode: emailIsLive() ? 'smtp' : 'outbox' },
+    push: { relay: 'expo', devicesRegistered: Number(count) || 0 },
+  });
 });
 
 // Register a push device.

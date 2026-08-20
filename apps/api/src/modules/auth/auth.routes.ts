@@ -1,10 +1,13 @@
-import { Router } from 'express';
+import { Router, urlencoded } from 'express';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
 import { and, desc, eq, gt, isNull, ne } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { users, tenants, roles, userRoles, authTokens, sessions } from '../../db/schema';
 import { env } from '../../env';
 import { hashPassword, verifyPassword, passwordMeetsPolicy } from '../../lib/password';
+import { type OAuthProvider, providerConfigured, configuredProviders, authorizeUrl, exchangeCode, type OAuthProfile } from '../../lib/oauth';
 import { verifyTotp, hashRecoveryCode } from '../../lib/totp';
 import { decryptMaybe } from '../../lib/crypto';
 import { signAccessToken, newRefreshToken, hashToken } from '../../lib/jwt';
@@ -329,4 +332,76 @@ authRouter.post('/sessions/revoke-others', requireAuth, async (req, res) => {
   const rows = await db.update(sessions).set({ revokedAt: new Date() }).where(and(...conds)).returning();
   await audit({ action: 'auth.session.revoked_others', actorId: req.auth!.sub, metadata: { count: rows.length }, req });
   res.json({ revoked: rows.length });
+});
+
+// ---- Social sign-in (ACC-02): Google / Microsoft / Apple OAuth ----
+// Which providers the login screen should offer (only the configured ones).
+authRouter.get('/providers', (_req, res) => res.json({ providers: configuredProviders() }));
+
+// Find-or-create the user for a verified social profile, mirroring registration
+// (own household + owner role). OAuth accounts get an unusable random password hash —
+// they sign in via the provider (or "forgot password" to set one).
+async function upsertOAuthUser(profile: OAuthProfile) {
+  const [existing] = await db.select().from(users).where(eq(users.email, profile.email)).limit(1);
+  if (existing) {
+    if (!existing.emailVerified && profile.emailVerified) await db.update(users).set({ emailVerified: true }).where(eq(users.id, existing.id));
+    return existing;
+  }
+  const [ownerRole] = await db.select().from(roles).where(eq(roles.key, ROLES.TENANT_OWNER)).limit(1);
+  if (!ownerRole) throw new AppError(500, 'not_seeded', 'Roles are not seeded');
+  const passwordHash = await hashPassword(`oauth-${crypto.randomUUID()}-${Date.now()}`);
+  return db.transaction(async (tx) => {
+    const [tenant] = await tx.insert(tenants).values({ name: `${(profile.name || profile.email).split(' ')[0]}'s Household`, type: 'HOUSEHOLD', status: 'TRIALING', plan: 'starter' }).returning();
+    const [created] = await tx.insert(users).values({ email: profile.email, passwordHash, fullName: profile.name || profile.email.split('@')[0], tenantId: tenant.id, status: 'ACTIVE', emailVerified: profile.emailVerified }).returning();
+    await tx.insert(userRoles).values({ userId: created.id, roleId: ownerRole.id });
+    return created;
+  });
+}
+
+async function handleOAuthCallback(provider: OAuthProvider, code: string, state: string, req: any, res: any) {
+  try {
+    const d = jwt.verify(state, env.JWT_ACCESS_SECRET) as any;
+    if (d.purpose !== 'oauth_state' || d.p !== provider) throw new Error('mismatch');
+  } catch {
+    throw new AppError(400, 'bad_state', 'Sign-in link expired or invalid — please try again.');
+  }
+  let profile: OAuthProfile;
+  try { profile = await exchangeCode(provider, code); }
+  catch (e) { throw new AppError(400, 'oauth_failed', (e as Error).message); }
+
+  const user = await upsertOAuthUser(profile);
+  if (user.status === 'SUSPENDED' || user.status === 'DISABLED') throw new AppError(403, 'account_disabled', 'This account is not active');
+  const { roles: rKeys, perms } = await loadUserAuthz(user.id);
+  const tokens = await issueSession({ userId: user.id, tenantId: user.tenantId, roles: rKeys, perms, mfaSatisfied: !user.mfaEnabled, req, refreshTtlDays: env.REFRESH_TOKEN_TTL_DAYS });
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+  await audit({ action: 'auth.oauth.login', actorId: user.id, tenantId: user.tenantId, metadata: { provider }, req });
+  // Hand the tokens to the SPA via the URL fragment (never logged/sent to servers).
+  const payload = Buffer.from(JSON.stringify({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken })).toString('base64url');
+  res.redirect(`${env.APP_BASE_URL}/#oauth=${payload}`);
+}
+
+const isProvider = (p: string): p is OAuthProvider => p === 'google' || p === 'microsoft' || p === 'apple';
+
+// Step 1: the SPA asks for the provider's authorize URL and redirects the browser to it.
+authRouter.get('/oauth/:provider/start', authLimiter, (req, res) => {
+  const p = req.params.provider;
+  if (!isProvider(p) || !providerConfigured(p)) throw new AppError(404, 'provider_unavailable', 'That sign-in method is not enabled');
+  const state = jwt.sign({ purpose: 'oauth_state', p, n: crypto.randomUUID() }, env.JWT_ACCESS_SECRET, { expiresIn: '10m' });
+  res.json({ url: authorizeUrl(p, state) });
+});
+
+// Step 2: the provider redirects back here (Google/Microsoft via GET, Apple via POST).
+authRouter.get('/oauth/:provider/callback', async (req, res) => {
+  const p = req.params.provider;
+  if (!isProvider(p)) throw new AppError(404, 'provider_unavailable', 'Unknown provider');
+  const code = String(req.query.code || ''); const state = String(req.query.state || '');
+  if (!code) throw new AppError(400, 'no_code', 'Missing authorization code');
+  await handleOAuthCallback(p, code, state, req, res);
+});
+authRouter.post('/oauth/:provider/callback', urlencoded({ extended: false }), async (req, res) => {
+  const p = req.params.provider;
+  if (!isProvider(p)) throw new AppError(404, 'provider_unavailable', 'Unknown provider');
+  const code = String(req.body?.code || ''); const state = String(req.body?.state || '');
+  if (!code) throw new AppError(400, 'no_code', 'Missing authorization code');
+  await handleOAuthCallback(p, code, state, req, res);
 });

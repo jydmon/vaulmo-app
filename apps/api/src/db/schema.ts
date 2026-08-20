@@ -456,6 +456,26 @@ export const trackedSubscriptions = pgTable('tracked_subscriptions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ---- Password / secrets vault (SEC-30) ----
+// Owner-scoped secure items. The sensitive payload (password, notes, card number,
+// PIN) is AES-256-GCM encrypted at rest in `secretCipher`; only non-sensitive labels
+// are stored in plaintext for listing. Access is strictly the OWNER user — other
+// household members and admins (incl. super_admin) can never read another user's
+// secrets, because every query filters on owner_user_id and the payload is encrypted.
+export const secureItems = pgTable('secure_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  ownerUserId: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull().default('login'), // login | card | note | pin
+  label: text('label').notNull(),
+  username: text('username'),
+  url: text('url'),
+  category: text('category'),
+  secretCipher: text('secret_cipher').notNull(), // AES-GCM ciphertext of a JSON payload
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ ownerIdx: index('secure_items_owner_idx').on(t.tenantId, t.ownerUserId) }));
+
 // ---- Phase 8: emergency access ----
 export const emergencyRequests = pgTable('emergency_requests', {
   id: uuid('id').defaultRandom().primaryKey(),

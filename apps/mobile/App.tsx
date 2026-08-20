@@ -9,8 +9,9 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
-import { api, setTokens, loadTokens, hasToken, uploadText, uploadImage, fileSize, ApiError, type AuthResult } from './src/api';
+import { api, setTokens, loadTokens, hasToken, uploadText, uploadImage, fileSize, processPassport, ApiError, type AuthResult } from './src/api';
 import { getCapability, isBiometricEnabled, setBiometricEnabled, shouldLock, authenticate, type BiometricCapability } from './src/biometric';
+import { registerForPush } from './src/push';
 
 /* ============================ design tokens ============================ */
 const C = {
@@ -37,6 +38,7 @@ export default function App() {
   const [locked, setLocked] = useState(false); // biometric app-lock gate on launch
   useEffect(() => {
     if (me && !((me.roles ?? []).includes('super_admin')) && me.onboarding?.complete && !me.onboarding?.tourSeen) setShowTour(true);
+    if (me && !((me.roles ?? []).includes('super_admin')) && me.onboarding?.complete) registerForPush();
   }, [me]);
 
   // Restore the stored session once biometric (if enabled) has been satisfied.
@@ -113,6 +115,9 @@ export default function App() {
       <Modal visible={!!sub} animationType="slide" onRequestClose={() => setSub(null)}>
         {sub && <SubScreen title={SUB_TITLES[sub] ?? ''} onClose={() => setSub(null)}>
           {sub === 'assets' && <Assets />}
+          {sub === 'renewals' && <Renewals />}
+          {sub === 'passwords' && <Passwords />}
+          {sub === 'passport' && <PassportPhoto />}
           {sub === 'trips' && <Trips />}
           {sub === 'purchases' && <Purchases />}
           {sub === 'subs' && <Subs />}
@@ -132,7 +137,7 @@ export default function App() {
 }
 
 const SUB_TITLES: Record<string, string> = {
-  assets: 'Property & Vehicles', trips: 'Trips', purchases: 'Purchases & Warranties', subs: 'Subscriptions', connected: 'Connected Services',
+  assets: 'Property & Vehicles', renewals: 'Renewals & Expiries', passwords: 'Password Vault', passport: 'Passport Photo', trips: 'Trips', purchases: 'Purchases & Warranties', subs: 'Subscriptions', connected: 'Connected Services',
   family: 'Family & Access', emergency: 'Emergency Access', billing: 'Plan & Billing', support: 'Support',
   help: 'Help Centre', faq: 'FAQ & Support', privacy: 'Privacy & Security', settings: 'Settings',
 };
@@ -928,6 +933,9 @@ function Profile({ me, refreshMe, onSignOut, openSub }: any) {
       </View>
 
       <SectionTitle>Your life</SectionTitle>
+      <MenuItem ic="🗓️" bg={C.warnBg} t="Renewals & Expiries" s="Everything coming due" onPress={() => openSub('renewals')} />
+      <MenuItem ic="🔒" bg={C.goodBg} t="Password Vault" s="Passwords, cards & notes" onPress={() => openSub('passwords')} />
+      <MenuItem ic="🪪" bg={C.brandSoft} t="Passport Photo" s="Take a compliant photo" onPress={() => openSub('passport')} />
       <MenuItem ic="🚗" bg={C.brandSoft} t="Property & Vehicles" s="Home, car & renewals" onPress={() => openSub('assets')} />
       <MenuItem ic="✈️" bg={C.brandSoft} t="Trips" s="Flights, hotels & tickets" onPress={() => openSub('trips')} />
       <MenuItem ic="🧾" bg={C.goodBg} t="Purchases & Warranties" s="Receipts, assets & cover" onPress={() => openSub('purchases')} />
@@ -1105,6 +1113,162 @@ function AssetItem({ a, docs, onChange }: any) {
       <TouchableOpacity onPress={remove}><Text style={{ color: C.crit, fontSize: 12.5, fontWeight: '600' }}>Remove asset</Text></TouchableOpacity>
     </View>
   </View>;
+}
+const EXP_ICON: Record<string, string> = { Vehicle: '🚗', Property: '🏠', Subscription: '🔁', Warranty: '🛡️', Document: '📄', Renewal: '🗓️' };
+function Renewals() {
+  const [within, setWithin] = useState(365);
+  const [data] = useAsync(() => api.expiries(within), [within]);
+  const daysLabel = (d: number) => (d < 0 ? `${-d}d overdue` : d === 0 ? 'today' : `in ${d}d`);
+  const pill = (d: number) => (d < 0 ? { backgroundColor: C.critBg, color: C.crit } : d <= 30 ? { backgroundColor: C.critBg, color: C.crit } : d <= 90 ? { backgroundColor: C.warnBg, color: C.warn } : { backgroundColor: C.goodBg, color: C.good });
+  const b = data?.buckets ?? { overdue: [], soon: [], upcoming: [], later: [] };
+  const total = data?.counts?.total ?? 0;
+  const group = (title: string, list: any[]) => list.length > 0 && (
+    <View key={title}>
+      <SectionTitle>{title} ({list.length})</SectionTitle>
+      <Card>
+        {list.map((i: any) => (
+          <Item key={`${i.category}-${i.dueDate}-${i.title}`} icon={EXP_ICON[i.category] ?? '🗓️'} t={i.title} sub={`${i.category} · ${fmt(i.dueDate)}`}
+            right={<Text style={[st.tag, pill(i.daysRemaining)]}>{daysLabel(i.daysRemaining)}</Text>} />
+        ))}
+      </Card>
+    </View>
+  );
+  return (
+    <ScrollView contentContainerStyle={st.pad}>
+      <Text style={st.muted}>Everything coming due — document expiries, MOT, tax, insurance, warranties and subscription renewals — in one place.</Text>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        {[[90, '3 mo'], [180, '6 mo'], [365, '1 yr'], [730, '2 yr']].map(([d, lbl]) => (
+          <TouchableOpacity key={d as number} onPress={() => setWithin(d as number)} accessibilityRole="button" accessibilityState={{ selected: within === d }}
+            style={[st.chip, within === d && st.chipOn]}><Text style={[st.chipTxt, within === d && st.chipTxtOn]}>{lbl as string}</Text></TouchableOpacity>
+        ))}
+      </View>
+      {!data ? <Loading /> : total === 0
+        ? <Card><Text style={[st.muted, { textAlign: 'center', paddingVertical: 16 }]}>Nothing coming due in this window. 🎉</Text></Card>
+        : <>{group('Overdue', b.overdue)}{group('Due soon', b.soon)}{group('Upcoming', b.upcoming)}{group('Later', b.later)}</>}
+    </ScrollView>
+  );
+}
+function PassportPhoto() {
+  const [orig, setOrig] = useState<string | null>(null);
+  const [result, setResult] = useState<{ preview: string; meta: any } | null>(null);
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+
+  async function capture(from: 'camera' | 'library') {
+    setErr('');
+    try {
+      const perm = from === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { setErr(`Please allow ${from === 'camera' ? 'camera' : 'photo'} access to continue.`); return; }
+      const res = from === 'camera'
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9, cameraType: ImagePicker.CameraType.front })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9 });
+      if (res.canceled || !res.assets?.length) return;
+      const m = await ImageManipulator.manipulateAsync(res.assets[0].uri, [{ resize: { width: 1200 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
+      setOrig(m.uri); setResult(null);
+      setBusy('Creating your passport photo…');
+      const r = await processPassport(m.uri, false);
+      setResult({ preview: r.preview, meta: r.meta });
+    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Could not process the photo.'); }
+    finally { setBusy(''); }
+  }
+  async function save() {
+    if (!orig) return; setBusy('Saving to your vault…'); setErr('');
+    try { await processPassport(orig, true); Alert.alert('Saved', 'Your passport photo is in the vault.'); }
+    catch (e) { setErr(e instanceof ApiError ? e.message : 'Could not save.'); }
+    finally { setBusy(''); }
+  }
+
+  return (
+    <ScrollView contentContainerStyle={st.pad}>
+      {!!err && <View style={st.errBox}><Text style={st.errTxt}>{err}</Text></View>}
+      <Text style={st.muted}>Take a head-and-shoulders photo facing the camera. Tips for the best result: plain wall behind you, even lighting, neutral expression, no hat or sunglasses. Vaulmo whitens the background and crops it to passport size (35×45mm).</Text>
+
+      {result ? <>
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={[st.fieldLabel, { textAlign: 'center' }]}>Your photo</Text>
+            {orig && <Image source={{ uri: orig }} style={st.ppImg} resizeMode="cover" />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[st.fieldLabel, { textAlign: 'center' }]}>Passport-ready</Text>
+            <Image source={{ uri: result.preview }} style={st.ppImg} resizeMode="contain" />
+          </View>
+        </View>
+        {result.meta?.facesDetected ? <View style={st.okBox}><Text style={st.okTxt}>✅ Face detected · background whitened · sized to 35×45mm</Text></View>
+          : <View style={[st.okBox, { backgroundColor: C.warnBg }]}><Text style={{ color: C.warn, fontWeight: '600', fontSize: 13 }}>We couldn't clearly detect a face — retake facing the camera in good light for a compliant result.</Text></View>}
+        <Btn label="Save to vault" busy={!!busy} busyLabel={busy} onPress={save} />
+        <Btn label="Retake" secondary onPress={() => { setResult(null); setOrig(null); }} />
+      </> : busy ? <View style={{ paddingVertical: 30 }}><Loading /><Text style={[st.muted, { textAlign: 'center' }]}>{busy}</Text></View> : <>
+        <Btn label="📷 Take photo" onPress={() => capture('camera')} />
+        <Btn label="🖼️ Choose from library" secondary onPress={() => capture('library')} />
+      </>}
+    </ScrollView>
+  );
+}
+const PW_KIND: Record<string, { ic: string; label: string }> = {
+  login: { ic: '🔑', label: 'Login' }, card: { ic: '💳', label: 'Card' }, note: { ic: '📝', label: 'Secure note' }, pin: { ic: '🔢', label: 'PIN' },
+};
+function Passwords() {
+  const [data, reload] = useAsync(() => api.passwords());
+  const [add, setAdd] = useState(false);
+  const [f, setF] = useState<any>({ kind: 'login', label: '', username: '', url: '', password: '', note: '' });
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<Record<string, any>>({});
+  const items = data?.items ?? [];
+  const set = (k: string, v: string) => setF((s: any) => ({ ...s, [k]: v }));
+
+  async function create() {
+    if (!f.label) return; setBusy(true);
+    try {
+      await api.createPassword({ kind: f.kind, label: f.label, username: f.username || null, url: f.url || null, secret: { password: f.password || undefined, note: f.note || undefined } });
+      setF({ kind: 'login', label: '', username: '', url: '', password: '', note: '' }); setAdd(false); reload();
+    } catch (e) { Alert.alert('Could not save', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(false); }
+  }
+  async function reveal(id: string) {
+    if (open[id]) { setOpen((s) => { const n = { ...s }; delete n[id]; return n; }); return; }
+    try { const r = await api.revealPassword(id); setOpen((s) => ({ ...s, [id]: r.secret })); } catch { Alert.alert('Could not unlock'); }
+  }
+  function del(id: string, label: string) {
+    Alert.alert('Delete item', `Delete "${label}"? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => { try { await api.deletePassword(id); reload(); } catch { Alert.alert('Try again'); } } },
+    ]);
+  }
+  return (
+    <ScrollView contentContainerStyle={st.pad}>
+      <View style={st.okBox}><Text style={st.okTxt}>🔒 Encrypted at rest · only you can unlock · every unlock is logged.</Text></View>
+      {!add
+        ? <Btn label="＋ Add item" onPress={() => setAdd(true)} />
+        : <Card>
+            <Picker label="Type" value={f.kind} options={Object.entries(PW_KIND).map(([k, v]) => [k, v.label]) as [string, string][]} onChange={(v) => set('kind', v)} />
+            <Field label="Name" value={f.label} onChangeText={(v: string) => set('label', v)} placeholder="e.g. Gmail, Wi-Fi, Barclays" />
+            {f.kind === 'login' && <>
+              <Field label="Username / email" value={f.username} onChangeText={(v: string) => set('username', v)} autoCapitalize="none" />
+              <Field label="Website" value={f.url} onChangeText={(v: string) => set('url', v)} autoCapitalize="none" placeholder="https://" />
+            </>}
+            {f.kind !== 'note' && <Field label={f.kind === 'pin' ? 'PIN' : f.kind === 'card' ? 'Card number' : 'Password'} value={f.password} onChangeText={(v: string) => set('password', v)} secureTextEntry />}
+            <Field label={f.kind === 'note' ? 'Secure note' : 'Notes (optional)'} value={f.note} onChangeText={(v: string) => set('note', v)} multiline />
+            <Btn label="Save securely" busy={busy} onPress={create} />
+            <Btn label="Cancel" secondary onPress={() => setAdd(false)} />
+          </Card>}
+
+      {items.map((i: any) => {
+        const k = PW_KIND[i.kind] ?? PW_KIND.login; const sec = open[i.id];
+        return <Card key={i.id}>
+          <Item icon={k.ic} t={i.label} sub={`${k.label}${i.username ? ` · ${i.username}` : ''}`}
+            right={<TouchableOpacity onPress={() => reveal(i.id)} accessibilityRole="button"><Text style={st.link}>{sec ? 'Hide' : 'Reveal'}</Text></TouchableOpacity>} />
+          {sec && <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: C.line, marginTop: 4, gap: 6 }}>
+            {!!sec.password && <Text selectable style={st.itemT}>{sec.password}</Text>}
+            {!!sec.pin && <Text selectable style={st.itemT}>{sec.pin}</Text>}
+            {!!sec.cardNumber && <Text selectable style={st.itemT}>{sec.cardNumber}</Text>}
+            {!!sec.note && <Text selectable style={st.muted}>{sec.note}</Text>}
+            <TouchableOpacity onPress={() => del(i.id, i.label)} accessibilityRole="button"><Text style={[st.link, { color: C.crit }]}>Delete</Text></TouchableOpacity>
+          </View>}
+        </Card>;
+      })}
+      {!items.length && !add && <Text style={[st.muted, { textAlign: 'center', marginTop: 20 }]}>Nothing saved yet. Add your first password or note.</Text>}
+    </ScrollView>
+  );
 }
 function Assets() {
   const [data, reload] = useAsync(() => api.assets());
@@ -1781,6 +1945,7 @@ const st = StyleSheet.create({
   preview: { width: '100%', height: 320, borderRadius: 16, backgroundColor: '#000', marginBottom: 6 },
   pageRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 14, padding: 10, marginTop: 10, borderWidth: 1, borderColor: C.line },
   pageThumb: { width: 56, height: 74, borderRadius: 8, backgroundColor: C.surf2 },
+  ppImg: { width: '100%', aspectRatio: 35 / 45, borderRadius: 12, backgroundColor: C.surf2, marginTop: 6 },
 
   // ask
   msgRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-end' },

@@ -28,6 +28,8 @@ import { emergencyRouter, emergencyPublicRouter } from './modules/emergency/emer
 import { integrationsRouter, integrationsWebhookRouter } from './modules/integrations/integrations.routes';
 import { lifeRouter } from './modules/life/life.routes';
 import { assetsRouter } from './modules/assets/assets.routes';
+import { passwordsRouter } from './modules/passwords/passwords.routes';
+import { passportRouter } from './modules/passport/passport.routes';
 import { healthRouter } from './modules/health/health.routes';
 
 export function createApp() {
@@ -85,6 +87,8 @@ export function createApp() {
   app.use('/api/v1/integrations-webhook', integrationsWebhookRouter);
   app.use('/api/v1', lifeRouter);
   app.use('/api/v1/assets', assetsRouter);
+  app.use('/api/v1/passwords', passwordsRouter);
+  app.use('/api/v1/passport', passportRouter);
 
   app.use(notFound);
   app.use(errorHandler);

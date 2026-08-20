@@ -8,9 +8,12 @@ ENV NODE_ENV=production
 #    driver when it's absent, so images build without it too, but production wants it).
 #  - poppler-utils: pdftotext (pull embedded text from digital PDFs) and pdftoppm
 #    (rasterise scanned PDF pages to PNG so Tesseract can OCR them). AIX-02.
+#  - python3 + OpenCV runtime libs: the passport-photo tool (scripts/passport.py) uses
+#    OpenCV for face detection + background removal. VLT-10.
 #  - ca-certificates: TLS to Postgres / S3 / Stripe.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends tesseract-ocr poppler-utils ca-certificates \
+     python3 python3-numpy python3-opencv \
   && rm -rf /var/lib/apt/lists/*
 
 # Install ALL deps — the tsx runtime is used to run migrations, the worker and the
