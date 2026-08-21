@@ -33,13 +33,27 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
+      - name: Check EXPO_TOKEN secret is present
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN repository secret is empty or not set."
+            echo "Add it at Settings > Secrets and variables > Actions > New repository secret."
+            exit 1
+          fi
+          echo "EXPO_TOKEN is present (${#EXPO_TOKEN} characters)."
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm install
       - name: EAS build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas build --non-interactive --platform ${{ github.event.inputs.platform || 'android' }} --profile ${{ github.event.inputs.profile || 'preview' }}
       - name: EAS submit (stores)
         if: ${{ github.event.inputs.submit == 'true' && github.event.inputs.profile == 'production' }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas submit --non-interactive --platform ${{ github.event.inputs.platform }} --profile production
