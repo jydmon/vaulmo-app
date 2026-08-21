@@ -55,7 +55,8 @@ const Mark = ({ size = 36 }: { size?: number }) => {
 /* ---------------- root ---------------- */
 export function App() {
   const [me, setMe] = useState<any>(null);
-  const [view, setView] = useState<'login' | 'register' | 'mfa'>('login');
+  const [view, setView] = useState<'login' | 'register' | 'mfa' | 'forgot' | 'reset'>('login');
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<string | null>(null);
   const [forceMfa, setForceMfa] = useState<any>(null);
   const [error, setError] = useState('');
@@ -64,6 +65,14 @@ export function App() {
   // Restore an existing session on load (survives page refresh). Also completes a
   // social sign-in: the OAuth callback redirects back with tokens in the URL fragment.
   useEffect(() => {
+    // A password-reset link (?reset=TOKEN) takes priority over restoring any
+    // existing session — the whole point is that the user cannot get in.
+    const rt = new URLSearchParams(window.location.search).get('reset');
+    if (rt) {
+      history.replaceState(null, '', window.location.pathname);
+      setResetToken(rt); setView('reset'); setBooting(false);
+      return;
+    }
     const m = window.location.hash.match(/oauth=([A-Za-z0-9_-]+)/);
     if (m) {
       try {
@@ -89,6 +98,12 @@ export function App() {
   }
   if (booting) return <div className="auth-wrap"><div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Your life, organised</span></div></div></div>;
   if (forceMfa) return <ForceMfaSetup user={forceMfa} onDone={(u: any) => { setForceMfa(null); setMe(u); }} onCancel={() => { setTokens(null, null); setForceMfa(null); setView('login'); }} />;
+  if (view === 'reset' && resetToken) {
+    return <div className="auth-wrap"><div>
+      <div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Your life, organised</span></div></div>
+      <ResetForm token={resetToken} onDone={() => { setTokens(null, null); setMe(null); setResetToken(null); setView('login'); }} />
+    </div></div>;
+  }
   if (me) {
     const isSuper = me?.roles?.includes('super_admin');
     const signOut = () => { setTokens(null, null); setMe(null); setView('login'); };
@@ -106,7 +121,8 @@ export function App() {
         {error && <div className="err" role="alert" style={{ width: 400, maxWidth: '92vw' }}>{error}</div>}
         {view === 'login' && <AuthForm title="Sign in" fields={['email', 'password']} cta="Sign in"
           onSubmit={async (v) => { setError(''); try { await afterAuth(await api.login(v)); } catch (e) { setError(e instanceof ApiError ? e.message : 'Failed'); } }}
-          foot={<><SocialButtons onError={setError} />New here? <A onClick={() => { setError(''); setView('register'); }}>Create an account</A></>} />}
+          foot={<><SocialButtons onError={setError} /><div style={{ marginBottom: 6 }}><A onClick={() => { setError(''); setView('forgot'); }}>Forgot password?</A></div>New here? <A onClick={() => { setError(''); setView('register'); }}>Create an account</A></>} />}
+        {view === 'forgot' && <ForgotForm onBack={() => { setError(''); setView('login'); }} />}
         {view === 'register' && <AuthForm title="Create your household" fields={['fullName', 'email', 'password']} cta="Create account"
           onSubmit={async (v) => { setError(''); try { await afterAuth(await api.register(v)); } catch (e) { setError(e instanceof ApiError ? e.message : 'Failed'); } }}
           foot={<><SocialButtons onError={setError} />Have an account? <A onClick={() => { setError(''); setView('login'); }}>Sign in</A></>} />}
@@ -328,6 +344,65 @@ function AuthForm(props: { title: string; fields: string[]; cta: string; onSubmi
     <div className="foot">{props.foot}</div>
   </form>;
 }
+// ---- Password reset (REM-09) ----
+// Step 1: ask for the email. The API deliberately answers the same whether or not
+// the account exists, so this screen must not reveal anything either.
+function ForgotForm({ onBack }: { onBack: () => void }) {
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true);
+    try { await api.requestPasswordReset(email); } catch { /* never disclose */ } finally { setBusy(false); setSent(true); }
+  }
+  if (sent) return <div className="card auth-card">
+    <h1>Check your email</h1>
+    <p className="muted">If an account exists for <b>{email}</b>, we’ve sent a link to choose a new password. The link expires in 30 minutes.</p>
+    <button className="btn block" type="button" onClick={onBack}>Back to sign in</button>
+  </div>;
+  return <form className="card auth-card" onSubmit={submit}>
+    <h1>Reset your password</h1>
+    <p className="muted">Enter your email address and we’ll send you a link to choose a new one.</p>
+    <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
+    <button className="btn block" type="submit" disabled={busy}>{busy ? 'Sending\u2026' : 'Send reset link'}</button>
+    <div className="foot">Remembered it? <A onClick={onBack}>Sign in</A></div>
+  </form>;
+}
+
+// Step 2: the user arrives from the emailed link with a token in the URL.
+function ResetForm({ token, onDone }: { token: string; onDone: () => void }) {
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault(); setErr('');
+    if (!(pw.length >= 10 && /[A-Za-z]/.test(pw) && /[0-9]/.test(pw))) {
+      setErr('Password must be at least 10 characters and include both letters and numbers.'); return;
+    }
+    if (pw !== pw2) { setErr('Those passwords don\u2019t match.'); return; }
+    setBusy(true);
+    try { await api.resetPassword(token, pw); setDone(true); }
+    catch (e2) { setErr(e2 instanceof ApiError ? e2.message : 'That reset link is invalid or has expired. Please request a new one.'); }
+    finally { setBusy(false); }
+  }
+  if (done) return <div className="card auth-card">
+    <h1>Password updated</h1>
+    <p className="muted">Sign in with your new password. For your security, every other device has been signed out.</p>
+    <button className="btn block" type="button" onClick={onDone}>Sign in</button>
+  </div>;
+  return <form className="card auth-card" onSubmit={submit}>
+    <h1>Choose a new password</h1>
+    {err && <div className="err" role="alert">{err}</div>}
+    <label>New password<input type="password" value={pw} onChange={(e) => setPw(e.target.value)} required /></label>
+    <label>Confirm new password<input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} required /></label>
+    <p className="muted" style={{ marginTop: -2, fontSize: 12.5 }}>At least 10 characters, including letters and numbers.</p>
+    <button className="btn block" type="submit" disabled={busy}>{busy ? 'Saving\u2026' : 'Save new password'}</button>
+    <div className="foot"><A onClick={onDone}>Back to sign in</A></div>
+  </form>;
+}
+
 function MfaForm(props: { onSubmit: (c: string) => void }) {
   const [c, setC] = useState('');
   return <form className="card auth-card" onSubmit={(e) => { e.preventDefault(); props.onSubmit(c); }}>

@@ -176,6 +176,7 @@ function Auth({ onAuthed }: { onAuthed: (me: any) => void }) {
   const [challenge, setChallenge] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const set = (k: string, v: string) => setF((s) => ({ ...s, [k]: v }));
 
   async function afterAuth(r: AuthResult) {
@@ -204,7 +205,24 @@ function Auth({ onAuthed }: { onAuthed: (me: any) => void }) {
           {mode === 'register' && <Btn label="Create account" busy={busy} onPress={run(async () => afterAuth(await api.register({ fullName: f.fullName.trim(), email: f.email.trim(), password: f.password })))} />}
           {mode === 'mfa' && <Btn label="Verify" busy={busy} onPress={run(async () => afterAuth(await api.loginMfa(f.code.trim(), challenge!)))} />}
 
-          {mode !== 'mfa' && <TouchableOpacity style={{ marginTop: 18, alignItems: 'center' }} onPress={() => { setErr(''); setMode(mode === 'login' ? 'register' : 'login'); }}>
+          {/* Password reset. The link emailed to the user opens the web app, which is
+              where the new password is actually chosen — the app only requests it. */}
+          {mode === 'login' && !resetSent && <TouchableOpacity style={{ marginTop: 14, alignItems: 'center' }} disabled={busy}
+            onPress={run(async () => {
+              if (!f.email.trim()) { setErr('Enter your email address first, then tap Forgot password.'); return; }
+              await api.requestPasswordReset(f.email.trim());
+              setResetSent(true);
+            })}>
+            <Text style={st.link}>Forgot password?</Text>
+          </TouchableOpacity>}
+          {mode === 'login' && resetSent && <View style={{ marginTop: 14, paddingHorizontal: 8 }}>
+            <Text style={[st.authSub, { textAlign: 'center' }]}>If an account exists for {f.email.trim()}, we’ve emailed a link to choose a new password. Open it on this device to finish. The link expires in 30 minutes.</Text>
+            <TouchableOpacity style={{ marginTop: 10, alignItems: 'center' }} onPress={() => setResetSent(false)}>
+              <Text style={st.link}>Send it again</Text>
+            </TouchableOpacity>
+          </View>}
+
+          {mode !== 'mfa' && <TouchableOpacity style={{ marginTop: 18, alignItems: 'center' }} onPress={() => { setErr(''); setResetSent(false); setMode(mode === 'login' ? 'register' : 'login'); }}>
             <Text style={st.link}>{mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in'}</Text>
           </TouchableOpacity>}
         </ScrollView>

@@ -120,6 +120,7 @@ export const api = {
   register: (b: any) => P<AuthResult>('/auth/register', b),
   login: (b: any) => P<AuthResult>('/auth/login', b),
   loginMfa: (code: string, ct: string) => req<AuthResult>('POST', '/auth/login/mfa', { code }, ct),
+  requestPasswordReset: (email: string) => P<any>('/auth/request-password-reset', { email }),
   me: () => G<any>('/users/me'),
   updateProfile: (b: { fullName?: string; phone?: string | null; timezone?: string | null; country?: string }) => PUT<any>('/users/me', b),
   // onboarding flow

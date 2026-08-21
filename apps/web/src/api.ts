@@ -204,6 +204,8 @@ export const api = {
   setNotifSettings: (b: any) => request<any>('PUT', '/notifications/settings', b),
   requestVerification: () => P<any>('/auth/request-verification'),
   verifyEmail: (token: string) => P<any>('/auth/verify-email', { token }),
+  requestPasswordReset: (email: string) => P<any>('/auth/request-password-reset', { email }),
+  resetPassword: (token: string, newPassword: string) => P<any>('/auth/reset-password', { token, newPassword }),
   // privacy & security centre
   securityActivity: () => G<any>('/users/me/security-activity'),
   privacy: () => G<any>('/users/me/privacy'),
