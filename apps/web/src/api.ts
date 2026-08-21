@@ -325,6 +325,11 @@ export const api = {
   adminCreateBroadcast: (b: any) => P<any>('/admin/comms/broadcasts', b),
   adminUpdateBroadcast: (id: string, b: any) => PATCH<any>(`/admin/comms/broadcasts/${id}`, b),
   adminDeleteBroadcast: (id: string) => DEL<any>(`/admin/comms/broadcasts/${id}`),
+  // Driving & parking zone editor (admin)
+  adminDrivingZones: () => G<any>('/admin/driving/zones'),
+  adminSaveDrivingZone: (b: any) => P<any>('/admin/driving/zones', b),
+  adminUpdateDrivingZone: (id: string, b: any) => PATCH<any>(`/admin/driving/zones/${id}`, b),
+  adminDeleteDrivingZone: (id: string) => DEL<any>(`/admin/driving/zones/${id}`),
   adminConversations: (source?: string) => G<any>(`/admin/comms/conversations${source ? `?source=${source}` : ''}`),
   adminConversation: (id: string) => G<any>(`/admin/comms/conversations/${id}`),
   adminReplyConversation: (id: string, body: string) => P<any>(`/admin/comms/conversations/${id}/reply`, { body }),

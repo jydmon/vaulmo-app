@@ -772,3 +772,35 @@ export const conversationMessages = pgTable('conversation_messages', {
   body: text('body').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---- Driving-charge zones (ULEZ/CAZ/LEZ/congestion/toll) + alert log (0033) ----
+export const chargeZones = pgTable('charge_zones', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  key: text('key').notNull().unique(),
+  name: text('name').notNull(),
+  country: text('country').notNull().default('GB'),
+  type: text('type').notNull(), // ulez | caz | lez | congestion | toll
+  lat: real('lat').notNull(),
+  lng: real('lng').notNull(),
+  radiusM: integer('radius_m').notNull(),
+  amount: integer('amount').notNull().default(0), // minor units
+  currency: text('currency').notNull().default('GBP'),
+  unit: text('unit').notNull().default('day'), // day | trip
+  compliantFree: boolean('compliant_free').notNull().default(false),
+  hours: text('hours'),
+  schedule: jsonb('schedule'), // no-parking restricted window: { days, start, end }
+  infoUrl: text('info_url'),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const zoneAlerts = pgTable('zone_alerts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  zoneKey: text('zone_key').notNull(),
+  zoneName: text('zone_name').notNull(),
+  vehicleLabel: text('vehicle_label'),
+  amount: integer('amount').notNull().default(0),
+  currency: text('currency').notNull().default('GBP'),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+});

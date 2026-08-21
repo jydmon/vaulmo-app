@@ -396,7 +396,7 @@ const TENANT_NAV = [
   { id: 'subs', label: 'Subscriptions', ic: 'subs' }, { id: 'connected', label: 'Connected', ic: 'connected' },
   { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'family', label: 'Family & Access', ic: 'family' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'billing', label: 'Plan & Billing', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { id: 'chat', label: 'Chat with support', ic: 'support' }, { id: 'faq', label: 'FAQ', ic: 'help' }, { id: 'help', label: 'Help Centre', ic: 'help' }, { id: 'settings', label: 'Settings', ic: 'settings' },
 ];
-const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'campaigns', label: 'Campaigns', ic: 'notif' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'website', label: 'Website (CMS)', ic: 'cms' }, { id: 'subscribers', label: 'Waitlist', ic: 'crm' }, { id: 'messages', label: 'Form submissions', ic: 'support' }, { id: 'conversations', label: 'Conversations', ic: 'support' }, { id: 'broadcasts', label: 'Broadcasts', ic: 'notif' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
+const ADMIN_NAV = [{ grp: 'Platform' }, { id: 'home', label: 'Overview', ic: 'overview' }, { id: 'reports', label: 'Reports', ic: 'reports' }, { id: 'customers', label: 'Customers', ic: 'tenants' }, { id: 'crm', label: 'CRM', ic: 'crm' }, { id: 'campaigns', label: 'Campaigns', ic: 'notif' }, { id: 'subscriptions', label: 'Subscriptions', ic: 'billing' }, { id: 'support', label: 'Support', ic: 'support' }, { grp: 'Content' }, { id: 'website', label: 'Website (CMS)', ic: 'cms' }, { id: 'subscribers', label: 'Waitlist', ic: 'crm' }, { id: 'messages', label: 'Form submissions', ic: 'support' }, { id: 'conversations', label: 'Conversations', ic: 'support' }, { id: 'broadcasts', label: 'Broadcasts', ic: 'notif' }, { id: 'cms', label: 'Knowledge base', ic: 'cms' }, { id: 'catalogue', label: 'Document Catalogue', ic: 'catalogue' }, { id: 'notifadmin', label: 'Notifications', ic: 'notif' }, { id: 'aiadmin', label: 'AI & OCR', ic: 'ai' }, { id: 'integadmin', label: 'Integrations', ic: 'integrations' }, { grp: 'Security' }, { id: 'security', label: 'Security', ic: 'security' }, { id: 'emergency', label: 'Emergency Access', ic: 'emergency' }, { id: 'roles', label: 'Admins & Roles', ic: 'roles' }, { id: 'gdpr', label: 'Data Protection', ic: 'gdpr' }, { id: 'audit', label: 'Audit', ic: 'audit' }, { grp: 'Configuration' }, { id: 'config', label: 'Configuration', ic: 'config' }, { id: 'drivingzones', label: 'Driving & parking zones', ic: 'config' }, { id: 'health', label: 'System Health', ic: 'health' }, { grp: 'Account' }, { id: 'profile', label: 'My Profile', ic: 'profile' }, { id: 'settings', label: 'Settings', ic: 'settings' }];
 
 function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; refreshMe: () => Promise<void> }) {
   const isSuper = me?.roles?.includes('super_admin');
@@ -428,7 +428,7 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     reminders: ['Reminders', 'What needs your attention'], expiries: ['Renewals & Expiries', 'Everything coming due, in one place'], passwords: ['Password Vault', 'Passwords, cards & secure notes'], passport: ['Passport Photo', 'A compliant photo from any picture'], trips: ['Trips', 'Your travel, organised'],
     purchases: ['Purchases & Warranties', 'Receipts, assets and warranties'], subs: ['Subscriptions', 'What you pay for'],
     connected: ['Connected Services', 'Import from email automatically'], assets: ['Property & Vehicles', 'Your home, car & other assets'], family: ['Family & Access', 'People, next of kin, emergency access'],
-    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], website: ['Website (CMS)', 'Edit the public vaulmo.com pages'], subscribers: ['Waitlist', 'People who signed up on the website'], messages: ['Form submissions', 'Messages sent via the website contact form'], conversations: ['Conversations', 'Live chats from the app and website'], broadcasts: ['Broadcasts', 'Post a message to every user'], board: ['Messages', 'Announcements from the Vaulmo team'], chat: ['Chat with support', 'Message our team and see replies'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
+    billing: ['Plan & Billing', 'Your Vaulmo subscription'], settings: ['Settings', 'Security & preferences'], profile: ['My Profile', 'Your account & details'], customers: ['Customers', 'Accounts & the people in them'], subscriptions: ['Subscriptions', 'Plans, status & revenue'], support: [isSuper ? 'Support desk' : 'Support', isSuper ? 'Manage customer tickets' : 'Get help & track your requests'], emergency: [isSuper ? 'Emergency Access review' : 'Emergency Access', isSuper ? 'Security review & due diligence' : 'Requests to access your vault'], reports: ['Reporting & analytics', 'Growth, usage & revenue'], crm: ['Customer CRM', 'Lifecycle, tags, notes & troubleshooting'], website: ['Website (CMS)', 'Edit the public vaulmo.com pages'], subscribers: ['Waitlist', 'People who signed up on the website'], messages: ['Form submissions', 'Messages sent via the website contact form'], conversations: ['Conversations', 'Live chats from the app and website'], broadcasts: ['Broadcasts', 'Post a message to every user'], board: ['Messages', 'Announcements from the Vaulmo team'], chat: ['Chat with support', 'Message our team and see replies'], campaigns: ['Campaigns & Comms', 'Email campaigns and automated workflows'], cms: ['Knowledge base', 'Help articles & content'], catalogue: ['Document Catalogue', 'Recommended documents, metadata & reminder rules'], notifadmin: ['Notifications', 'Templates & delivery monitoring'], aiadmin: ['AI & OCR', 'Providers, usage, cost & document processing'], integadmin: ['Integrations', 'Providers, availability & connection health'], help: ['Help Centre', 'Guides & answers'], faq: ['FAQ & Support', 'Common questions and how to get help'], security: ['Security', 'Sign-in threats, lockouts & sessions'], roles: ['Admins & Roles', 'Administrative users & least-privilege roles'], gdpr: ['Data Protection', 'GDPR requests, consent & retention'], config: ['Configuration', 'Feature flags, announcements & platform settings'], drivingzones: ['Driving & parking zones', 'ULEZ, congestion, toll & no-parking zones for the mobile alerts'], health: ['System Health', 'Live status of every platform component'], audit: ['Audit Log', 'Platform activity'],
   };
   const [t0, t1] = titles[active] ?? ['', ''];
   const help: Record<string, string> = {
@@ -474,10 +474,11 @@ function Shell({ me, onSignOut, refreshMe }: { me: any; onSignOut: () => void; r
     roles: 'Administrative users and least-privilege role assignments.',
     gdpr: 'GDPR data-export and deletion requests, consent records and retention.',
     config: 'Feature flags, announcements and platform-wide settings.',
+    drivingzones: 'The zones the mobile app watches for and alerts drivers about — ULEZ/Clean Air/low-emission zones, congestion charges, tolls and time-limited no-parking areas. Edit charges, boundaries (centre + radius) and no-parking hours; changes reach phones on their next refresh.',
     health: 'Live status of every platform component.',
     audit: 'A complete, append-only log of platform activity.',
   };
-  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, expiries: <Expiries />, passwords: <Passwords toast={toast} />, passport: <PassportTool toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, website: <AdminSite toast={toast} />, subscribers: <AdminSubscribers toast={toast} />, messages: <AdminMessages toast={toast} />, conversations: <AdminConversations toast={toast} />, broadcasts: <AdminBroadcasts toast={toast} />, board: <UserMessages toast={toast} />, chat: <UserChat toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
+  const views: any = { home: isSuper ? <AdminHome go={setActive} /> : <Home me={me} go={setActive} />, vault: <Vault toast={toast} go={setActive} />, personalise: <Personalise toast={toast} go={setActive} />, assistant: <Assistant />, reminders: <Reminders onRead={() => api.unread().then((r) => setUnread(r.unread))} toast={toast} />, expiries: <Expiries />, passwords: <Passwords toast={toast} />, passport: <PassportTool toast={toast} />, trips: <Trips />, purchases: <Purchases />, subs: <Subs toast={toast} />, connected: <Connected toast={toast} />, assets: <Assets toast={toast} />, family: <Family toast={toast} />, billing: <Billing toast={toast} />, settings: <Settings me={me} toast={toast} />, profile: <Profile me={me} toast={toast} refreshMe={refreshMe} go={setActive} />, customers: <Customers toast={toast} />, subscriptions: <Subscriptions toast={toast} />, support: isSuper ? <AdminSupport toast={toast} /> : <SupportTenant toast={toast} />, emergency: isSuper ? <AdminEmergency toast={toast} /> : <EmergencyTenant toast={toast} />, reports: <AdminReports />, crm: <AdminCRM toast={toast} />, campaigns: <AdminCampaigns toast={toast} />, website: <AdminSite toast={toast} />, subscribers: <AdminSubscribers toast={toast} />, messages: <AdminMessages toast={toast} />, conversations: <AdminConversations toast={toast} />, broadcasts: <AdminBroadcasts toast={toast} />, board: <UserMessages toast={toast} />, chat: <UserChat toast={toast} />, cms: <AdminCMS toast={toast} />, catalogue: <AdminCatalogue toast={toast} />, notifadmin: <AdminNotifications toast={toast} />, aiadmin: <AdminAI toast={toast} />, integadmin: <AdminIntegrations toast={toast} />, help: <HelpCenter />, faq: <Faq />, security: <AdminSecurity toast={toast} />, roles: <AdminRoles toast={toast} me={me} />, gdpr: <AdminGdpr toast={toast} />, config: <AdminConfig toast={toast} />, drivingzones: <AdminDrivingZones toast={toast} />, health: <AdminSystemHealth />, audit: <Audit /> };
 
   return <div className="app">
     <a href="#main" className="skip-link">Skip to main content</a>
@@ -2836,6 +2837,87 @@ function AdminConfig({ toast }: any) {
 /* ---------------- System Health ---------------- */
 const healthDot = (s: string) => (s === 'ok' ? '#0ca30c' : s === 'warn' ? '#c98500' : '#d03b3b');
 const healthLabel = (s: string) => (s === 'ok' ? 'Operational' : s === 'warn' ? 'Degraded' : 'Down');
+const ZONE_TYPES = [
+  { v: 'ulez', l: 'ULEZ' }, { v: 'caz', l: 'Clean Air Zone' }, { v: 'lez', l: 'Low-emission zone' },
+  { v: 'congestion', l: 'Congestion charge' }, { v: 'toll', l: 'Toll' }, { v: 'noparking', l: 'No parking (time-limited)' },
+];
+const blankZone = () => ({ key: '', name: '', country: 'GB', type: 'caz', lat: 51.5074, lng: -0.1278, radiusM: 2000, amountPounds: 0, currency: 'GBP', unit: 'day', compliantFree: true, hours: '', infoUrl: '', active: true, schedule: null as any, isNew: true });
+function AdminDrivingZones({ toast }: any) {
+  const { data, reload } = useData(() => api.adminDrivingZones());
+  const [edit, setEdit] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const zones = data?.zones ?? [];
+  function startNew() { setEdit(blankZone()); }
+  function startEdit(z: any) {
+    setEdit({ ...z, amountPounds: (z.amount ?? 0) / 100, hours: z.hours ?? '', infoUrl: z.infoUrl ?? '', schedule: z.schedule ?? null, isNew: false });
+  }
+  async function save() {
+    const e = edit;
+    if (!e.key || !e.name) { toast('Key and name are required'); return; }
+    setBusy(true);
+    try {
+      const payload: any = { key: e.key, name: e.name, country: (e.country || 'GB').toUpperCase().slice(0, 2), type: e.type, lat: Number(e.lat), lng: Number(e.lng), radiusM: Math.round(Number(e.radiusM) || 1000), amount: Math.round((Number(e.amountPounds) || 0) * 100), currency: e.currency || 'GBP', unit: e.unit || 'day', compliantFree: !!e.compliantFree, hours: e.hours || null, infoUrl: e.infoUrl || null, active: !!e.active, schedule: e.type === 'noparking' ? (e.schedule || null) : null };
+      await api.adminSaveDrivingZone(payload);
+      toast('Zone saved'); setEdit(null); await reload();
+    } catch (err) { toast((err as any).message); } finally { setBusy(false); }
+  }
+  async function del(z: any) { if (!window.confirm(`Delete zone "${z.name}"?`)) return; try { await api.adminDeleteDrivingZone(z.id); reload(); } catch (e) { toast((e as any).message); } }
+  const money = (a: number, c: string) => (['SEK', 'NOK', 'DKK'].includes(c) ? `${(a / 100).toFixed(a % 100 ? 2 : 0)} kr` : `${({ GBP: '£', EUR: '€' } as any)[c] || ''}${(a / 100).toFixed(a % 100 ? 2 : 0)}`);
+  const sched = edit?.schedule ?? {};
+  function setSched(patch: any) { setEdit((s: any) => ({ ...s, schedule: { days: null, start: '08:00', end: '18:00', ...(s.schedule || {}), ...patch } })); }
+
+  return <div>
+    <div className="ok" role="note" style={{ marginBottom: 14 }}>These zones power the mobile <b>Driving charges</b> alerts. Charges & boundaries are approximate — edit anything here and it reaches phones on their next refresh. No-parking zones use a weekly schedule (the “no parking” window).</div>
+    <div className="section">{zones.length} zones <A onClick={startNew} style={{ float: 'right', fontSize: 13, cursor: 'pointer', color: 'var(--brand)' }}>+ Add zone</A></div>
+    <Card title="Zone catalogue">
+      <table><thead><tr><th>Name</th><th>Country</th><th>Type</th><th>Charge / fine</th><th>Status</th><th></th></tr></thead>
+        <tbody>{zones.map((z: any) => <tr key={z.id}>
+          <td><b>{z.name}</b><div className="muted" style={{ fontSize: 12 }}>{z.key}</div></td>
+          <td>{z.country}</td>
+          <td><span className="pill p-neutral">{ZONE_TYPES.find((t) => t.v === z.type)?.l ?? z.type}</span></td>
+          <td>{z.amount ? `${money(z.amount, z.currency)}/${z.unit === 'day' ? 'day' : 'trip'}` : '—'}{z.compliantFree ? ' *' : ''}</td>
+          <td>{z.active ? <span className="pill p-good">active</span> : <span className="pill p-neutral">off</span>}</td>
+          <td><div className="flex" style={{ gap: 6 }}><button className="btn sm sec" onClick={() => startEdit(z)}>Edit</button><button className="btn sm sec" onClick={() => del(z)}>Delete</button></div></td>
+        </tr>)}</tbody></table>
+      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>* emission-compliant vehicles pay nothing in these zones.</p>
+    </Card>
+
+    {edit && <Card title={edit.isNew ? 'Add zone' : `Edit · ${edit.name}`}>
+      <div className="grid2">
+        <label>Key (id)<input value={edit.key} disabled={!edit.isNew} onChange={(e) => setEdit({ ...edit, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })} placeholder="uk_leeds_caz" /></label>
+        <label>Name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Leeds Clean Air Zone" /></label>
+        <label>Type<select value={edit.type} onChange={(e) => setEdit({ ...edit, type: e.target.value })}>{ZONE_TYPES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}</select></label>
+        <label>Country (2-letter)<input value={edit.country} onChange={(e) => setEdit({ ...edit, country: e.target.value })} placeholder="GB" /></label>
+        <label>Centre latitude<input type="number" step="0.0001" value={edit.lat} onChange={(e) => setEdit({ ...edit, lat: e.target.value })} /></label>
+        <label>Centre longitude<input type="number" step="0.0001" value={edit.lng} onChange={(e) => setEdit({ ...edit, lng: e.target.value })} /></label>
+        <label>Radius (metres)<input type="number" value={edit.radiusM} onChange={(e) => setEdit({ ...edit, radiusM: e.target.value })} /></label>
+        <label>{edit.type === 'noparking' ? 'Fine if ticketed (£)' : 'Charge amount'}<input type="number" step="0.01" value={edit.amountPounds} onChange={(e) => setEdit({ ...edit, amountPounds: e.target.value })} /></label>
+        <label>Currency<input value={edit.currency} onChange={(e) => setEdit({ ...edit, currency: e.target.value })} placeholder="GBP" /></label>
+        <label>Per<select value={edit.unit} onChange={(e) => setEdit({ ...edit, unit: e.target.value })}><option value="day">day</option><option value="trip">trip</option></select></label>
+        <label>Hours (shown to drivers)<input value={edit.hours} onChange={(e) => setEdit({ ...edit, hours: e.target.value })} placeholder="Mon–Fri 7am–6pm" /></label>
+        <label>Info URL<input value={edit.infoUrl} onChange={(e) => setEdit({ ...edit, infoUrl: e.target.value })} placeholder="https://…" /></label>
+      </div>
+      <div className="flex" style={{ gap: 20, marginTop: 12, flexWrap: 'wrap' }}>
+        {edit.type !== 'noparking' && edit.type !== 'toll' && edit.type !== 'congestion' && <label className="flex" style={{ gap: 6, fontSize: 14 }}><input type="checkbox" checked={edit.compliantFree} onChange={(e) => setEdit({ ...edit, compliantFree: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> Compliant vehicles are exempt</label>}
+        <label className="flex" style={{ gap: 6, fontSize: 14 }}><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} style={{ width: 'auto', marginTop: 0 }} /> Active</label>
+      </div>
+      {edit.type === 'noparking' && <div style={{ marginTop: 12 }}>
+        <div className="muted" style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>NO-PARKING WINDOW (when a ticket applies)</div>
+        <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <label style={{ margin: 0 }}>From<input type="time" value={sched.start ?? '08:00'} onChange={(e) => setSched({ start: e.target.value })} /></label>
+          <label style={{ margin: 0 }}>To<input type="time" value={sched.end ?? '18:00'} onChange={(e) => setSched({ end: e.target.value })} /></label>
+          <span className="muted" style={{ fontSize: 12.5 }}>Days:</span>
+          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d, i) => { const days = sched.days ?? [0, 1, 2, 3, 4, 5, 6]; const on = !sched.days || days.includes(i); return <button key={i} type="button" className={`pill ${on ? 'p-info' : 'p-neutral'}`} style={{ cursor: 'pointer' }} onClick={() => { const cur = sched.days ?? [0, 1, 2, 3, 4, 5, 6]; const next = cur.includes(i) ? cur.filter((x: number) => x !== i) : [...cur, i]; setSched({ days: next.sort() }); }}>{d}</button>; })}
+        </div>
+        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Outside this window the app tells the driver parking is free. Leave all days on for “no parking until {sched.end ?? '18:00'}”.</p>
+      </div>}
+      <div className="flex" style={{ marginTop: 14 }}>
+        <button className="btn" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save zone'}</button>
+        <button className="btn sec" onClick={() => setEdit(null)}>Cancel</button>
+      </div>
+    </Card>}
+  </div>;
+}
 function AdminSystemHealth() {
   const { data, reload } = useData(() => api.adminSystemHealth());
   if (!data) return <Card title="System Health"><div className="empty">Checking components…</div></Card>;

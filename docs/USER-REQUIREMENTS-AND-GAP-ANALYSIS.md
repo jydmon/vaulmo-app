@@ -563,3 +563,30 @@ Made two-factor optional for regular users via a clear, skippable popup, and con
 2. ✅ **Optional 2FA popup (web + mobile)** — after onboarding, regular users without 2FA see a friendly “Add extra security?” popup with **Set up two-factor** or **Not now**. Declining is remembered on that device (localStorage on web, SecureStore on mobile) so it doesn’t nag, and it never blocks the app. The web popup runs the full enrolment inline (QR + code + recovery codes); the mobile popup opens You → Settings where enrolment lives.
 3. ✅ **Enable later from Profile / Security settings** — web Profile shows an “Enable two-factor” action when it’s off; mobile Profile adds an “Enable two-factor” item under Account. Both lead to Settings, which has the full flow.
 4. ✅ **Profile section present in both apps** — web has “My Profile” in the sidebar; mobile has the “You” tab. Both show account details, 2FA status and links to security settings. (Administrators still require 2FA via the existing mandatory setup screen.)
+
+## Update — marketing imagery refresh (✅ done)
+
+- **Features page** now includes the mobile app screens (dashboard + vault) in phone frames alongside the desktop shots.
+- **Contact Us** shows a phone/“get in touch” illustration instead of an app screenshot.
+- **Plans** shows a subscription-card illustration (card + recurring symbol + premium star).
+- **About Us** shows a team-of-people illustration.
+All remain CMS-editable — swap any image for a path/URL or a built-in illustration key (scan, reminders, assistant, family, vault, passport, connect, security, plans, contact, about, call, team, subscription) from the Website editor.
+
+## Build plan — Driving-charge geolocation alerts (mobile only) (this increment: ✅ done; device testing pending)
+
+A mobile-only feature that warns UK (and Western-country) drivers about the likely cost when they drive into a charge zone, based on their car’s details. Migration `0033_charge_zones.sql`. Backend verified (driving smoke 12/12); mobile typechecks. Final on-road behaviour must be validated on a device via an EAS build.
+
+1. ✅ **Zone catalogue (server-driven)** — a `charge_zones` table seeded with UK zones that charge cars (London ULEZ, London Congestion Charge, Birmingham & Bristol Clean Air Zones, Dartford Crossing, M6 Toll, Tyne & Mersey tunnels) plus major Western-Europe schemes (Milan Area C/B, Paris & Lyon ZFE, Berlin & Munich Umweltzonen, Madrid & Barcelona ZBE, Brussels & Antwerp LEZ, Amsterdam, Stockholm & Gothenburg congestion tax, Oslo & Bergen toll rings, Copenhagen, Dublin M50). Charges/boundaries are indicative and editable server-side without an app release. Class-C/B Clean Air Zones where cars are exempt are intentionally excluded so drivers aren’t warned about charges that don’t apply to them.
+2. ✅ **Cost from the car’s details** — each vehicle carries a fuel type and a “meets ULEZ/CAZ/LEZ standards” flag (set in the app). Emission zones show a charge only if the car isn’t compliant; congestion charges and tolls apply to every car.
+3. ✅ **Background alerts** — the app tracks location in the background (with a foreground-service notification on Android and “Always” location on iOS) and fires a local notification the moment you enter a zone, e.g. “London ULEZ — your vehicle may not meet the standards here, around £12.50/day.” It scales past the OS’s ~20-geofence limit by checking the cached zone list against each location fix, so it covers the whole catalogue and works across borders. All data is cached to disk so the background task runs without a network round-trip.
+4. ✅ **Driving charges screen** — under You → Driving charges: a master on/off switch (handles the location + notification permissions), per-vehicle fuel/compliance settings, the list of zones we watch for with their costs, and a history of recent alerts. Not present on the web app.
+
+Caveats to note: needs an EAS build + real-device testing to validate on-road behaviour; “Always Allow” location and background use require a clear justification at App Store / Play review (the permission strings provide one); circular geofences approximate irregular real boundaries; and charge amounts change over time (kept server-side so they’re easy to correct).
+
+## Update — zone admin editor, no-parking alerts & find-parking (✅ done; mobile device-testing pending)
+
+1. ✅ **Web admin editor** — a new super-admin screen (Configuration → “Driving & parking zones”) to add/edit/delete every zone: name, type, country, centre lat/lng + radius, charge/fine, currency, per day/trip, compliant-exempt flag, operating hours and (for no-parking) a weekly restriction window. Changes reach phones on their next refresh. Backed by `GET/POST/PATCH/DELETE /admin/driving/zones` (platform-admin only). Migration `0034_zone_schedule.sql` adds the schedule field. Verified (driving smoke now 18/18).
+2. ✅ **No-parking, time-limited zones** — a new `noparking` zone type with a machine-readable window (e.g. Mon–Fri 08:00–18:30, or “no parking until 18:00”). When you drive into one, the app checks the time: during the window it warns “No parking here right now — move your car or you may get a ticket; free from 18:30”, and outside it says “You can park here now — it’s free until 08:00.” (There’s no comprehensive open dataset of street parking rules, so these are added via the admin editor for the spots you care about.)
+3. ✅ **Find parking** — a “Find parking near me” button on the Driving charges screen. It lists nearby car parks from OpenStreetMap (flagging free ones where known) and opens the phone’s maps app to a parking search — a reliable fallback that always works. 
+
+Caveats unchanged from the driving feature: mobile behaviour needs an EAS build + real-device testing; parking-finder uses a public OSM endpoint (best-effort) with the maps-app fallback; charges/boundaries stay editable server-side.

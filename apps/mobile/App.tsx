@@ -10,6 +10,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
 import { api, setTokens, loadTokens, hasToken, uploadText, uploadImage, fileSize, processPassport, ApiError, getFlag, setFlag, type AuthResult } from './src/api';
+import { isDrivingEnabled, enableDrivingAlerts, disableDrivingAlerts, refreshDrivingData, money, openParkingSearch, nearbyParking, currentLatLng } from './src/driving';
 import { getCapability, isBiometricEnabled, setBiometricEnabled, shouldLock, authenticate, type BiometricCapability } from './src/biometric';
 import { registerForPush } from './src/push';
 
@@ -147,6 +148,7 @@ export default function App() {
           {sub === 'faq' && <FaqScreen />}
           {sub === 'privacy' && <PrivacySecurity />}
           {sub === 'settings' && <Settings me={me} refreshMe={refreshMe} />}
+          {sub === 'driving' && <DrivingCharges />}
         </SubScreen>}
       </Modal>
     </SafeAreaView>
@@ -156,7 +158,7 @@ export default function App() {
 const SUB_TITLES: Record<string, string> = {
   assets: 'Property & Vehicles', renewals: 'Renewals & Expiries', passwords: 'Password Vault', passport: 'Passport Photo', trips: 'Trips', purchases: 'Purchases & Warranties', subs: 'Subscriptions', connected: 'Connected Services',
   family: 'Family & Access', emergency: 'Emergency Access', billing: 'Plan & Billing', support: 'Support',
-  help: 'Help Centre', faq: 'FAQ & Support', privacy: 'Privacy & Security', settings: 'Settings',
+  help: 'Help Centre', faq: 'FAQ & Support', privacy: 'Privacy & Security', settings: 'Settings', driving: 'Driving charges',
 };
 
 const TABS = [
@@ -967,6 +969,7 @@ function Profile({ me, refreshMe, onSignOut, openSub }: any) {
       <MenuItem ic="🔒" bg={C.goodBg} t="Password Vault" s="Passwords, cards & notes" onPress={() => openSub('passwords')} />
       <MenuItem ic="🪪" bg={C.brandSoft} t="Passport Photo" s="Take a compliant photo" onPress={() => openSub('passport')} />
       <MenuItem ic="🚗" bg={C.brandSoft} t="Property & Vehicles" s="Home, car & renewals" onPress={() => openSub('assets')} />
+      <MenuItem ic="📍" bg={C.warnBg} t="Driving charges" s="ULEZ, congestion & toll alerts" onPress={() => openSub('driving')} />
       <MenuItem ic="✈️" bg={C.brandSoft} t="Trips" s="Flights, hotels & tickets" onPress={() => openSub('trips')} />
       <MenuItem ic="🧾" bg={C.goodBg} t="Purchases & Warranties" s="Receipts, assets & cover" onPress={() => openSub('purchases')} />
       <MenuItem ic="🔁" bg={C.warnBg} t="Subscriptions" s="What you pay for" onPress={() => openSub('subs')} />
@@ -1777,6 +1780,108 @@ function Settings({ me, refreshMe }: any) {
     {sessions.length > 1 && <Btn label="Sign out other devices" secondary onPress={revokeOthers} />}
   </ScrollView>;
 }
+const FUELS = ['petrol', 'diesel', 'hybrid', 'electric'];
+function zoneTypeLabel(t: string) { return ({ ulez: 'ULEZ', caz: 'Clean Air Zone', lez: 'Low-emission zone', congestion: 'Congestion charge', toll: 'Toll', noparking: 'No parking' } as any)[t] || t; }
+function zoneCostLabel(z: any) {
+  const per = z.unit === 'day' ? '/day' : '/trip';
+  if (z.type === 'noparking') return z.schedule?.start ? `no parking ${z.schedule.start}–${z.schedule.end}` : 'no parking';
+  if (z.type === 'toll') return `${money(z.amount, z.currency)}${per}`;
+  if (z.compliantFree) return `${money(z.amount, z.currency)}${per} if not compliant`;
+  return `${money(z.amount, z.currency)}${per}`;
+}
+function DrivingCharges() {
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [vehicles, reloadVehicles] = useAsync(() => api.drivingVehicles());
+  const [zonesData] = useAsync(() => api.drivingZones());
+  const [alertsData] = useAsync(() => api.drivingAlerts());
+  useEffect(() => { isDrivingEnabled().then(setEnabled).catch(() => {}); }, []);
+
+  async function toggle(v: boolean) {
+    setBusy(true);
+    try {
+      if (v) {
+        const r = await enableDrivingAlerts();
+        if (!r.ok) { setEnabled(false); Alert.alert('Couldn’t turn on alerts', r.reason || 'Please allow location access in Settings.'); }
+        else { setEnabled(true); Alert.alert('Driving alerts on', 'We’ll warn you about the likely cost the moment you drive into a charge zone — even if the app is closed.'); }
+      } else { await disableDrivingAlerts(); setEnabled(false); }
+    } catch (e) { Alert.alert('Error', e instanceof ApiError ? e.message : String(e)); } finally { setBusy(false); }
+  }
+  async function saveVehicle(v: any, patch: any) {
+    try { await api.setDrivingVehicle(v.id, patch); reloadVehicles(); refreshDrivingData().catch(() => {}); } catch (e) { Alert.alert('Error', e instanceof ApiError ? e.message : ''); }
+  }
+
+  const [parking, setParking] = useState<any[] | null>(null);
+  const [pbusy, setPbusy] = useState(false);
+  async function findParking() {
+    setPbusy(true);
+    try {
+      const { lat, lng } = await currentLatLng();
+      if (lat == null || lng == null) { await openParkingSearch(); return; }
+      const list = await nearbyParking(lat, lng);
+      setParking(list);
+      if (!list.length) await openParkingSearch(lat, lng);
+    } catch { await openParkingSearch(); } finally { setPbusy(false); }
+  }
+
+  const vs = vehicles?.vehicles ?? [];
+  const zones = zonesData?.zones ?? [];
+  const alerts = alertsData?.alerts ?? [];
+  if (!vehicles) return <Loading />;
+
+  return <ScrollView contentContainerStyle={st.pad}>
+    <Card>
+      {busy ? <ActivityIndicator color={C.brand} /> : <Toggle label="Driving charge alerts" value={enabled} onChange={toggle} last />}
+      <Text style={[st.muted, { marginTop: 8 }]}>Get a heads-up about the likely cost the moment you drive into a ULEZ, Clean Air Zone, congestion charge, low-emission zone or toll — based on your car’s details. Works in the background, even when the app is closed.</Text>
+    </Card>
+
+    <SectionTitle>Your vehicles</SectionTitle>
+    <Card>
+      {vs.length ? vs.map((v: any, i: number) => <View key={v.id} style={[st.detailRow, i === vs.length - 1 && { borderBottomWidth: 0 }, { flexDirection: 'column', alignItems: 'stretch' }]}>
+        <Text style={st.itemT}>{v.name}{v.registration ? ` · ${v.registration}` : ''}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+          {FUELS.map((f) => <TouchableOpacity key={f} onPress={() => saveVehicle(v, { fuelType: f })} style={[st.chip, v.fuelType === f && st.chipOn]}><Text style={[st.chipTxt, v.fuelType === f && { color: '#fff' }]}>{f}</Text></TouchableOpacity>)}
+        </View>
+        <TouchableOpacity onPress={() => saveVehicle(v, { compliant: !(v.compliant === true) })} style={[st.detailRow, { marginTop: 8, borderBottomWidth: 0, paddingVertical: 6 }]} accessibilityRole="switch" accessibilityState={{ checked: v.compliant === true }}>
+          <Text style={[st.itemT, { flex: 1 }]}>Meets ULEZ/CAZ/LEZ standards</Text>
+          <View style={[st.switch, v.compliant === true && { backgroundColor: C.good, alignItems: 'flex-end' }]}><View style={st.switchKnob} /></View>
+        </TouchableOpacity>
+        <Text style={st.muted}>{v.compliant === true ? 'We won’t warn you in emission zones (you’re exempt) — you’ll still be alerted for congestion charges and tolls.' : v.compliant === false ? 'We’ll warn you about the daily charge in emission zones.' : 'Set this so we can tell you whether a charge applies. Not sure? Check your V5C or your city’s checker.'}</Text>
+      </View>) : <Text style={st.muted}>Add a vehicle under Property &amp; Vehicles first, then set its details here.</Text>}
+    </Card>
+
+    <SectionTitle>Find parking</SectionTitle>
+    <Card>
+      <Text style={[st.muted, { marginTop: 0 }]}>Look for parking nearby — free spots are flagged where we can tell.</Text>
+      <Btn label="Find parking near me" busy={pbusy} busyLabel="Searching…" onPress={findParking} />
+      {parking && parking.length > 0 && parking.map((p: any, i: number) => <TouchableOpacity key={i} style={[st.detailRow, i === parking.length - 1 && { borderBottomWidth: 0 }]} onPress={() => openParkingSearch(p.lat, p.lng)}>
+        <View style={{ flex: 1 }}><Text style={st.itemT}>{p.name}</Text><Text style={st.muted}>{p.distanceKm} km away · tap to open in Maps</Text></View>
+        <Text style={[st.tag, p.free ? { backgroundColor: C.goodBg, color: C.good } : { backgroundColor: C.surf2, color: C.soft }]}>{p.free ? 'Free' : 'Paid?'}</Text>
+      </TouchableOpacity>)}
+      {parking && parking.length === 0 && <Text style={[st.muted, { marginTop: 8 }]}>Opened your maps app to search for parking nearby.</Text>}
+    </Card>
+
+    <SectionTitle>Zones we watch for</SectionTitle>
+    <Card>
+      {zones.slice(0, 40).map((z: any, i: number) => <View key={z.key} style={[st.detailRow, i === Math.min(zones.length, 40) - 1 && { borderBottomWidth: 0 }]}>
+        <View style={{ flex: 1 }}><Text style={st.itemT}>{z.name}</Text><Text style={st.muted}>{z.country} · {zoneTypeLabel(z.type)}</Text></View>
+        <Text style={[st.tag, { backgroundColor: C.brandSoft, color: C.brand }]}>{zoneCostLabel(z)}</Text>
+      </View>)}
+      <Text style={[st.muted, { marginTop: 8 }]}>Charges and boundaries are indicative and can change. Zone areas are approximate — always check the official signs and pay any charge that applies.</Text>
+    </Card>
+
+    {alerts.length > 0 && <>
+      <SectionTitle>Recent alerts</SectionTitle>
+      <Card>
+        {alerts.slice(0, 15).map((a: any, i: number) => <View key={a.id} style={[st.detailRow, i === Math.min(alerts.length, 15) - 1 && { borderBottomWidth: 0 }]}>
+          <View style={{ flex: 1 }}><Text style={st.itemT}>{a.zoneName}</Text><Text style={st.muted}>{a.vehicleLabel || ''}{a.at ? ` · ${new Date(a.at).toLocaleDateString()}` : ''}</Text></View>
+          <Text style={[st.tag, { backgroundColor: C.warnBg, color: C.warn }]}>{money(a.amount, a.currency)}</Text>
+        </View>)}
+      </Card>
+    </>}
+  </ScrollView>;
+}
+
 function Toggle({ label, value, onChange, last }: any) {
   return <TouchableOpacity style={[st.detailRow, last && { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => onChange(!value)}
     accessibilityRole="switch" accessibilityLabel={typeof label === 'string' ? label : undefined} accessibilityState={{ checked: !!value }}>

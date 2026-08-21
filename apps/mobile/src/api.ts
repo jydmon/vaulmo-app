@@ -182,6 +182,12 @@ export const api = {
   createAsset: (b: { kind: string; name: string; details?: Record<string, any> }) => P<any>('/assets', b),
   updateAsset: (id: string, b: { name?: string; details?: Record<string, any> }) => req<any>('PATCH', `/assets/${id}`, b),
   deleteAsset: (id: string) => DEL<any>(`/assets/${id}`),
+  // driving charge zones (mobile-only geolocation alerts)
+  drivingZones: (lat?: number, lng?: number, limit?: number) => G<any>(`/driving/zones${lat != null && lng != null ? `?lat=${lat}&lng=${lng}${limit ? `&limit=${limit}` : ''}` : ''}`),
+  drivingVehicles: () => G<any>('/driving/vehicles'),
+  setDrivingVehicle: (id: string, b: { fuelType?: string; compliant?: boolean }) => req<any>('PATCH', `/driving/vehicles/${id}`, b),
+  logDrivingAlert: (b: { zoneKey: string; zoneName: string; vehicleLabel?: string; amount: number; currency?: string }) => P<any>('/driving/alert', b),
+  drivingAlerts: () => G<any>('/driving/alerts'),
   assignDocumentAsset: (id: string, assetId: string | null) => P<any>(`/vault/documents/${id}/asset`, { assetId }),
   assignDocumentMember: (id: string, memberId: string | null) => P<any>(`/vault/documents/${id}/subject`, { memberId }),
   memberDocuments: (memberId: string) => G<any>(`/family/members/${memberId}/documents`),

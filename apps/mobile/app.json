@@ -15,13 +15,16 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Vaulmo uses the camera so you can scan documents straight into your vault.",
         "NSPhotoLibraryUsageDescription": "Vaulmo lets you add documents from your photo library.",
-        "NSFaceIDUsageDescription": "Vaulmo uses Face ID to unlock your vault so only you can open it."
+        "NSFaceIDUsageDescription": "Vaulmo uses Face ID to unlock your vault so only you can open it.",
+        "NSLocationWhenInUseUsageDescription": "Vaulmo uses your location to alert you when you drive into a congestion, ULEZ or toll zone.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Vaulmo watches for congestion, ULEZ and toll zones in the background so it can warn you about the cost even when the app is closed. You can turn this off any time.",
+        "UIBackgroundModes": ["location", "fetch"]
       }
     },
     "android": {
       "package": "com.vaulmo.app",
       "versionCode": 1,
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES"]
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "ACCESS_BACKGROUND_LOCATION", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_LOCATION"]
     },
     "extra": {
       "apiUrl": "https://app.vaulmo.com",
@@ -31,6 +34,7 @@
       ["expo-build-properties", { "android": { "kotlinVersion": "1.9.25" } }],
       ["expo-image-picker", { "photosPermission": "Vaulmo lets you add documents from your photo library.", "cameraPermission": "Vaulmo uses the camera so you can scan documents straight into your vault." }],
       ["expo-local-authentication", { "faceIDPermission": "Vaulmo uses Face ID to unlock your vault so only you can open it." }],
+      ["expo-location", { "locationAlwaysAndWhenInUsePermission": "Vaulmo watches for congestion, ULEZ and toll zones in the background so it can warn you about the cost even when the app is closed.", "isAndroidBackgroundLocationEnabled": true, "isAndroidForegroundServiceEnabled": true }],
       "expo-notifications"
     ]
   }
