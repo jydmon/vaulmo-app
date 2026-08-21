@@ -11,6 +11,11 @@ on:
         type: choice
         options: [preview, production]
         default: preview
+      platform:
+        description: 'Platform to build'
+        type: choice
+        options: [android, ios, all]
+        default: android
       submit:
         description: 'Submit to stores after build (production only)'
         type: boolean
@@ -33,8 +38,8 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm install
-      - name: EAS build (iOS + Android)
-        run: eas build --non-interactive --platform all --profile ${{ github.event.inputs.profile || 'preview' }}
+      - name: EAS build
+        run: eas build --non-interactive --platform ${{ github.event.inputs.platform || 'android' }} --profile ${{ github.event.inputs.profile || 'preview' }}
       - name: EAS submit (stores)
         if: ${{ github.event.inputs.submit == 'true' && github.event.inputs.profile == 'production' }}
-        run: eas submit --non-interactive --platform all --profile production
+        run: eas submit --non-interactive --platform ${{ github.event.inputs.platform }} --profile production
