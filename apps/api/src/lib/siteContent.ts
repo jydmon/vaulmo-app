@@ -110,7 +110,7 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
     content: {
       title: 'Simple plans for every household',
       intro: 'Start free and upgrade any time. Every plan includes bank-grade security — you only pay for the extra features and capacity you need.',
-      image: 'plans',
+      image: '',
       freeText: 'Free',
       perYear: '/year',
       perMonth: '/month',
@@ -199,7 +199,7 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
     content: {
       title: 'About Us',
       intro: 'We’re a small, security-obsessed team on a mission to take the stress out of family admin — by giving every household one calm, trusted place for the documents, dates and details that matter most.',
-      image: '/img/dash.png',
+      image: '',
       sections: [
         { heading: 'About Us', body: 'We’re the team behind Vaulmo. We started this because we kept living the same frustration ourselves: important paperwork scattered across drawers, inboxes and cloud folders, renewals quietly slipping past, and that low-level worry of never quite knowing where the thing you need actually is. We believe your documents are yours and should stay that way, that good software should reduce mental load rather than add to it, and that the boring-but-important admin of family life deserves a tool that’s genuinely trustworthy. Those principles guide every decision we make — from how we handle your data to the words we choose in the app. We build in the open with the households who use Vaulmo, and we’d genuinely love to hear what would help your family.' },
         { heading: 'About Vaulmo', body: 'Vaulmo is a personal life operating system — a secure digital vault for your family’s most important documents, dates and details. You scan or photograph a document and Vaulmo reads the key details, works out what it is, files it, and makes it instantly searchable. It tracks the dates that matter and reminds you in good time, so nothing important is ever missed, and when you have a question — “when does my passport expire?”, “what renews next month?” — you can simply ask and get an answer drawn only from your own information. It works across web, iOS and Android, all signed in to the same account, so your vault is the same wherever you are.' },
@@ -216,7 +216,7 @@ export const DEFAULT_SITE_PAGES: SitePageSeed[] = [
     content: {
       title: 'Contact Us',
       intro: 'Questions, feedback or press enquiries — fill in the form below and we’ll get back to you. We’d love to hear from you.',
-      image: '/img/m-home.png',
+      image: '',
       namePlaceholder: 'Your name',
       emailPlaceholder: 'you@example.com',
       subjectPlaceholder: 'What’s it about?',

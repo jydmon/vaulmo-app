@@ -1,6 +1,17 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+// Environment variables are always strings, and zod's boolean coercion applies
+// JavaScript's Boolean() — which makes the literal string "false" evaluate to
+// TRUE. That silently inverted SMTP_SECURE and broke TLS negotiation against
+// port 587. Parse booleans explicitly instead.
+const boolish = (def: boolean) =>
+  z.preprocess((v) => {
+    if (v === undefined || v === '') return def;
+    if (typeof v === 'boolean') return v;
+    return ['1', 'true', 'yes', 'on'].includes(String(v).trim().toLowerCase());
+  }, z.boolean());
+
 const schema = z.object({
   NODE_ENV: z.string().default('development'),
   APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
@@ -20,7 +31,7 @@ const schema = z.object({
   LOG_LEVEL: z.string().default('info'),
   // When true, unverified accounts cannot obtain a session (mandatory email
   // verification before login). Default off so dev/CI and existing tests are unaffected.
-  REQUIRE_EMAIL_VERIFICATION: z.coerce.boolean().default(false),
+  REQUIRE_EMAIL_VERIFICATION: boolish(false),
   // Integrations (Connected Services) — real OAuth providers activate automatically
   // when these are present; otherwise the sandbox driver is used (internal-tester only).
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -35,7 +46,7 @@ const schema = z.object({
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
-  SMTP_SECURE: z.coerce.boolean().default(false),
+  SMTP_SECURE: boolish(false),
   EMAIL_FROM: z.string().default('Vaulmo <no-reply@vaulmo.com>'),
   // Live push delivery (REM-08) via Expo Push. Optional token for higher rate limits.
   EXPO_ACCESS_TOKEN: z.string().optional(),
