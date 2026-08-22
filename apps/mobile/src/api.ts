@@ -121,6 +121,11 @@ export const api = {
   login: (b: any) => P<AuthResult>('/auth/login', b),
   loginMfa: (code: string, ct: string) => req<AuthResult>('POST', '/auth/login/mfa', { code }, ct),
   requestPasswordReset: (email: string) => P<any>('/auth/request-password-reset', { email }),
+  // Admin: staff side of the user<->staff conversations.
+  adminConversations: (source?: string) => G<any>(`/admin/comms/conversations${source ? `?source=${source}` : ''}`),
+  adminConversation: (id: string) => G<any>(`/admin/comms/conversations/${id}`),
+  adminReplyConversation: (id: string, body: string) => P<any>(`/admin/comms/conversations/${id}/reply`, { body }),
+  adminCloseConversation: (id: string) => P<any>(`/admin/comms/conversations/${id}/close`),
   me: () => G<any>('/users/me'),
   updateProfile: (b: { fullName?: string; phone?: string | null; timezone?: string | null; country?: string }) => PUT<any>('/users/me', b),
   // onboarding flow

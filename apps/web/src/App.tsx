@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from 'react';
-import { api, setTokens, hasSession, uploadText, uploadFile, processPassport, downloadDocumentFile, exportMyData, ApiError, type AuthResult } from './api';
+import { api, setTokens, hasSession, uploadText, uploadFile, optimiseImage, processPassport, downloadDocumentFile, exportMyData, ApiError, type AuthResult } from './api';
 
 /* ---------------- helpers ---------------- */
 function useToast() {
@@ -785,8 +785,11 @@ function Vault({ toast, go }: any) {
     if (file.size > 50 * 1024 * 1024) { toast('That file is over 50 MB'); return; }
     setBusy('Uploading…');
     try {
-      const init = await api.createDocument({ filename: file.name, contentType: file.type || 'application/octet-stream', sizeBytes: file.size, title: file.name });
-      await uploadFile(init.uploadUrl, file);
+      // Shrink oversized photos before they ever reach storage (see IMAGE_POLICY).
+      const opt = await optimiseImage(file);
+      if (opt.bytes < opt.originalBytes) setBusy(`Optimising… ${Math.round(opt.originalBytes / 1024)} KB \u2192 ${Math.round(opt.bytes / 1024)} KB`);
+      const init = await api.createDocument({ filename: opt.filename, contentType: opt.contentType, sizeBytes: opt.bytes, title: file.name });
+      await uploadFile(init.uploadUrl, opt.body, opt.contentType);
       setBusy('Reading…');
       const r = await api.processDocument(init.documentId);
       afterProcess(init.documentId, r, file.name.replace(/\.[^.]+$/, ''));

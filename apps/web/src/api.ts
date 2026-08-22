@@ -54,9 +54,51 @@ export async function uploadText(url: string, text: string): Promise<void> {
 }
 
 // Upload a chosen file (PDF, image, etc.) — streams the raw bytes to the presigned URL.
-export async function uploadFile(url: string, file: File): Promise<void> {
-  const res = await fetch(`${BASE}${url}`, { method: 'PUT', headers: { 'content-type': file.type || 'application/octet-stream', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) }, body: file });
+export async function uploadFile(url: string, file: Blob, contentType?: string): Promise<void> {
+  const ct = contentType || (file as File).type || 'application/octet-stream';
+  const res = await fetch(`${BASE}${url}`, { method: 'PUT', headers: { 'content-type': ct, ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) }, body: file });
   if (!res.ok) throw new ApiError(res.status, 'upload_failed', 'Upload failed');
+}
+
+/* ---------------- image optimisation ----------------
+ * One policy, applied on both web and mobile, so a vault never fills up with
+ * 12-megapixel phone photos of A4 documents.
+ *
+ * Deliberately conservative: these images are read by OCR, and over-compression
+ * costs accuracy on small print. Anything already within policy is uploaded
+ * untouched, so a capture the mobile app has already shrunk is never re-encoded
+ * a second time, and a re-encode that comes out larger is discarded.
+ *
+ * Tune here (and in the matching block in apps/mobile/App.tsx).
+ */
+export const IMAGE_POLICY = { maxEdge: 2000, quality: 0.75, skipUnderBytes: 800 * 1024 };
+
+export interface OptimisedUpload { body: Blob; contentType: string; filename: string; originalBytes: number; bytes: number; }
+
+export async function optimiseImage(file: File): Promise<OptimisedUpload> {
+  const keep = (): OptimisedUpload => ({ body: file, contentType: file.type || 'application/octet-stream', filename: file.name, originalBytes: file.size, bytes: file.size });
+  if (!/^image\/(jpeg|jpg|png|webp|heic|heif)$/i.test(file.type)) return keep();  // PDFs and text pass straight through
+  let bitmap: ImageBitmap | null = null;
+  try {
+    bitmap = await createImageBitmap(file);
+    const longest = Math.max(bitmap.width, bitmap.height);
+    if (longest <= IMAGE_POLICY.maxEdge && file.size <= IMAGE_POLICY.skipUnderBytes) return keep();
+    const scale = Math.min(1, IMAGE_POLICY.maxEdge / longest);
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return keep();
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', IMAGE_POLICY.quality));
+    if (!blob || blob.size >= file.size) return keep();   // never upload a bigger "optimised" file
+    return { body: blob, contentType: 'image/jpeg', filename: file.name.replace(/\.[^.]+$/, '') + '.jpg', originalBytes: file.size, bytes: blob.size };
+  } catch {
+    return keep();   // any decode failure: upload the original rather than lose the document
+  } finally {
+    bitmap?.close?.();
+  }
 }
 
 // Passport tool: POST the chosen image to the processor, get back a base64 preview + meta.

@@ -21,6 +21,29 @@ const C = {
   good: '#0F9D58', goodBg: '#e6f6ec', warn: '#B7791F', warnBg: '#fdf3dc',
   crit: '#D03B3B', critBg: '#fdecec', violet: '#6D28D9', violetBg: '#efe9fd', surf2: '#eef1f6',
 };
+/* ---------------- image optimisation ----------------
+ * Mirrors IMAGE_POLICY in apps/web/src/api.ts — keep the two in step.
+ * Conservative on purpose: these images are read by OCR, so over-compression
+ * costs accuracy. Anything already inside the policy is left alone, which means
+ * captures the camera flow has already shrunk are never re-encoded twice.
+ */
+const IMAGE_POLICY = { maxEdge: 2000, quality: 0.75, skipUnderBytes: 800 * 1024 };
+
+async function optimiseImage(uri: string, mime: string): Promise<{ uri: string; contentType: string; bytes: number; originalBytes: number }> {
+  const originalBytes = await fileSize(uri);
+  const keep = { uri, contentType: mime, bytes: originalBytes, originalBytes };
+  if (!/^image\//i.test(mime)) return keep;                              // PDFs and text pass through
+  if (originalBytes && originalBytes <= IMAGE_POLICY.skipUnderBytes) return keep;
+  try {
+    const m = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: IMAGE_POLICY.maxEdge } }], { compress: IMAGE_POLICY.quality, format: ImageManipulator.SaveFormat.JPEG });
+    const bytes = await fileSize(m.uri);
+    if (bytes && originalBytes && bytes >= originalBytes) return keep;    // never upload a bigger "optimised" file
+    return { uri: m.uri, contentType: 'image/jpeg', bytes, originalBytes };
+  } catch {
+    return keep;                                                          // decode failure: upload the original rather than lose it
+  }
+}
+
 const fmt = (x?: string) => (x ? new Date(x).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const initialsOf = (n = '?') => n.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
@@ -149,6 +172,7 @@ export default function App() {
           {sub === 'privacy' && <PrivacySecurity />}
           {sub === 'settings' && <Settings me={me} refreshMe={refreshMe} />}
           {sub === 'driving' && <DrivingCharges />}
+          {sub === 'adminchat' && <AdminChat />}
         </SubScreen>}
       </Modal>
     </SafeAreaView>
@@ -159,6 +183,7 @@ const SUB_TITLES: Record<string, string> = {
   assets: 'Property & Vehicles', renewals: 'Renewals & Expiries', passwords: 'Password Vault', passport: 'Passport Photo', trips: 'Trips', purchases: 'Purchases & Warranties', subs: 'Subscriptions', connected: 'Connected Services',
   family: 'Family & Access', emergency: 'Emergency Access', billing: 'Plan & Billing', support: 'Support',
   help: 'Help Centre', faq: 'FAQ & Support', privacy: 'Privacy & Security', settings: 'Settings', driving: 'Driving charges',
+  adminchat: 'Chat with users',
 };
 
 const TABS = [
@@ -631,7 +656,9 @@ function Capture({ onClose, onStored }: { onClose: () => void; onStored: () => v
       const res = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*', 'text/plain'], copyToCacheDirectory: true });
       if (res.canceled || !res.assets?.length) return;
       const a = res.assets[0];
-      await processUpload(a.uri, a.mimeType || 'application/octet-stream', a.name || 'document', a.name?.replace(/\.[^.]+$/, '') || 'Document');
+      // A photo picked from Files can be 10 MB+; bring it inside policy first.
+      const opt = await optimiseImage(a.uri, a.mimeType || 'application/octet-stream');
+      await processUpload(opt.uri, opt.contentType, a.name || 'document', a.name?.replace(/\.[^.]+$/, '') || 'Document');
     } catch (e) { setErr(e instanceof Error ? e.message : 'Could not open the file.'); }
   }
 
@@ -983,6 +1010,7 @@ function Profile({ me, refreshMe, onSignOut, openSub }: any) {
       </View>
 
       <SectionTitle>Your life</SectionTitle>
+      {isSuper && <MenuItem ic="💬" bg={C.brandSoft} t="Chat with users" s="Answer conversations from the app & website" onPress={() => openSub('adminchat')} />}
       <MenuItem ic="🗓️" bg={C.warnBg} t="Renewals & Expiries" s="Everything coming due" onPress={() => openSub('renewals')} />
       <MenuItem ic="🔒" bg={C.goodBg} t="Password Vault" s="Passwords, cards & notes" onPress={() => openSub('passwords')} />
       <MenuItem ic="🪪" bg={C.brandSoft} t="Passport Photo" s="Take a compliant photo" onPress={() => openSub('passport')} />
@@ -1613,6 +1641,80 @@ function Billing({ me }: any) {
       {(bill?.invoices ?? []).map((iv: any) => <Item key={iv.id} icon="🧾" t={iv.number ?? 'Invoice'} sub={`${iv.status ?? ''} · ${fmt(iv.createdAt)}`} />)}
     </>}
   </ScrollView>;
+}
+
+/* ---------- admin: staff side of user conversations ---------- */
+// Mirrors AdminConversations in the web console. Staff messages render as "mine"
+// (right, brand colour); the user's messages render left.
+function AdminChat() {
+  const [filter, setFilter] = useState<'' | 'app' | 'website'>('');
+  const [data, reload] = useAsync(() => api.adminConversations(filter || undefined), [filter]);
+  const [active, setActive] = useState<string | null>(null);
+  if (active) return <AdminConversation id={active} onBack={() => { setActive(null); reload(); }} />;
+  if (!data) return <Loading />;
+  const list = data.conversations ?? [];
+  return <ScrollView contentContainerStyle={st.pad}>
+    <View style={st.spread}>
+      <Text style={st.section}>Conversations</Text>
+      {!!data.unread && <Text style={[st.tag, { backgroundColor: C.warnBg }]}>{data.unread} unread</Text>}
+    </View>
+    <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+      {([['', 'All'], ['app', 'In-app'], ['website', 'Website']] as const).map(([v, lbl]) => (
+        <TouchableOpacity key={v} onPress={() => { setActive(null); setFilter(v); }} style={{ marginRight: 8 }}>
+          <Text style={[st.tag, { backgroundColor: filter === v ? C.brandSoft : C.surf2 }]}>{lbl}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+    {list.length ? list.map((c: any) => (
+      <TouchableOpacity key={c.id} onPress={() => setActive(c.id)} activeOpacity={0.8}>
+        <Item
+          icon={c.source === 'website' ? '🌐' : '📱'}
+          t={c.subject || c.name || c.email || 'Conversation'}
+          sub={`${c.status ?? 'open'}${c.unreadStaff ? ` · ${c.unreadStaff} new` : ''}${c.source ? ` · ${c.source}` : ''}`}
+          right={<Text style={st.chev}>›</Text>}
+        />
+      </TouchableOpacity>
+    )) : <Card><Text style={st.muted}>No conversations yet. Messages from the app and the website chat land here.</Text></Card>}
+  </ScrollView>;
+}
+
+function AdminConversation({ id, onBack }: { id: string; onBack: () => void }) {
+  const [data, reload] = useAsync(() => api.adminConversation(id));
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function send() {
+    if (!msg.trim()) return;
+    setBusy(true);
+    try { await api.adminReplyConversation(id, msg.trim()); setMsg(''); await reload(); }
+    catch (e) { Alert.alert('Could not send', e instanceof ApiError ? e.message : 'Try again'); }
+    finally { setBusy(false); }
+  }
+  async function close() {
+    try { await api.adminCloseConversation(id); await reload(); }
+    catch { Alert.alert('Could not close this conversation'); }
+  }
+  if (!data) return <Loading />;
+  const c = data.conversation ?? {};
+  return <View style={{ flex: 1 }}>
+    <ScrollView contentContainerStyle={st.pad}>
+      <TouchableOpacity onPress={onBack} style={{ marginBottom: 8 }}><Text style={st.link}>‹ All conversations</Text></TouchableOpacity>
+      <Text style={st.section}>{c.subject || c.name || c.email || 'Conversation'}</Text>
+      <Text style={[st.muted, { marginBottom: 10 }]}>{[c.email, c.source, c.status].filter(Boolean).join(' · ')}</Text>
+      {(data.messages ?? []).map((m: any) => {
+        const staff = m.authorRole === 'staff';
+        return <View key={m.id} style={[st.bubble, staff ? st.bubbleMe : st.bubbleAi, { alignSelf: staff ? 'flex-end' : 'flex-start', marginBottom: 8, maxWidth: '86%' }]}>
+          <Text style={staff ? { color: '#fff' } : { color: C.ink }}>{m.body}</Text>
+        </View>;
+      })}
+      {c.status !== 'closed' && <TouchableOpacity onPress={close} style={{ marginTop: 14, alignItems: 'center' }}>
+        <Text style={st.link}>Mark as closed</Text>
+      </TouchableOpacity>}
+    </ScrollView>
+    <View style={st.composer}>
+      <TextInput style={st.composerInput} value={msg} onChangeText={setMsg} placeholder="Reply to this user…" placeholderTextColor={C.soft} multiline />
+      <TouchableOpacity style={st.sendBtn} disabled={busy} onPress={send}><Text style={{ color: '#fff', fontWeight: '700' }}>Send</Text></TouchableOpacity>
+    </View>
+  </View>;
 }
 
 function Support() {
