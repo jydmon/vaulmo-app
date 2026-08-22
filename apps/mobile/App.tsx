@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
+import Constants from 'expo-constants';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
@@ -1042,6 +1043,10 @@ function Profile({ me, refreshMe, onSignOut, openSub }: any) {
       <MenuItem ic="💬" bg={C.surf2} t="Support" s="Get help & track requests" onPress={() => openSub('support')} />
       <MenuItem ic="❓" bg={C.surf2} t="FAQ & Support" s="Common questions" onPress={() => openSub('faq')} />
       <MenuItem ic="📚" bg={C.surf2} t="Help Centre" s="Guides & answers" onPress={() => openSub('help')} />
+      {/* Build identifier — so "which version am I testing?" is always answerable. */}
+      <Text style={[st.muted, { textAlign: 'center', marginTop: 18, fontSize: 11.5 }]}>
+        Vaulmo v{Constants.expoConfig?.version ?? '—'} · build {String((Constants.expoConfig as any)?.android?.versionCode ?? (Constants.expoConfig as any)?.ios?.buildNumber ?? '—')}
+      </Text>
 
       <View style={{ height: 10 }} />
       <Btn label="Sign out" secondary onPress={onSignOut} />
