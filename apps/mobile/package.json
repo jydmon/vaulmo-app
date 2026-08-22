@@ -2,12 +2,12 @@
   "name": "@lifehub/mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "Vaulmo mobile application shell (Phase 1) \u2014 Expo / React Native, auth flow",
+  "description": "Vaulmo mobile application shell (Phase 1) — Expo / React Native, auth flow",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
