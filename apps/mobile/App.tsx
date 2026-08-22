@@ -712,7 +712,16 @@ function Capture({ onClose, onStored }: { onClose: () => void; onStored: () => v
         <View style={{ width: 22 }} />
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={st.pad} keyboardShouldPersistTaps="handled">
+        {/* flexGrow (not flex) lets the content grow past the viewport so it scrolls;
+            automaticallyAdjustKeyboardInsets keeps the field you're typing in visible. */}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[st.pad, { flexGrow: 1, paddingBottom: 160 }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
+          showsVerticalScrollIndicator
+        >
           {!!err && <View style={st.errBox}><Text style={st.errTxt}>{err}</Text></View>}
 
           {step === 'choose' && <>
@@ -1972,12 +1981,25 @@ function DrivingCharges() {
 
     <SectionTitle>Find parking</SectionTitle>
     <Card>
-      <Text style={[st.muted, { marginTop: 0 }]}>Look for parking nearby — free spots are flagged where we can tell.</Text>
+      <Text style={[st.muted, { marginTop: 0 }]}>Car parks and on-street parking nearby, with the restrictions we know about.</Text>
       <Btn label="Find parking near me" busy={pbusy} busyLabel="Searching…" onPress={findParking} />
       {parking && parking.length > 0 && parking.map((p: any, i: number) => <TouchableOpacity key={i} style={[st.detailRow, i === parking.length - 1 && { borderBottomWidth: 0 }]} onPress={() => openParkingSearch(p.lat, p.lng)}>
-        <View style={{ flex: 1 }}><Text style={st.itemT}>{p.name}</Text><Text style={st.muted}>{p.distanceKm} km away · tap to open in Maps</Text></View>
-        <Text style={[st.tag, p.free ? { backgroundColor: C.goodBg, color: C.good } : { backgroundColor: C.surf2, color: C.soft }]}>{p.free ? 'Free' : 'Paid?'}</Text>
+        <View style={{ flex: 1, paddingRight: 8 }}>
+          <Text style={st.itemT}>{p.kind === 'street' ? '🛣️ ' : '🅿️ '}{p.name}</Text>
+          {!!p.rule && <Text style={[st.muted, { marginTop: 2 }]}>{p.rule}</Text>}
+          <Text style={st.muted}>{p.distanceKm} km away · tap to open in Maps</Text>
+        </View>
+        <Text style={[st.tag,
+          !p.allowed ? { backgroundColor: C.critBg, color: C.crit }
+          : p.freeNow === true ? { backgroundColor: C.goodBg, color: C.good }
+          : p.freeNow === false ? { backgroundColor: C.warnBg, color: C.warn }
+          : { backgroundColor: C.surf2, color: C.soft }]}>
+          {!p.allowed ? 'No parking' : p.freeNow === true ? 'Free now' : p.freeNow === false ? 'Restricted now' : 'Check'}
+        </Text>
       </TouchableOpacity>)}
+      {parking && parking.length > 0 && <Text style={[st.muted, { marginTop: 10, fontSize: 11.5 }]}>
+        Parking rules come from community-mapped data and can be out of date. Always check the signs and road markings — they are what counts if you are ticketed.
+      </Text>}
       {parking && parking.length === 0 && <Text style={[st.muted, { marginTop: 8 }]}>Opened your maps app to search for parking nearby.</Text>}
     </Card>
 

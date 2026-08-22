@@ -145,24 +145,144 @@ export async function openParkingSearch(lat?: number, lng?: number) {
   catch { try { await Linking.openURL(`https://www.google.com/maps/search/parking${ll ? `/@${ll},15z` : ''}`); } catch { /* ignore */ } }
 }
 
+/* ---------------- on-street parking ----------------
+ * OpenStreetMap maps kerbside parking two ways — the current schema
+ * (parking:left / parking:right / parking:both) and the legacy one
+ * (parking:lane:*, parking:condition:*). We read both.
+ *
+ * IMPORTANT: this is community-mapped data, not a traffic authority feed. It can
+ * be wrong or out of date, so every rule we surface is phrased as guidance and the
+ * UI tells the user the signs and road markings win. Never present it as certainty.
+ */
+export type ParkingKind = 'carpark' | 'street';
+export interface ParkingSpot {
+  name: string; kind: ParkingKind; free: boolean; allowed: boolean;
+  rule?: string;            // human sentence, e.g. "Restricted Mo-Sa 08:00-18:30 — free outside those hours"
+  freeNow?: boolean | null; // null = we can't tell
+  distanceKm: number; lat: number; lng: number;
+}
+
+const DAYNAME: Record<string, string> = { Mo: 'Mon', Tu: 'Tue', We: 'Wed', Th: 'Thu', Fr: 'Fri', Sa: 'Sat', Su: 'Sun' };
+const DAYIDX: Record<string, number> = { Su: 0, Mo: 1, Tu: 2, We: 3, Th: 4, Fr: 5, Sa: 6 };
+
+// Pull the "(Mo-Sa 08:00-18:30)" part out of an OSM conditional value.
+function parseWindow(cond?: string): { text: string; days: number[] | null; start?: string; end?: string } | null {
+  if (!cond) return null;
+  const m = /\(([^)]+)\)/.exec(cond) || [null, cond];
+  const raw = String(m[1] || '').trim();
+  if (!raw) return null;
+  const time = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/.exec(raw);
+  const dayRange = /\b(Mo|Tu|We|Th|Fr|Sa|Su)\s*-\s*(Mo|Tu|We|Th|Fr|Sa|Su)\b/.exec(raw);
+  const singles = raw.match(/\b(Mo|Tu|We|Th|Fr|Sa|Su)\b/g) || [];
+  let days: number[] | null = null;
+  if (dayRange) {
+    const a = DAYIDX[dayRange[1]], b = DAYIDX[dayRange[2]];
+    days = []; for (let i = 0; i < 7; i++) { const d = (a + i) % 7; days.push(d); if (d === b) break; }
+  } else if (singles.length) {
+    days = singles.map((d) => DAYIDX[d]);
+  }
+  const readableDays = dayRange ? `${DAYNAME[dayRange[1]]}–${DAYNAME[dayRange[2]]}` : singles.map((d) => DAYNAME[d]).join(', ');
+  const text = [readableDays, time ? `${time[1]}–${time[2]}` : ''].filter(Boolean).join(' ') || raw;
+  return { text, days, start: time?.[1], end: time?.[2] };
+}
+
+function windowActive(w: { days: number[] | null; start?: string; end?: string }, now = new Date()): boolean | null {
+  if (!w.start || !w.end) return null;
+  if (w.days && w.days.length && !w.days.includes(now.getDay())) return false;
+  const toMin = (t: string) => { const [h, mm] = t.split(':').map(Number); return h * 60 + mm; };
+  const cur = now.getHours() * 60 + now.getMinutes(), a = toMin(w.start), b = toMin(w.end);
+  return a <= b ? cur >= a && cur < b : cur >= a || cur < b;
+}
+
+const NO_VALUES = ['no', 'none', 'no_parking', 'no_stopping', 'prohibited'];
+
+// Read one kerbside (left / right / both) into a rule we can show.
+function readSide(t: Record<string, string>, side: string): { allowed: boolean; free: boolean; rule: string; freeNow: boolean | null } | null {
+  const value = t[`parking:${side}`] ?? t[`parking:lane:${side}`];
+  if (!value) return null;
+  const restriction = t[`parking:${side}:restriction`] ?? t[`parking:condition:${side}`];
+  const conditional = t[`parking:${side}:restriction:conditional`] ?? t[`parking:condition:${side}:conditional`] ?? t[`parking:condition:${side}:time_interval`];
+  const feeTag = t[`parking:${side}:fee`];
+  const maxstay = t[`parking:${side}:maxstay`] ?? t[`parking:condition:${side}:maxstay`];
+
+  // Hard no — double yellows, red routes, "no" lanes. No conditional means always.
+  const hardNo = NO_VALUES.includes(String(value).toLowerCase())
+    || (NO_VALUES.includes(String(restriction || '').toLowerCase()) && !conditional);
+  if (hardNo) {
+    const why = String(restriction || value).toLowerCase() === 'no_stopping' ? 'No stopping (red route)' : 'No parking (yellow lines)';
+    return { allowed: false, free: false, rule: why, freeNow: false };
+  }
+
+  const win = parseWindow(conditional);
+  const active = win ? windowActive(win) : null;
+  const restrictedKind = String(restriction || '').toLowerCase();
+  const free = feeTag === 'no' || restrictedKind === 'free' || (!feeTag && !restrictedKind && !conditional);
+
+  let rule: string;
+  if (win) {
+    const label = restrictedKind === 'residents' ? 'Residents only'
+      : restrictedKind === 'disc' ? 'Disc zone'
+      : NO_VALUES.includes(restrictedKind) ? 'No parking'
+      : feeTag === 'yes' || restrictedKind === 'ticket' ? 'Pay & display'
+      : 'Restricted';
+    rule = `${label} ${win.text} — free outside those hours`;
+  } else if (feeTag === 'yes' || restrictedKind === 'ticket') {
+    rule = 'Pay & display';
+  } else if (restrictedKind === 'residents') {
+    rule = 'Residents permit only';
+  } else if (free) {
+    rule = 'Free on-street parking';
+  } else {
+    rule = 'On-street parking';
+  }
+  if (maxstay) rule += ` · max stay ${String(maxstay).replace(/\s*hour[s]?/i, 'h')}`;
+
+  const freeNow = win ? (active === null ? null : !active) : (free ? true : null);
+  return { allowed: true, free, rule, freeNow };
+}
+
 // Best-effort in-app list of nearby car parks (free ones flagged) from OpenStreetMap.
 // Returns [] on any failure so the UI can just show the "open maps" button.
-export async function nearbyParking(lat: number, lng: number): Promise<{ name: string; free: boolean; distanceKm: number; lat: number; lng: number }[]> {
+export async function nearbyParking(lat: number, lng: number): Promise<ParkingSpot[]> {
   try {
     const radius = 1500;
-    const q = `[out:json][timeout:8];(node["amenity"="parking"](around:${radius},${lat},${lng});way["amenity"="parking"](around:${radius},${lat},${lng}););out center 40;`;
+    const q = `[out:json][timeout:12];(node["amenity"="parking"](around:${radius},${lat},${lng});way["amenity"="parking"](around:${radius},${lat},${lng});way["parking:both"](around:${radius},${lat},${lng});way["parking:left"](around:${radius},${lat},${lng});way["parking:right"](around:${radius},${lat},${lng});way["parking:lane:both"](around:${radius},${lat},${lng});way["parking:lane:left"](around:${radius},${lat},${lng});way["parking:lane:right"](around:${radius},${lat},${lng}););out center 120;`;
     const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 9000);
     const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: q, signal: ctrl.signal as any });
     clearTimeout(to);
     if (!res.ok) return [];
     const j: any = await res.json();
-    return (j.elements || []).map((e: any) => {
-      const la = e.lat ?? e.center?.lat, ln = e.lon ?? e.center?.lon; if (la == null) return null;
-      const t = e.tags || {};
-      const free = t.fee === 'no' || t.fee === 'free' || t.parking === 'free';
-      const name = t.name || (t.parking ? `${String(t.parking).replace(/_/g, ' ')} parking` : 'Car park');
-      return { name, free, lat: la, lng: ln, distanceKm: Math.round(distKm(lat, lng, la, ln) * 10) / 10 };
-    }).filter(Boolean).sort((a: any, b: any) => a.distanceKm - b.distanceKm).slice(0, 15);
+    const out: ParkingSpot[] = [];
+    for (const e of j.elements || []) {
+      const la = e.lat ?? e.center?.lat, ln = e.lon ?? e.center?.lon;
+      if (la == null) continue;
+      const t: Record<string, string> = e.tags || {};
+      const distanceKm = Math.round(distKm(lat, lng, la, ln) * 10) / 10;
+
+      if (t.amenity === 'parking') {
+        const free = t.fee === 'no' || t.fee === 'free' || t.parking === 'free';
+        out.push({
+          name: t.name || (t.parking ? `${String(t.parking).replace(/_/g, ' ')} parking` : 'Car park'),
+          kind: 'carpark', free, allowed: true, freeNow: free ? true : null,
+          rule: free ? 'Free car park' : 'Car park — check tariff', lat: la, lng: ln, distanceKm,
+        });
+        continue;
+      }
+
+      // A street: read each kerbside and keep the most permissive one.
+      const sides = (['both', 'left', 'right'] as const).map((sd) => readSide(t, sd)).filter(Boolean) as NonNullable<ReturnType<typeof readSide>>[];
+      if (!sides.length) continue;
+      const best = sides.find((x) => x.allowed && x.freeNow === true) ?? sides.find((x) => x.allowed) ?? sides[0];
+      out.push({
+        name: t.name || t.ref || 'Unnamed street',
+        kind: 'street', free: best.free, allowed: best.allowed, rule: best.rule,
+        freeNow: best.freeNow, lat: la, lng: ln, distanceKm,
+      });
+    }
+    // Nearest first, but never lead with a street you legally cannot park on.
+    return out
+      .sort((a, b) => Number(b.allowed) - Number(a.allowed) || a.distanceKm - b.distanceKm)
+      .slice(0, 25);
   } catch { return []; }
 }
 
