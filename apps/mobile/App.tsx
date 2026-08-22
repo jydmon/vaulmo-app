@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as WebBrowser from 'expo-web-browser';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
@@ -1462,7 +1463,30 @@ function Connected() {
     <View style={[st.okBox, { backgroundColor: C.warnBg }]}><Text style={{ color: C.warn, fontWeight: '600', fontSize: 13.5 }}>⏳ Connected Services are coming soon</Text></View>
     <Text style={st.muted}>Soon you'll be able to securely connect Gmail or Outlook so Vaulmo can spot trips, receipts and warranties automatically — you'll always confirm before anything is added. We'll switch this on for your account shortly.</Text>
   </ScrollView>;
-  async function connect(p: string) { setBusy(p); try { await api.connect(p); await api.callback(p, 'demo_' + p); await rc(); } catch (e) { Alert.alert('Could not connect', e instanceof ApiError ? e.message : 'Try again'); } finally { setBusy(''); } }
+  // Real consent flow: open the provider's sign-in in a secure browser session,
+  // wait for it to bounce back to vaulmo://oauth with the authorisation code, then
+  // exchange that code using OUR session (never the browser's).
+  async function connect(p: string) {
+    setBusy(p);
+    try {
+      const { authUrl } = await api.connect(p);
+      if (!authUrl) throw new Error('No authorisation URL returned');
+      const res = await WebBrowser.openAuthSessionAsync(authUrl, 'vaulmo://oauth');
+      if (res.type !== 'success' || !res.url) { setBusy(''); return; }   // user cancelled
+      // React Native's URL polyfill has no reliable searchParams — parse by hand.
+      const m = /[?&]code=([^&#]+)/.exec(res.url);
+      const code = m ? decodeURIComponent(m[1]) : null;
+      if (!code) {
+        const err = /[?&]error=([^&#]+)/.exec(res.url);
+        throw new Error(err ? decodeURIComponent(err[1]).replace(/_/g, ' ') : 'No authorisation code came back');
+      }
+      await api.callback(p, code);
+      await rc();
+      Alert.alert('Connected', `${p === 'gmail' ? 'Gmail' : 'Outlook'} is connected. Vaulmo will suggest items — nothing is added until you confirm.`);
+    } catch (e) {
+      Alert.alert('Could not connect', e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Try again');
+    } finally { setBusy(''); }
+  }
   async function sync(id: string) { setBusy(id); try { await api.sync(id); await rd(); } catch (e) { Alert.alert('Sync failed', e instanceof ApiError ? e.message : ''); } finally { setBusy(''); } }
   async function pause(id: string) { setBusy(id); try { await api.pauseConnection(id); await rc(); } catch { Alert.alert('Try again'); } finally { setBusy(''); } }
   async function resume(id: string) { setBusy(id); try { await api.resumeConnection(id); await rc(); } catch { Alert.alert('Try again'); } finally { setBusy(''); } }

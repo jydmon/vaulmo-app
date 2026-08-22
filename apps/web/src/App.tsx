@@ -57,6 +57,7 @@ export function App() {
   const [me, setMe] = useState<any>(null);
   const [view, setView] = useState<'login' | 'register' | 'mfa' | 'forgot' | 'reset'>('login');
   const [resetToken, setResetToken] = useState<string | null>(null);
+  const [integrationReturn, setIntegrationReturn] = useState<{ status: 'working' | 'done' | 'error' | 'app'; provider: string; message?: string } | null>(null);
   const [challenge, setChallenge] = useState<string | null>(null);
   const [forceMfa, setForceMfa] = useState<any>(null);
   const [error, setError] = useState('');
@@ -65,6 +66,40 @@ export function App() {
   // Restore an existing session on load (survives page refresh). Also completes a
   // social sign-in: the OAuth callback redirects back with tokens in the URL fragment.
   useEffect(() => {
+    // Google/Microsoft redirect us back to INTEGRATIONS_REDIRECT_URI with
+    // ?code=...&state=... . nginx serves index.html for that path, so we handle it
+    // here. `state` is base64url("<provider>:<tenant>:<ts>"), which is how we know
+    // which provider came back.
+    const qs = new URLSearchParams(window.location.search);
+    const oauthCode = qs.get('code'), oauthState = qs.get('state');
+    if (oauthCode && oauthState) {
+      let provider = '';
+      try { provider = atob(oauthState.replace(/-/g, '+').replace(/_/g, '/')).split(':')[0] || ''; } catch { /* unknown */ }
+      // No web session means this consent screen was opened from the phone —
+      // hand the code back to the app rather than failing here.
+      if (!hasSession()) {
+        window.location.href = `vaulmo://oauth?code=${encodeURIComponent(oauthCode)}&state=${encodeURIComponent(oauthState)}`;
+        setIntegrationReturn({ status: 'app', provider });
+        setBooting(false);
+        return;
+      }
+      setIntegrationReturn({ status: 'working', provider });
+      setBooting(false);
+      (async () => {
+        try {
+          if (!provider) throw new Error('unknown provider');
+          await api.callbackProvider(provider, oauthCode);
+          setIntegrationReturn({ status: 'done', provider });
+        } catch (e) {
+          setIntegrationReturn({ status: 'error', provider, message: e instanceof ApiError ? e.message : 'Could not finish connecting.' });
+        } finally {
+          history.replaceState(null, '', window.location.pathname);
+        }
+      })();
+      api.me().then((u) => setMe(u)).catch(() => { /* stay signed out */ });
+      return;
+    }
+
     // A password-reset link (?reset=TOKEN) takes priority over restoring any
     // existing session — the whole point is that the user cannot get in.
     const rt = new URLSearchParams(window.location.search).get('reset');
@@ -98,6 +133,20 @@ export function App() {
   }
   if (booting) return <div className="auth-wrap"><div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Your life, organised</span></div></div></div>;
   if (forceMfa) return <ForceMfaSetup user={forceMfa} onDone={(u: any) => { setForceMfa(null); setMe(u); }} onCancel={() => { setTokens(null, null); setForceMfa(null); setView('login'); }} />;
+  if (integrationReturn) {
+    const label = integrationReturn.provider === 'gmail' ? 'Gmail' : integrationReturn.provider === 'outlook' ? 'Outlook' : 'your account';
+    return <div className="auth-wrap"><div>
+      <div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Your life, organised</span></div></div>
+      <div className="card auth-card">
+        {integrationReturn.status === 'working' && <><h1>Connecting {label}…</h1><p className="muted">Finishing the secure handshake. This only takes a moment.</p></>}
+        {integrationReturn.status === 'done' && <><h1>{label} connected</h1><p className="muted">Vaulmo can now spot trips, receipts and renewals in your inbox. Nothing is added to your vault until you confirm it.</p>
+          <button className="btn block" onClick={() => { setIntegrationReturn(null); }}>Continue</button></>}
+        {integrationReturn.status === 'app' && <><h1>Return to the Vaulmo app</h1><p className="muted">We’ve handed your {label} connection back to the app. If it didn’t reopen automatically, switch to it now — you can close this tab.</p></>}
+        {integrationReturn.status === 'error' && <><h1>Couldn’t connect {label}</h1><div className="err" role="alert">{integrationReturn.message}</div>
+          <button className="btn block" onClick={() => { setIntegrationReturn(null); }}>Back to Vaulmo</button></>}
+      </div>
+    </div></div>;
+  }
   if (view === 'reset' && resetToken) {
     return <div className="auth-wrap"><div>
       <div className="brandmark"><Mark size={44} /><div><b>Vaulmo</b><span>Your life, organised</span></div></div>
@@ -1084,7 +1133,16 @@ function Connected({ toast }: any) {
   const { data: conns, reload } = useData(() => api.connections());
   const { data: det, reload: reloadDet } = useData(() => api.detected());
   const [busy, setBusy] = useState('');
-  async function connect(p: string) { setBusy(p); try { await api.connectProvider(p); const code = 'demo_' + Math.random().toString(36).slice(2, 8); await api.callbackProvider(p, code); toast(`${cap(p)} connected`); await reload(); } finally { setBusy(''); } }
+  // Send the user to the provider's real consent screen. They come back to
+  // INTEGRATIONS_REDIRECT_URI, which the boot handler in App() picks up.
+  async function connect(p: string) {
+    setBusy(p);
+    try {
+      const { authUrl } = await api.connectProvider(p);
+      if (!authUrl) throw new Error('No authorisation URL returned');
+      window.location.href = authUrl;
+    } catch (e) { toast((e as any).message ?? 'Could not start the connection'); setBusy(''); }
+  }
   async function connectBank() { setBusy('bank'); try { await api.connectBank(); const code = 'demo_' + Math.random().toString(36).slice(2, 8); await api.bankCallback(code); toast('Bank connected (sandbox)'); await reload(); } finally { setBusy(''); } }
   async function sync(id: string) { try { const r = await api.sync(id); toast(`Detected ${r.created} item${r.created === 1 ? '' : 's'}`); reloadDet(); } catch (e) { toast((e as any).message); } }
   async function pause(id: string) { try { await api.pauseConnection(id); toast('Sync paused'); reload(); } catch (e) { toast((e as any).message); } }
