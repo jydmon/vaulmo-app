@@ -1,20 +1,44 @@
 {
-  "cli": { "version": ">= 12.0.0", "appVersionSource": "remote" },
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": { "EXPO_PUBLIC_API_URL": "http://localhost:4000" }
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://app.vaulmo.com"
+      }
+    },
+    "ios-simulator": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://app.vaulmo.com"
+      }
     },
     "preview": {
       "distribution": "internal",
-      "env": { "EXPO_PUBLIC_API_URL": "https://app.vaulmo.com" },
-      "android": { "buildType": "apk", "image": "latest" }
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://app.vaulmo.com"
+      },
+      "android": {
+        "buildType": "apk",
+        "image": "latest"
+      }
     },
     "production": {
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_API_URL": "https://app.vaulmo.com" },
-      "android": { "image": "latest" }
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://app.vaulmo.com"
+      },
+      "android": {
+        "image": "latest"
+      }
     }
   }
 }
